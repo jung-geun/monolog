@@ -1,5 +1,5 @@
 import Detail from "src/routes/Detail"
-import { filterPosts, optimizeRecordMap } from "src/libs/utils/notion"
+import { filterPosts, optimizeRecordMap, unwrapBlock } from "src/libs/utils/notion"
 import { CONFIG } from "site.config"
 import { NextPageWithLayout } from "../types"
 import CustomError from "src/routes/Error"
@@ -92,10 +92,10 @@ export const getStaticProps: GetStaticProps = async (context) => {
       // Prefetch inline databases found in the page
       if (recordMap) {
         const databaseBlockIds = Object.entries(recordMap.block)
-          .filter(([, b]) => b.value.type === "collection_view_page")
+          .filter(([, b]) => unwrapBlock(b)?.type === "collection_view_page")
           .map(([id, b]) => ({
             id,
-            format: (b.value as any).format,
+            format: (unwrapBlock(b) as any)?.format,
           }))
 
         await Promise.all(

@@ -1,12 +1,13 @@
 import { getTextContent, getDateValue } from "notion-utils"
 import { BlockMap, CollectionPropertySchemaMap } from "notion-types"
+import { unwrapBlock } from "./unwrapBlock"
 
 async function getPageProperties(
   id: string,
   block: BlockMap,
   schema: CollectionPropertySchemaMap
 ) {
-  const rawProperties = Object.entries(block?.[id]?.value?.properties || [])
+  const rawProperties = Object.entries(unwrapBlock(block?.[id])?.properties || [])
   const excludeProperties = ["date", "select", "multi_select", "person", "file"]
   const properties: any = {}
   for (let i = 0; i < rawProperties.length; i++) {

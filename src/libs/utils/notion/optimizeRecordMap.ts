@@ -51,7 +51,7 @@ function flattenUnsupportedBlocks(recordMap: ExtendedRecordMap): void {
           newContent.push(childId)
         }
       }
-      blockData.value.content = newContent
+      ;(blockData.value as any).content = newContent
     }
   })
 
@@ -93,20 +93,21 @@ export const optimizeRecordMap = (recordMap: ExtendedRecordMap | null | undefine
 
   // Clean up unnecessary properties from blocks
   if (optimized.block) {
-    Object.keys(optimized.block).forEach(blockId => {
-      const block = optimized.block[blockId]
+    const blockMap = optimized.block as Record<string, any>
+    Object.keys(blockMap).forEach(blockId => {
+      const block = blockMap[blockId]
       if (block?.value) {
         // Remove large properties that are not essential for rendering
         const value = { ...block.value }
 
         // Remove file properties if they exist and are large
         if (value.properties && typeof value.properties === 'object') {
-          Object.keys(value.properties).forEach(prop => {
+          Object.keys(value.properties).forEach((prop: string) => {
             const property = value.properties[prop]
             // If property is an array with file references, limit it
             if (Array.isArray(property) && property.length > 0) {
               // Keep only essential data for files
-              value.properties[prop] = property.map(item => {
+              value.properties[prop] = property.map((item: any) => {
                 if (Array.isArray(item) && item.length > 1) {
                   // Keep only the first two elements (usually text and formatting)
                   return item.slice(0, 2)
@@ -117,7 +118,7 @@ export const optimizeRecordMap = (recordMap: ExtendedRecordMap | null | undefine
           })
         }
 
-        optimized.block[blockId] = {
+        blockMap[blockId] = {
           ...block,
           value
         }

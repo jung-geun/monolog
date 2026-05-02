@@ -1,41 +1,46 @@
+import type { GetServerSideProps } from "next"
 import { getPosts } from "../apis/notion-client/getPosts"
 import { CONFIG } from "site.config"
-import { getServerSideSitemap, ISitemapField } from "next-sitemap"
-import { GetServerSideProps } from "next"
-import { TPost } from "../types"
+import type { TPost } from "../types"
 
-export const getServerSideProps: GetServerSideProps = async (ctx) => {
+export const getServerSideProps: GetServerSideProps = async ({ res }) => {
   const posts = await getPosts()
-  const dynamicPaths = posts.map((post: TPost) => `${CONFIG.link}/${post.slug}`)
-
-  // Create an array of fields, each with a loc and lastmod
-  const fields: ISitemapField[] = dynamicPaths.map((path: string) => ({
-    loc: path,
-    lastmod: new Date().toISOString(),
-    priority: 0.7,
-    changefreq: "daily",
-  }))
-
-  // Include the site root separately
-  fields.unshift({
-    loc: CONFIG.link,
-    lastmod: new Date().toISOString(),
-    priority: 1.0,
-    changefreq: "daily",
-  })
-
-  // Set CDN cache header so sitemap will be cached by the edge for revalidateTime
   const sMax = CONFIG.revalidateTime || 6 * 3600
-  try {
-    ctx.res.setHeader('Cache-Control', `public, s-maxage=${sMax}, stale-while-revalidate=${Math.floor(sMax / 6)}`)
-  } catch {
-    // ignore when ctx.res is not available
-  }
 
-  return getServerSideSitemap(ctx, fields)
+  const escape = (s: string) =>
+    s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;")
+
+  const entries = posts
+    .map(
+      (post: TPost) => `
+  <url>
+    <loc>${escape(`${CONFIG.link}/${post.slug}`)}</loc>
+    <lastmod>${new Date().toISOString()}</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.7</priority>
+  </url>`
+    )
+    .join("")
+
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>${escape(CONFIG.link)}</loc>
+    <lastmod>${new Date().toISOString()}</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>1.0</priority>
+  </url>${entries}
+</urlset>`
+
+  res.setHeader("Content-Type", "application/xml; charset=utf-8")
+  res.setHeader(
+    "Cache-Control",
+    `public, s-maxage=${sMax}, stale-while-revalidate=${Math.floor(sMax / 6)}`
+  )
+  res.write(xml)
+  res.end()
+
+  return { props: {} }
 }
 
-// Default export to prevent next.js errors
 const Sitemap = () => null
-
 export default Sitemap

@@ -117,7 +117,7 @@ const StyledWrapper = styled.div`
       display: grid;
       grid-template-columns: 92px 1fr 100px;
       gap: 24px;
-      align-items: baseline;
+      align-items: center;
       padding: 20px 0;
       border-top: 1px solid ${({ theme }) => theme.colors.editor.line};
       text-decoration: none;

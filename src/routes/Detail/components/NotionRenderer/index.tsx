@@ -11,6 +11,7 @@ import { useDatabasePortalTargets } from "./useDatabasePortalTargets"
 import { useListItemColorEffect } from "./useListItemColorEffect"
 import { useEffect } from "react"
 import { customMapImageUrl } from "src/libs/utils/notion/customMapImageUrl"
+import { unwrapBlock } from "src/libs/utils/notion/unwrapBlock"
 
 // core styles shared by all of react-notion-x (required)
 import "react-notion-x/src/styles.css"
@@ -113,7 +114,7 @@ const NotionRenderer: FC<Props> = ({ recordMap }) => {
     const specialBlocks: Array<{ id: string; type: string; info?: string }> = []
 
     blocks.forEach(([blockId, blockData]) => {
-      const type = blockData.value.type
+      const type = unwrapBlock(blockData)?.type ?? 'unknown'
       typeStats[type] = (typeStats[type] ?? 0) + 1
 
       // Track special blocks
@@ -144,7 +145,7 @@ const NotionRenderer: FC<Props> = ({ recordMap }) => {
 
       console.group('📄 All Blocks:')
       blocks.forEach(([blockId, blockData], index) => {
-        const type = blockData.value.type
+        const type = unwrapBlock(blockData)?.type ?? 'unknown'
         const role = blockData.role
         console.log(`  [${index + 1}] ${blockId} | type: ${type} | role: ${role}`)
       })
@@ -310,11 +311,10 @@ const NotionRenderer: FC<Props> = ({ recordMap }) => {
     const renderAudioBlocks = () => {
       // recordMap에서 audio 타입 블록 찾기
       Object.entries(recordMap.block).forEach(([blockId, blockData]) => {
-        if (blockData.value.type === 'audio') {
+        const blockValue = unwrapBlock(blockData)
+        if (blockValue?.type === 'audio') {
           const element = document.querySelector(`[data-block-id="${blockId}"]`)
           if (!element || element.hasAttribute('data-audio-processed')) return
-
-          const blockValue = blockData.value
           const format = (blockValue.format || {}) as any
           const properties = blockValue.properties || {}
 
@@ -503,9 +503,10 @@ const NotionRenderer: FC<Props> = ({ recordMap }) => {
   const databaseBlocks: Array<{ blockId: string; databaseId: string; title: string }> = []
 
   Object.entries(recordMap.block).forEach(([blockId, blockData]) => {
-    if (blockData.value.type === 'collection_view_page') {
-      const databaseId = (blockData.value.format as any)?.database_id || blockId
-      const title = blockData.value.properties?.title?.[0]?.[0] || '데이터베이스'
+    const block = unwrapBlock(blockData)
+    if (block?.type === 'collection_view_page') {
+      const databaseId = (block.format as any)?.database_id || blockId
+      const title = block.properties?.title?.[0]?.[0] || '데이터베이스'
       databaseBlocks.push({ blockId, databaseId, title })
     }
   })

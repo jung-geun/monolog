@@ -1,6 +1,7 @@
 import { ExtendedRecordMap } from "notion-types"
 import { getOfficialNotionClient } from "./notionClient"
 import { optimizeRecordMap } from "src/libs/utils/notion/optimizeRecordMap"
+import { unwrapBlock, getBlockById } from "src/libs/utils/notion/unwrapBlock"
 import { TPosts } from "src/types"
 import { cacheStore, keys } from "src/libs/cache"
 import { CONFIG } from "site.config"
@@ -14,7 +15,8 @@ const RECORD_MAP_TTL_MS = CONFIG.revalidateTime * 1000
 function convertPresignedUrlsToProxy(recordMap: ExtendedRecordMap): ExtendedRecordMap {
   // Process all blocks to find and convert image URLs
   Object.entries(recordMap.block).forEach(([blockId, blockData]) => {
-    const block = blockData.value
+    const block = unwrapBlock(blockData)
+    if (!block) return
 
     // Handle image blocks
     if (block.type === 'image' && block.properties?.source) {
@@ -204,7 +206,7 @@ async function processBlock(block: any, parentId: string, notion: any, recordMap
             let pageTitle = linkedType === 'database' ? 'Database' : 'Page'
 
             // Search for the page in recordMap
-            const linkedPageBlock = recordMap.block[linkedPageId]?.value
+            const linkedPageBlock = getBlockById(recordMap, linkedPageId)
             if (linkedPageBlock) {
               // Extract title from properties
               const titleProp = linkedPageBlock.properties?.title

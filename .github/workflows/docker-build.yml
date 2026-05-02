@@ -3,15 +3,12 @@ name: Docker Build and Push
 on:
   push:
     branches:
-      - main
-      - master
       - dev
     tags:
       - 'v*'
   pull_request:
     branches:
       - main
-      - master
       - dev
 
 env:
@@ -47,21 +44,15 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          # 기본 태그 생성 비활성화 - 명시적으로 지정한 태그만 생성
           flavor: |
             latest=false
           tags: |
-            # main/master 브랜치 → nightly 태그
-            type=raw,value=nightly,enable=${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' }}
-            # Git tag push → latest 태그
+            # v* 태그 → latest + 버전 태그 (e.g. v1.2.3 → latest, 1.2.3)
             type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
-            # Git tag → semver 태그 (1.0.0, 1.0, 1)
             type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}}
             # dev 브랜치 → dev 태그
             type=raw,value=dev,enable=${{ github.ref == 'refs/heads/dev' }}
-            # PR → pr-{번호} 태그
+            # PR → pr-{번호} 태그 (push 없음)
             type=ref,event=pr
 
       - name: Build and push Docker image
@@ -84,7 +75,7 @@ jobs:
           subject-digest: ${{ steps.push.outputs.digest }}
           push-to-registry: true
 
-      - name: Output image digest
+      - name: Output image tags
         if: github.event_name != 'pull_request'
         run: |
-          echo "Image pushed: ${{ steps.meta.outputs.tags }}"
+          echo "Pushed tags: ${{ steps.meta.outputs.tags }}"
