@@ -1,0 +1,4 @@
+node_modules/
+logs/
+.tmp_ts_build/
+.next/

@@ -1,0 +1,59 @@
+name: Revalidate site pages
+
+on:
+  schedule:
+    # Runs at minute 0 every 12th hour (UTC) -> 00:00 and 12:00 UTC daily
+    - cron: '0 1 * * 0/3'
+  workflow_dispatch: {}
+
+jobs:
+  revalidate:
+    name: Call revalidate endpoint
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Call revalidate endpoint (revalidate all pages)
+        env:
+          REVALIDATE_URL: ${{ secrets.REVALIDATE_URL }}
+          REVALIDATE_BASE_URL: ${{ secrets.REVALIDATE_BASE_URL }}
+          REVALIDATE_SECRET: ${{ secrets.REVALIDATE_SECRET }}
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${REVALIDATE_URL:-}" ] || [ -z "${REVALIDATE_SECRET:-}" ]; then
+            echo "ERROR: Please set repository secrets REVALIDATE_URL and REVALIDATE_SECRET"
+            echo "REVALIDATE_URL should be like: https://your-site.com"
+            exit 1
+          fi
+
+          BASE_URL="${REVALIDATE_BASE_URL:-${REVALIDATE_URL}}"
+          ENDPOINT="${BASE_URL%/}/api/revalidate?secret=${REVALIDATE_SECRET}"
+          echo "Calling revalidate endpoint: $ENDPOINT"
+
+          http_code=$(curl -sS -o /tmp/revalidate.out -w "%{http_code}" "$ENDPOINT") || true
+          echo "Response body:"
+          cat /tmp/revalidate.out || true
+          echo "HTTP status: $http_code"
+
+          if [ "$http_code" != "200" ]; then
+            echo "Revalidate failed (HTTP $http_code)"
+            # optional Discord notification on failure
+            if [ -n "${DISCORD_WEBHOOK:-}" ]; then
+              curl -sS -X POST -H 'Content-type: application/json' --data "{\"content\":\"🚨 Revalidate failed with HTTP $http_code for $ENDPOINT\"}" "$DISCORD_WEBHOOK" || true
+            fi
+            exit 1
+          fi
+
+          echo "Revalidate request succeeded"
+          # Warm sitemap CDN cache (best-effort)
+          SITEMAP_URL="${BASE_URL%/}/sitemap.xml"
+          echo "Warming sitemap: $SITEMAP_URL"
+          curl -sS -o /tmp/sitemap.out -w "%{http_code}" "$SITEMAP_URL" || true
+          echo "Sitemap response:"
+          cat /tmp/sitemap.out || true
+
+          # optional Discord notification on success
+          if [ -n "${DISCORD_WEBHOOK:-}" ]; then
+            curl -sS -X POST -H 'Content-type: application/json' --data "{\"content\":\"✅ Revalidate succeeded for $BASE_URL (sitemap warmed)\"}" "$DISCORD_WEBHOOK" || true
+          fi
