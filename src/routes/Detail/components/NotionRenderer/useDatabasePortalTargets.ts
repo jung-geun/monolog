@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react"
 import { ExtendedRecordMap } from "notion-types"
+import { unwrapBlock } from "src/libs/utils/notion/unwrapBlock"
 
 export function useDatabasePortalTargets(
   recordMap: ExtendedRecordMap | null
@@ -26,7 +27,8 @@ export function useDatabasePortalTargets(
       const nextNodes: HTMLElement[] = []
 
       Object.entries(recordMap.block).forEach(([blockId, blockData]) => {
-        if (blockData.value.type !== "collection_view_page") return
+        const block = unwrapBlock(blockData)
+        if (block?.type !== "collection_view_page") return
 
         const dashed = `notion-block-${blockId}`
         const undashed = `notion-block-${blockId.replace(/-/g, "")}`

@@ -16,7 +16,12 @@ const customJestConfig = {
     '^site\\.config$': '<rootDir>/site.config.js',
   },
   transform: {
-    '^.+\\.(ts|tsx)$': 'ts-jest',
+    '^.+\\.(ts|tsx)$': ['@swc/jest', {
+      jsc: {
+        parser: { syntax: 'typescript', tsx: true, decorators: false },
+        transform: { react: { runtime: 'automatic' } },
+      },
+    }],
   },
   testMatch: [
     '<rootDir>/tests/**/*.test.(ts|tsx|js)',

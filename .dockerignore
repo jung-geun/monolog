@@ -2,3 +2,12 @@ node_modules/
 logs/
 .tmp_ts_build/
 .next/
+.env
+.env.local
+.env.*.local
+.git/
+.github/
+.notion-cache/
+coverage/
+tests/
+docker-compose.override.yml

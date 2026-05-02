@@ -1,15 +1,14 @@
 module.exports = {
   images: {
-    domains: [
-      'www.notion.so',
-      'lh5.googleusercontent.com',
-      'us-west-2.amazonaws.com',
-      's3.us-west-2.amazonaws.com',
-      's3-us-west-2.amazonaws.com',
-      'prod-files-secure.s3.us-west-2.amazonaws.com'  // Notion official API images
+    remotePatterns: [
+      { protocol: 'https', hostname: 'www.notion.so' },
+      { protocol: 'https', hostname: 'lh5.googleusercontent.com' },
+      { protocol: 'https', hostname: 'us-west-2.amazonaws.com' },
+      { protocol: 'https', hostname: 's3.us-west-2.amazonaws.com' },
+      { protocol: 'https', hostname: 's3-us-west-2.amazonaws.com' },
+      { protocol: 'https', hostname: 'prod-files-secure.s3.us-west-2.amazonaws.com' },
     ],
-    // Enable image optimization with longer cache
-    minimumCacheTTL: 3600, // 1 year in seconds
+    minimumCacheTTL: 3600,
   },
   // Generate 404 page instead of failing build for missing pages
   generateBuildId: async () => {

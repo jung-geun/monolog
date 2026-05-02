@@ -9,6 +9,8 @@ import type { PageObjectResponse, BlockObjectResponse } from '@notionhq/client/b
 import { getOfficialNotionClient } from 'src/apis/notion-client/notionClient'
 import { summarizeBlockTypes } from 'src/libs/utils/notion/analyzeBlocks'
 import { getRecordMap } from 'src/apis/notion-client/getRecordMap'
+import { Block } from 'notion-types'
+import { unwrapBlock, getBlockById } from 'src/libs/utils/notion/unwrapBlock'
 
 const REQUIRED_ENV = ['NOTION_TOKEN', 'NOTION_DATASOURCE_ID'] as const
 const missingEnv = REQUIRED_ENV.filter((key) => !process.env[key])
@@ -82,7 +84,9 @@ describeMaybe('Notion integration - Table load test', () => {
     if (!recordMap) return
 
     // Check if the recordMap contains a table block
-    const blocks = Object.values(recordMap.block).map(b => b.value)
+    const blocks = Object.values(recordMap.block)
+      .map(b => unwrapBlock(b))
+      .filter((b): b is Block => !!b)
     const tableBlock = blocks.find(b => b.type === 'table')
     
     expect(tableBlock).toBeDefined()
@@ -96,17 +100,17 @@ describeMaybe('Notion integration - Table load test', () => {
 
       // Check the first row
       const firstRowId = tableBlock.content![0]
-      const firstRow = recordMap.block[firstRowId]?.value
-      
+      const firstRow = getBlockById(recordMap, firstRowId)
+
       expect(firstRow).toBeDefined()
-      expect(firstRow.type).toBe('table_row')
-      
+      expect(firstRow!.type).toBe('table_row')
+
       // Check properties (cells)
       // In getRecordMap.ts: properties[`cell_${index}`] = convertRichText(cell)
-      expect(firstRow.properties).toBeDefined()
-      
+      expect(firstRow!.properties).toBeDefined()
+
       // Check if there is at least one cell property
-      const cellKeys = Object.keys(firstRow.properties).filter(k => k.startsWith('cell_'))
+      const cellKeys = Object.keys(firstRow!.properties!).filter(k => k.startsWith('cell_'))
       expect(cellKeys.length).toBeGreaterThan(0)
       
       console.log('Table row verified with cells:', cellKeys)
