@@ -2,6 +2,7 @@ import { useEffect, useState } from "react"
 import Link from "next/link"
 import styled from "@emotion/styled"
 import { ExtendedRecordMap } from "notion-types"
+import { unwrapBlock } from "src/libs/utils/notion/unwrapBlock"
 import usePostsQuery from "src/hooks/usePostsQuery"
 import { TPost } from "src/types"
 
@@ -15,11 +16,12 @@ type Props = {
 const extractToc = (recordMap: ExtendedRecordMap | null): TocEntry[] => {
   if (!recordMap) return []
   const toc: TocEntry[] = []
-  for (const [id, block] of Object.entries(recordMap.block)) {
-    const type = block.value?.type
+  for (const [id, boxed] of Object.entries(recordMap.block)) {
+    const block = unwrapBlock(boxed)
+    if (!block) continue
+    const type = block.type
     if (type === "header" || type === "sub_header" || type === "sub_sub_header") {
-      const props = block.value?.properties
-      const text = props?.title?.[0]?.[0] || ""
+      const text = block.properties?.title?.[0]?.[0] || ""
       if (text) {
         toc.push({
           id,

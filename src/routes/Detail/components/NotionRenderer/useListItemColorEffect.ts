@@ -1,19 +1,19 @@
 import { useEffect } from 'react'
 import { ExtendedRecordMap } from 'notion-types'
+import { getBlockById } from 'src/libs/utils/notion/unwrapBlock'
 
 export const useListItemColorEffect = (recordMap: ExtendedRecordMap | null) => {
   useEffect(() => {
     if (!recordMap) return
 
     const getBlock = (id: string) => {
-        let block = recordMap.block[id]?.value
+        let block = getBlockById(recordMap, id)
         if (!block && id.length === 32) {
             const uuid = `${id.substr(0, 8)}-${id.substr(8, 4)}-${id.substr(12, 4)}-${id.substr(16, 4)}-${id.substr(20)}`
-            block = recordMap.block[uuid]?.value
+            block = getBlockById(recordMap, uuid)
         }
         if (!block && id.length === 36) {
-            const rawId = id.replace(/-/g, '')
-            block = recordMap.block[rawId]?.value
+            block = getBlockById(recordMap, id.replace(/-/g, ''))
         }
         return block
     }
