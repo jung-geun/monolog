@@ -31,7 +31,7 @@
     "cookies-next": "^2.1.2",
     "dotenv": "^17.2.3",
     "katex": "^0.16.25",
-    "mermaid": "^10.9.1",
+    "mermaid": "^10.9.5",
     "next": "^13.4.9",
     "notion-types": "^7.7.3",
     "notion-utils": "^7.7.3",
