@@ -2,6 +2,7 @@ import { useEffect, useState } from "react"
 import Link from "next/link"
 import styled from "@emotion/styled"
 import { ExtendedRecordMap } from "notion-types"
+import { uuidToId } from "notion-utils"
 import { unwrapBlock } from "src/libs/utils/notion/unwrapBlock"
 import usePostsQuery from "src/hooks/usePostsQuery"
 import { TPost } from "src/types"
@@ -24,7 +25,7 @@ const extractToc = (recordMap: ExtendedRecordMap | null): TocEntry[] => {
       const text = block.properties?.title?.[0]?.[0] || ""
       if (text) {
         toc.push({
-          id,
+          id: uuidToId(id),
           text,
           level: type === "header" ? 1 : type === "sub_header" ? 2 : 3,
         })
@@ -70,6 +71,7 @@ const RightRail = ({ recordMap, post }: Props) => {
     .filter((p) => p.slug !== post.slug)
     .map((p) => ({
       slug: p.slug,
+      title: p.title,
       tags: p.tags || [],
       shared: (p.tags || []).filter((t) => postTags.includes(t)).length,
     }))
@@ -86,6 +88,10 @@ const RightRail = ({ recordMap, post }: Props) => {
               key={entry.id}
               href={`#${entry.id}`}
               className={`toc-item level-${entry.level}${activeId === entry.id ? " active" : ""}`}
+              onClick={(e) => {
+                e.preventDefault()
+                document.getElementById(entry.id)?.scrollIntoView({ behavior: "smooth", block: "start" })
+              }}
             >
               {entry.text}
             </a>
@@ -109,6 +115,7 @@ const RightRail = ({ recordMap, post }: Props) => {
           <div className="section-label">graph</div>
           <div className="mini-graph">
             <svg viewBox="0 0 200 110" width="100%" height="100%">
+              <title>{post.title}</title>
               {nodes.map((n, i) => {
                 const angle = (i / nodes.length) * Math.PI * 2
                 const x = 100 + Math.cos(angle) * 65
@@ -120,7 +127,10 @@ const RightRail = ({ recordMap, post }: Props) => {
                       stroke="currentColor" strokeWidth={n.shared * 0.6}
                       style={{ color: "var(--line2, #cfcbb8)", opacity: 0.6 }}
                     />
-                    <circle cx={x} cy={y} r={4} style={{ fill: "var(--fg3, #888a80)" }} />
+                    <a href={`/${n.slug}`} style={{ cursor: "pointer" }}>
+                      <title>{n.title}</title>
+                      <circle cx={x} cy={y} r={5} className="graph-node" style={{ fill: "var(--fg3, #888a80)" }} />
+                    </a>
                   </g>
                 )
               })}
@@ -136,6 +146,10 @@ const RightRail = ({ recordMap, post }: Props) => {
 export default RightRail
 
 const StyledWrapper = styled.aside`
+  position: sticky;
+  top: 0;
+  align-self: start;
+  max-height: 100vh;
   width: 240px;
   border-left: 1px solid ${({ theme }) => theme.colors.editor.line};
   padding: 40px 18px 60px;
@@ -195,6 +209,13 @@ const StyledWrapper = styled.aside`
     --line2: ${({ theme }) => theme.colors.editor.line2};
     --fg3: ${({ theme }) => theme.colors.editor.fg3};
     --accent: ${({ theme }) => theme.colors.editor.accent};
+
+    .graph-node {
+      transition: fill 0.15s ease, r 0.15s ease;
+    }
+    a:hover .graph-node {
+      fill: var(--accent) !important;
+    }
   }
 
   @media (max-width: ${({ theme }) => theme.variables.breakpoint}px) {
