@@ -32,7 +32,7 @@
     "dotenv": "^17.2.3",
     "katex": "^0.16.25",
     "mermaid": "^10.9.1",
-    "next": "^13.4.9",
+    "next": "^16.2.4",
     "notion-types": "^7.7.3",
     "notion-utils": "^7.7.3",
     "prismjs": "^1.29.0",
