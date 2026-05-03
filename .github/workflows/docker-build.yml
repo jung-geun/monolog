@@ -79,7 +79,7 @@ jobs:
           tags: ${{ steps.tags.outputs.value }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=registry,ref=ghcr.io/jung-geun/monolog:buildcache
-          cache-to: type=registry,ref=ghcr.io/jung-geun/monolog:buildcache,mode=max
+          cache-to: ${{ github.event_name != 'pull_request' && 'type=registry,ref=ghcr.io/jung-geun/monolog:buildcache,mode=max' || '' }}
           platforms: linux/amd64
 
       - name: Stop temp keepalive
