@@ -6,7 +6,12 @@ class CacheStore {
   private l1: CacheBackend = new MemoryBackend()
   private l2: CacheBackend = new FsBackend()
 
-  async getOrSet<T>(key: string, ttlMs: number, fetcher: () => Promise<T>): Promise<T> {
+  async getOrSet<T>(
+    key: string,
+    ttlMs: number,
+    fetcher: () => Promise<T>,
+    options?: { isCacheable?: (data: T) => boolean }
+  ): Promise<T> {
     const cached = await this.get<T>(key)
     if (cached !== null) {
       console.log(`✅ Cache hit: ${key}`)
@@ -14,7 +19,11 @@ class CacheStore {
     }
     console.log(`📡 Cache miss, fetching: ${key}`)
     const data = await fetcher()
-    await this.set(key, data, ttlMs)
+    if (!options?.isCacheable || options.isCacheable(data)) {
+      await this.set(key, data, ttlMs)
+    } else {
+      console.warn(`⚠️ Skipping cache for ${key} (isCacheable returned false)`)
+    }
     return data
   }
 

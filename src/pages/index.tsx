@@ -10,12 +10,16 @@ import { dehydrate } from "@tanstack/react-query"
 import { filterPosts } from "src/libs/utils/notion"
 
 export const getStaticProps: GetStaticProps = async () => {
-  const posts = filterPosts(await getPosts(), {
+  const allPosts = await getPosts()
+  const posts = filterPosts(allPosts, {
     acceptStatus: ["Public"],
-    acceptType: ["Post", "Paper"], // Paper 타입도 메인페이지에 포함
+    acceptType: ["Post", "Paper"],
   })
-  
-  // React Query 캐시에 데이터 저장 (더 오래 유지되도록 설정)
+
+  if (posts.length === 0 && process.env.NEXT_PHASE !== "phase-production-build") {
+    throw new Error("getPosts returned 0 posts — preserving previous static HTML")
+  }
+
   await queryClient.prefetchQuery({
     queryKey: queryKey.posts(),
     queryFn: () => posts,

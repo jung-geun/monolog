@@ -22,8 +22,11 @@ export const getPosts = async (options?: { bypassCache?: boolean }): Promise<TPo
     await cacheStore.invalidate(keys.posts(dataSourceId))
   }
 
-  return cacheStore.getOrSet(keys.posts(dataSourceId), POSTS_TTL_MS, () =>
-    fetchFromNotion(dataSourceId)
+  return cacheStore.getOrSet(
+    keys.posts(dataSourceId),
+    POSTS_TTL_MS,
+    () => fetchFromNotion(dataSourceId),
+    { isCacheable: (posts) => posts.length > 0 }
   )
 }
 
