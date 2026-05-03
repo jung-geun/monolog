@@ -1,21 +1,13 @@
 import { NextApiRequest, NextApiResponse } from "next"
 import { getPosts } from "../../apis"
 import { TPost } from "../../types"
+import { verifyRevalidateToken } from "src/libs/utils/auth/verifyToken"
 
-/**
- * Initialize ISR cache on server startup.
- * This endpoint is called by docker-entrypoint.sh when the container starts
- * with NOTION_DATASOURCE_ID available.
- *
- * Usage: GET /api/init?secret=<TOKEN_FOR_REVALIDATE>
- */
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
-  const { secret } = req.query
-
-  if (secret !== process.env.TOKEN_FOR_REVALIDATE) {
+  if (!verifyRevalidateToken(req)) {
     return res.status(401).json({ message: "Invalid token" })
   }
 

@@ -29,14 +29,16 @@ else
   if [ -n "$NOTION_DATASOURCE_ID" ]; then
     echo "🔧 NOTION_DATASOURCE_ID found, initializing ISR cache..."
 
-    INIT_URL="http://localhost:3000/api/init?secret=$TOKEN_FOR_REVALIDATE"
+    INIT_URL="http://localhost:3000/api/init"
 
     # Retry init call a few times
     INIT_RETRIES=3
     INIT_COUNT=0
 
     while [ $INIT_COUNT -lt $INIT_RETRIES ]; do
-      INIT_RESPONSE=$(curl -s -w "\n%{http_code}" "$INIT_URL" 2>&1)
+      INIT_RESPONSE=$(curl -s -w "\n%{http_code}" \
+        -H "Authorization: Bearer ${TOKEN_FOR_REVALIDATE}" \
+        "$INIT_URL" 2>&1)
       HTTP_CODE=$(echo "$INIT_RESPONSE" | tail -n 1)
       BODY=$(echo "$INIT_RESPONSE" | head -n -1)
 
