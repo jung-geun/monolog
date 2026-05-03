@@ -38,7 +38,7 @@ const useScheme = (): [SchemeType, SetScheme] => {
     setScheme(cachedScheme || defaultScheme)
   }, [data, followsSystemTheme, setScheme])
 
-  return [data, setScheme]
+  return [data as SchemeType, setScheme]
 }
 
 export default useScheme
