@@ -3,8 +3,8 @@ set -e
 
 echo "🚀 Starting Next.js server..."
 
-# Start Next.js server in background
-yarn start &
+# Start Next.js standalone server in background
+node server.js &
 SERVER_PID=$!
 
 # Wait for server to be ready

@@ -45,10 +45,11 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           flavor: |
-            latest=auto
+            latest=false
           tags: |
-            # v* 태그 → latest(flavor=auto) + 버전 태그 (e.g. v1.2.3 → latest, 1.2.3)
-            type=semver,pattern={{version}}
+            # v* 태그 → latest + 버전 태그 (e.g. v1.2.3 → latest, 1.2.3)
+            type=semver,pattern={{version}},enable=${{ github.ref_type == 'tag' }}
+            type=raw,value=latest,enable=${{ github.ref_type == 'tag' }}
             # dev 브랜치 → dev 태그
             type=raw,value=dev,enable=${{ github.ref == 'refs/heads/dev' }}
             # PR → pr-{번호} 태그 (push 없음)
