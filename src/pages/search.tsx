@@ -3,13 +3,14 @@ import MetaConfig from "src/components/MetaConfig"
 import { CONFIG } from "site.config"
 import Search from "src/routes/Search"
 import { getPosts } from "src/apis"
-import { queryClient } from "src/libs/react-query"
+import { createServerQueryClient } from "src/libs/react-query"
 import { queryKey } from "src/constants/queryKey"
 import { GetStaticProps } from "next"
 import { dehydrate } from "@tanstack/react-query"
 import { filterPosts } from "src/libs/utils/notion"
 
 export const getStaticProps: GetStaticProps = async () => {
+  const queryClient = createServerQueryClient()
   const allPosts = await getPosts()
 
   if (allPosts.length === 0 && process.env.NEXT_PHASE !== "phase-production-build") {

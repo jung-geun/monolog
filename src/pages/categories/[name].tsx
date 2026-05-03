@@ -5,7 +5,7 @@ import { CONFIG } from "site.config"
 import Archive from "src/routes/Archive"
 import { getPosts } from "src/apis"
 import { filterPosts } from "src/libs/utils/notion"
-import { queryClient } from "src/libs/react-query"
+import { createServerQueryClient } from "src/libs/react-query"
 import { queryKey } from "src/constants/queryKey"
 import { dehydrate } from "@tanstack/react-query"
 
@@ -31,6 +31,7 @@ export const getStaticPaths: GetStaticPaths = async () => {
 }
 
 export const getStaticProps: GetStaticProps<Props> = async ({ params }) => {
+  const queryClient = createServerQueryClient()
   const categoryName = params?.name as string
   const allPosts = await getPosts()
 
