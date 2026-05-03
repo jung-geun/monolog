@@ -10,7 +10,13 @@ import { dehydrate } from "@tanstack/react-query"
 import { filterPosts } from "src/libs/utils/notion"
 
 export const getStaticProps: GetStaticProps = async () => {
-  const posts = filterPosts(await getPosts(), {
+  const allPosts = await getPosts()
+
+  if (allPosts.length === 0 && process.env.NEXT_PHASE !== "phase-production-build") {
+    throw new Error("getPosts returned 0 posts — preserving previous static HTML")
+  }
+
+  const posts = filterPosts(allPosts, {
     acceptStatus: ["Public"],
     acceptType: ["Post", "Paper"],
   })
