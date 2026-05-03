@@ -148,8 +148,7 @@ export default RightRail
 const StyledWrapper = styled.aside`
   position: sticky;
   top: 0;
-  align-self: start;
-  max-height: 100vh;
+  height: 100vh;
   width: 240px;
   border-left: 1px solid ${({ theme }) => theme.colors.editor.line};
   padding: 40px 18px 60px;

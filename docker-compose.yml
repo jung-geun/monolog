@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   blog:
-    image: ghcr.io/jung-geun/morethan-log:latest
+    image: ghcr.io/jung-geun/monolog:latest
     # build:
     #   context: .
     #   dockerfile: Dockerfile
