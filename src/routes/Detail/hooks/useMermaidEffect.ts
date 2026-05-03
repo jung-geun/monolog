@@ -1,4 +1,4 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query"
+import { useQuery, useQueryClient, skipToken } from "@tanstack/react-query"
 import mermaid from "mermaid"
 import { useEffect, useState, useRef } from "react"
 import { queryKey } from "src/constants/queryKey"
@@ -32,6 +32,7 @@ const useMermaidEffect = () => {
 
   const { data, isFetched } = useQuery({
     queryKey: queryKey.scheme(),
+    queryFn: skipToken,
     enabled: false,
   })
 
