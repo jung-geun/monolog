@@ -1,4 +1,4 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query"
+import { useQuery, useQueryClient, skipToken } from "@tanstack/react-query"
 import { getCookie, setCookie } from "cookies-next"
 import { useEffect, useCallback } from "react"
 import { CONFIG } from "site.config"
@@ -13,6 +13,7 @@ const useScheme = (): [SchemeType, SetScheme] => {
 
   const { data } = useQuery({
     queryKey: queryKey.scheme(),
+    queryFn: skipToken,
     enabled: false,
     initialData: followsSystemTheme
       ? "dark"
@@ -37,7 +38,7 @@ const useScheme = (): [SchemeType, SetScheme] => {
     setScheme(cachedScheme || defaultScheme)
   }, [data, followsSystemTheme, setScheme])
 
-  return [data, setScheme]
+  return [data as SchemeType, setScheme]
 }
 
 export default useScheme

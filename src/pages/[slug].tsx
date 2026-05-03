@@ -6,7 +6,7 @@ import CustomError from "src/routes/Error"
 import { getRecordMap, getPosts, getPostBySlug, getDatabase } from "src/apis"
 import MetaConfig from "src/components/MetaConfig"
 import { GetStaticProps } from "next"
-import { queryClient } from "src/libs/react-query"
+import { createServerQueryClient } from "src/libs/react-query"
 import { queryKey } from "src/constants/queryKey"
 import { dehydrate } from "@tanstack/react-query"
 import usePostQuery from "src/hooks/usePostQuery"
@@ -44,12 +44,16 @@ export const getStaticProps: GetStaticProps = async (context) => {
   console.log(`\n🔍 [getStaticProps] Processing slug: "${slug}"`)
 
   try {
+    const queryClient = createServerQueryClient()
     const posts = await getPosts()
     console.log(`🔍 [getStaticProps] Total posts from Notion: ${posts.length}`)
-    
+
   // Ensure the prefetched posts used in client cache include both Posts and Papers
   // so that navigating back to the feed preserves Paper entries.
   const feedPosts = filterPosts(posts, { acceptStatus: ["Public"], acceptType: ["Post", "Paper"] })
+  if (feedPosts.length === 0 && process.env.NEXT_PHASE !== "phase-production-build") {
+    throw new Error("getPosts returned 0 posts — preserving previous static HTML")
+  }
   await queryClient.prefetchQuery({ queryKey: queryKey.posts(), queryFn: () => feedPosts })
 
     console.log(`🔍 [getStaticProps] Filtering posts with detail filter:`, filter)

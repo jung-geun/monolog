@@ -13,7 +13,7 @@ MAX_RETRIES=30
 RETRY_COUNT=0
 
 while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-  if curl -s "http://localhost:3000" > /dev/null 2>&1; then
+  if curl -s -m 2 "http://localhost:3000" > /dev/null 2>&1; then
     echo "✅ Server is ready!"
     break
   fi
