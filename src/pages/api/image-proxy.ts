@@ -222,9 +222,27 @@ export default async function handler(
     console.log('[image-proxy] heuristic step error', e && (e as Error).message)
   }
 
-  // Validate that it's a Notion/AWS URL for security
-  if (!resolvedUrl.includes('amazonaws.com') && !resolvedUrl.includes('notion')) {
-    return res.status(403).json({ error: 'URL not allowed' })
+  // Strict hostname allow-list to prevent SSRF
+  const ALLOWED_HOSTS = [
+    /\.amazonaws\.com$/i,
+    /^amazonaws\.com$/i,
+    /\.notion\.so$/i,
+    /^notion\.so$/i,
+    /\.notion\.com$/i,
+    /^notion\.com$/i,
+    /\.notion-static\.com$/i,
+  ]
+  let parsedUrl: URL
+  try {
+    parsedUrl = new URL(resolvedUrl)
+  } catch {
+    return res.status(400).json({ error: 'Invalid URL' })
+  }
+  if (parsedUrl.protocol !== 'https:' && parsedUrl.protocol !== 'http:') {
+    return res.status(403).json({ error: 'Protocol not allowed' })
+  }
+  if (!ALLOWED_HOSTS.some((re) => re.test(parsedUrl.hostname))) {
+    return res.status(403).json({ error: 'Host not allowed' })
   }
 
   const refreshDiagnostics: { attempted: boolean; success: boolean; via?: string } = {

@@ -6,6 +6,9 @@ on:
     - cron: '0 1 * * 0/3'
   workflow_dispatch: {}
 
+permissions:
+  contents: read
+
 jobs:
   revalidate:
     name: Call revalidate endpoint
@@ -28,10 +31,12 @@ jobs:
           fi
 
           BASE_URL="${REVALIDATE_BASE_URL:-${REVALIDATE_URL}}"
-          ENDPOINT="${BASE_URL%/}/api/revalidate?secret=${REVALIDATE_SECRET}"
+          ENDPOINT="${BASE_URL%/}/api/revalidate"
           echo "Calling revalidate endpoint: $ENDPOINT"
 
-          http_code=$(curl -sS -o /tmp/revalidate.out -w "%{http_code}" "$ENDPOINT") || true
+          http_code=$(curl -sS -o /tmp/revalidate.out -w "%{http_code}" \
+            -H "Authorization: Bearer ${REVALIDATE_SECRET}" \
+            "$ENDPOINT") || true
           echo "Response body:"
           cat /tmp/revalidate.out || true
           echo "HTTP status: $http_code"
@@ -40,7 +45,7 @@ jobs:
             echo "Revalidate failed (HTTP $http_code)"
             # optional Discord notification on failure
             if [ -n "${DISCORD_WEBHOOK:-}" ]; then
-              curl -sS -X POST -H 'Content-type: application/json' --data "{\"content\":\"🚨 Revalidate failed with HTTP $http_code for $ENDPOINT\"}" "$DISCORD_WEBHOOK" || true
+              curl -sS -X POST -H 'Content-type: application/json' --data "{\"content\":\"Revalidate failed with HTTP $http_code for $ENDPOINT\"}" "$DISCORD_WEBHOOK" || true
             fi
             exit 1
           fi
@@ -55,5 +60,5 @@ jobs:
 
           # optional Discord notification on success
           if [ -n "${DISCORD_WEBHOOK:-}" ]; then
-            curl -sS -X POST -H 'Content-type: application/json' --data "{\"content\":\"✅ Revalidate succeeded for $BASE_URL (sitemap warmed)\"}" "$DISCORD_WEBHOOK" || true
+            curl -sS -X POST -H 'Content-type: application/json' --data "{\"content\":\"Revalidate succeeded for $BASE_URL (sitemap warmed)\"}" "$DISCORD_WEBHOOK" || true
           fi

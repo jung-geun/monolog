@@ -1,10 +1,10 @@
-# MoreThanLog (Improved Fork Version)
+# monolog
 
 > This project is an improved fork based on the original [morethan-log](https://github.com/morethanmin/morethan-log) project. We deeply appreciate the excellent work of the original developer, and have implemented additional features on top of that foundation.
 
 **Original Project**: [morethan-log](https://github.com/morethanmin/morethan-log) by [morethanmin](https://github.com/morethanmin)
 
-[Demo Blog](https://morethan-log.vercel.app) | [Demo Resume](https://morethan-log.vercel.app/resume)
+[Demo Blog](https://blog.pieroot.xyz) | [Demo Resume](https://blog.pieroot.xyz/resume)
 
 <img width="1715" alt="image" src="https://user-images.githubusercontent.com/72514247/209824600-ca9c8acc-6d2d-4041-9931-43e34b8a9a5f.png">
 
@@ -40,10 +40,6 @@ A Next.js-based static blog using Notion as a Content Management System (CMS). T
 - Create full-page sites using Notion
 - Can be used for resumes, portfolios, and more
 
-### 👀 SEO Friendly
-- Dynamic OG image (thumbnail) generation for posts ([og-image-korean](https://github.com/morethanmin/og-image-korean))
-- Dynamic sitemap generation for posts
-
 ### 🤖 Various Plugin Support via Configuration
 - Update profile information via `site.config.js`
 - Supports plugins like Google Analytics, Search Console, Utterances (GitHub Issues comments), Cusdis, and more
@@ -71,7 +67,7 @@ When Pull Requests are created:
 ## 📖 Getting Started
 
 1. Click ⭐ Star on this repository.
-2. [Fork](https://github.com/jung-geun/morethan-log/fork) to your profile.
+2. [Fork](https://github.com/jung-geun/monolog/fork) to your profile.
 3. Duplicate the [Notion template](https://pieroot.notion.site/307067c015d080d987eadd99c8369f92?v=307067c015d0817a87a8000c109eb446&source=copy_link) and enable "Share to web".
 4. Copy the web link and note the Notion Page ID. Link format: `[username.notion.site/NOTION_PAGE_ID?v=VERSION_ID]`
 5. Clone the forked repository and customize `site.config.js` as desired.
@@ -110,7 +106,7 @@ When Pull Requests are created:
 
    7. `Create` a new project using **Add New...**.
 
-   8. `Import` the forked morethan-log repository.
+   8. `Import` the forked monolog repository.
 
    9. `Add` environment variables to the Vercel project.
 
@@ -174,13 +170,13 @@ The docker-compose configuration includes:
 
 ```bash
 # Run latest version
-docker run -d -p 3000:3000 --env-file .env --restart unless-stopped ghcr.io/jung-geun/morethan-log:latest
+docker run -d -p 3000:3000 --env-file .env --restart unless-stopped ghcr.io/jung-geun/monolog:latest
 
 # Run development version
-docker run -d -p 3000:3000 --env-file .env --restart unless-stopped ghcr.io/jung-geun/morethan-log:dev
+docker run -d -p 3000:3000 --env-file .env --restart unless-stopped ghcr.io/jung-geun/monolog:dev
 
 # Run nightly version
-docker run -d -p 3000:3000 --env-file .env --restart unless-stopped ghcr.io/jung-geun/morethan-log:nightly
+docker run -d -p 3000:3000 --env-file .env --restart unless-stopped ghcr.io/jung-geun/monolog:nightly
 ```
 
 After running, you can check the blog at http://localhost:3000.
@@ -204,7 +200,7 @@ After running, you can check the blog at http://localhost:3000.
 
    **Q4: What should I enter for NEXT_PUBLIC_GOOGLE_MEASUREMENT_ID and NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION in site.config.js?**
 
-   A4: Refer to https://github.com/morethanmin/morethan-log/issues/203. It may take some time for updates to be reflected after configuration.
+   A4: Refer to https://github.com/jung-geun/monolog/issues/203. It may take some time for updates to be reflected after configuration.
 
    **Q5: The Docker container won't run.**
 

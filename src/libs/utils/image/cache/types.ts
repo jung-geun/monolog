@@ -61,7 +61,7 @@ export const DEFAULT_CACHE_CONFIG: CacheConfig = {
 export const IDB_STORE_NAME = "image-cache"
 
 /** IndexedDB 데이터베이스 이름 */
-export const IDB_DB_NAME = "morethan-log-image-cache"
+export const IDB_DB_NAME = "monolog-image-cache"
 
 /** IndexedDB 데이터베이스 버전 */
 export const IDB_DB_VERSION = 1
