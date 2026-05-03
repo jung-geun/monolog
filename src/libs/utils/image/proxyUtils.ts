@@ -1,3 +1,5 @@
+import { extractS3ImageId } from 'src/libs/utils/image/cache/hashUtils'
+
 const SITE_PREFIX = (() => {
   const site = process.env.NEXT_PUBLIC_SITE_URL || ''
   return site ? site.replace(/\/$/, '') : ''
@@ -31,7 +33,17 @@ export function isAlreadyProxied(url: string): boolean {
 /** Prefix site origin when available and build the proxied URL. */
 export function createProxyRequestUrl(targetUrl: string, meta?: ImageProxyMetadata): string {
   const params = new URLSearchParams()
-  params.set('url', targetUrl)
+
+  // S3 presigned URLs change every ~1 hour (new X-Amz-Signature). Extract the
+  // stable UUID so that the proxy URL itself never changes for the same image.
+  const s3Id = extractS3ImageId(targetUrl)
+  if (s3Id) {
+    params.set('id', s3Id)
+    params.set('kind', 's3')
+  } else {
+    // Non-S3 Notion CDN URLs are stable — pass as-is.
+    params.set('url', targetUrl)
+  }
 
   if (meta) {
     Object.entries(meta).forEach(([key, value]) => {

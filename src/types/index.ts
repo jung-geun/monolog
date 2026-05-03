@@ -22,6 +22,7 @@ export type TPost = {
   slug: string
   tags?: string[]
   category?: string[]
+  series?: string[]
   summary?: string
   author?: {
     id: string

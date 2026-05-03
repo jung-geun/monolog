@@ -55,7 +55,7 @@ const GalleryCard: React.FC<{ row: TDbRow; database: TNotionDatabase }> = ({ row
     <Card>
       {cover ? (
         <CoverImg>
-          <Image src={cover} alt={title} fill style={{ objectFit: "cover" }} unoptimized />
+          <Image src={cover} alt={title} fill style={{ objectFit: "cover" }} sizes="(max-width: 768px) 100vw, 280px" />
         </CoverImg>
       ) : (
         <CoverPlaceholder>

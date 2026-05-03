@@ -3,6 +3,7 @@ import { useRouter } from "next/router"
 import styled from "@emotion/styled"
 import usePostsQuery from "src/hooks/usePostsQuery"
 import { useCategoriesQuery } from "src/hooks/useCategoriesQuery"
+import { useSeriesQuery } from "src/hooks/useSeriesQuery"
 import { CONFIG } from "site.config"
 import { DEFAULT_CATEGORY } from "src/constants"
 
@@ -10,6 +11,7 @@ const FileTree = () => {
   const router = useRouter()
   const posts = usePostsQuery()
   const categories = useCategoriesQuery()
+  const series = useSeriesQuery()
   const activeSlug = router.query.slug as string | undefined
 
   const recentPosts = posts.slice(0, 15)
@@ -48,6 +50,23 @@ const FileTree = () => {
           <span className="cat-count">{count}</span>
         </Link>
       ))}
+
+      {Object.keys(series).length > 0 && (
+        <>
+          <div className="section-header">▾ series/</div>
+          {Object.entries(series).map(([name, count]) => (
+            <Link
+              key={name}
+              href={`/series/${name}`}
+              className="file-item category"
+            >
+              <span className="cat-hash">§</span>
+              <span className="cat-name">{name}</span>
+              <span className="cat-count">{count}</span>
+            </Link>
+          ))}
+        </>
+      )}
 
       {CONFIG.projects.length > 0 && (
         <>

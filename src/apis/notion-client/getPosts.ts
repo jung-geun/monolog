@@ -79,6 +79,8 @@ async function fetchFromNotion(dataSourceId: string): Promise<TPosts> {
                     post.type = [normalizedType]
                   } else if (key === "Category" || key === "category") {
                     post.category = [prop.select.name]
+                  } else if (key === "Series" || key === "series") {
+                    post.series = [prop.select.name]
                   }
                 }
                 break

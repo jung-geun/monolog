@@ -58,6 +58,8 @@ const PostHeader: React.FC<Props> = ({ data }) => {
               src={data.thumbnail}
               fill
               alt={data.title}
+              priority
+              sizes="(max-width: 768px) 100vw, 860px"
             />
           </div>
         )}

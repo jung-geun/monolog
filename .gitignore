@@ -44,4 +44,6 @@ tsconfig.tsbuildinfo
 
 # Notion page cache (L2 filesystem cache)
 .notion-cache/
+# Image BLOB disk cache (mounted as Docker volume in production)
+.image-cache/
 .gstack/

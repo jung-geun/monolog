@@ -11,6 +11,9 @@ module.exports = {
     return [{ source: '/:path*', headers: securityHeaders }]
   },
   images: {
+    localPatterns: [
+      { pathname: '/api/image-proxy' },
+    ],
     remotePatterns: [
       { protocol: 'https', hostname: 'www.notion.so' },
       { protocol: 'https', hostname: 'lh5.googleusercontent.com' },
