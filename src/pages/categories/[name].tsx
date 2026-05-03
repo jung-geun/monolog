@@ -32,7 +32,13 @@ export const getStaticPaths: GetStaticPaths = async () => {
 
 export const getStaticProps: GetStaticProps<Props> = async ({ params }) => {
   const categoryName = params?.name as string
-  const posts = filterPosts(await getPosts(), {
+  const allPosts = await getPosts()
+
+  if (allPosts.length === 0 && process.env.NEXT_PHASE !== "phase-production-build") {
+    throw new Error("getPosts returned 0 posts — preserving previous static HTML")
+  }
+
+  const posts = filterPosts(allPosts, {
     acceptStatus: ["Public"],
     acceptType: ["Post", "Paper"],
   })
