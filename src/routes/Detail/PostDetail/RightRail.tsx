@@ -66,6 +66,11 @@ const RightRail = ({ recordMap, post }: Props) => {
     )
     .slice(0, 3)
 
+  const seriesName = post.series?.[0]
+  const seriesEntries = seriesName
+    ? allPosts.filter((p) => p.series?.includes(seriesName))
+    : []
+
   const postTags = post.tags || []
   const nodes = allPosts
     .filter((p) => p.slug !== post.slug)
@@ -95,6 +100,25 @@ const RightRail = ({ recordMap, post }: Props) => {
             >
               {entry.text}
             </a>
+          ))}
+        </div>
+      )}
+
+      {seriesEntries.length > 0 && (
+        <div className="section">
+          <div className="section-label">series</div>
+          <Link href={`/series/${seriesName}`} className="series-title-link">
+            § {seriesName}
+          </Link>
+          {seriesEntries.map((p) => (
+            <Link
+              key={p.slug}
+              href={`/${p.slug}`}
+              className={`related-item${p.slug === post.slug ? " current" : ""}`}
+            >
+              {p.slug === post.slug ? "▸ " : "· "}
+              {p.title.slice(0, 30)}{p.title.length > 30 ? "…" : ""}
+            </Link>
           ))}
         </div>
       )}
@@ -190,6 +214,16 @@ const StyledWrapper = styled.aside`
     &.level-3 { padding-left: 30px; }
   }
 
+  .series-title-link {
+    display: block;
+    font-size: 11px;
+    font-weight: 500;
+    color: ${({ theme }) => theme.colors.editor.accent};
+    padding: 2px 0 6px;
+    text-decoration: none;
+    &:hover { opacity: 0.8; }
+  }
+
   .related-item {
     display: block;
     font-size: 11px;
@@ -197,6 +231,10 @@ const StyledWrapper = styled.aside`
     padding: 3px 0;
     text-decoration: none;
     &:hover { color: ${({ theme }) => theme.colors.editor.accent}; }
+    &.current {
+      color: ${({ theme }) => theme.colors.editor.fg};
+      font-weight: 500;
+    }
   }
 
   .mini-graph {

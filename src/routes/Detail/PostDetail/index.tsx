@@ -2,8 +2,10 @@ import { useMemo } from "react"
 import styled from "@emotion/styled"
 import React from "react"
 import usePostQuery from "src/hooks/usePostQuery"
+import usePostsQuery from "src/hooks/usePostsQuery"
 import NotionRenderer from "../components/NotionRenderer"
 import Footer from "./PostFooter"
+import SeriesNav from "./SeriesNav"
 import Frontmatter from "src/components/Frontmatter"
 import ReadingProgress from "./ReadingProgress"
 import RightRail from "./RightRail"
@@ -13,6 +15,7 @@ import { useRegisterChrome } from "src/layouts/RootLayout/EditorChrome/RouteChro
 
 const PostDetail: React.FC = () => {
   const data = usePostQuery()
+  const allPosts = usePostsQuery()
 
   const filename = data ? `${data.slug}.md` : "loading.md"
   const statusItems = useMemo(() => ["main", "Reading", "Markdown"], [])
@@ -50,6 +53,7 @@ const PostDetail: React.FC = () => {
               <NotionRenderer recordMap={data.recordMap} />
             </div>
 
+            <SeriesNav post={data} allPosts={allPosts} />
             <Footer />
           </div>
           <RightRail recordMap={data.recordMap} post={data} />
