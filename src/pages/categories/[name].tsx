@@ -41,7 +41,7 @@ export const getStaticProps: GetStaticProps<Props> = async ({ params }) => {
     queryKey: queryKey.posts(),
     queryFn: () => posts,
     staleTime: 10 * 60 * 1000,
-    cacheTime: 60 * 60 * 1000,
+    gcTime: 60 * 60 * 1000,
   })
 
   return {

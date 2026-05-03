@@ -20,7 +20,7 @@ export const getStaticProps: GetStaticProps = async () => {
     queryKey: queryKey.posts(),
     queryFn: () => posts,
     staleTime: 10 * 60 * 1000, // 10분 동안 fresh 유지
-    cacheTime: 60 * 60 * 1000, // 1시간 동안 캐시 보관
+    gcTime: 60 * 60 * 1000, // 1시간 동안 캐시 보관
   })
 
   return {
