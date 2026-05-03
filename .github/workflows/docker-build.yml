@@ -39,21 +39,26 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GHCR_TOKEN || secrets.GITHUB_TOKEN }}
 
-      - name: Extract metadata
+      - name: Determine image tags
+        id: tags
+        run: |
+          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            VERSION="${{ github.ref_name }}"
+            VERSION="${VERSION#v}"
+            echo "tags=${IMAGE}:${VERSION},${IMAGE}:latest" >> $GITHUB_OUTPUT
+          elif [ "${{ github.ref }}" = "refs/heads/dev" ]; then
+            echo "tags=${IMAGE}:dev" >> $GITHUB_OUTPUT
+          else
+            PR_NUM=$(echo "${{ github.ref }}" | sed 's|refs/pull/\([0-9]*\)/.*|\1|')
+            echo "tags=${IMAGE}:pr-${PR_NUM}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Extract OCI labels
         id: meta
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          flavor: |
-            latest=false
-          tags: |
-            # v* 태그 → latest + 버전 태그 (e.g. v1.2.3 → latest, 1.2.3)
-            type=semver,pattern={{version}},enable=${{ github.ref_type == 'tag' }}
-            type=raw,value=latest,enable=${{ github.ref_type == 'tag' }}
-            # dev 브랜치 → dev 태그
-            type=raw,value=dev,enable=${{ github.ref == 'refs/heads/dev' }}
-            # PR → pr-{번호} 태그 (push 없음)
-            type=ref,event=pr
 
       - name: Build and push Docker image
         id: push
@@ -61,7 +66,7 @@ jobs:
         with:
           context: .
           push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ steps.meta.outputs.tags }}
+          tags: ${{ steps.tags.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -77,5 +82,4 @@ jobs:
 
       - name: Output image tags
         if: github.event_name != 'pull_request'
-        run: |
-          echo "Pushed tags: ${{ steps.meta.outputs.tags }}"
+        run: echo "Pushed tags: ${{ steps.tags.outputs.tags }}"

@@ -6,9 +6,7 @@ RUN apk add --no-cache libc6-compat python3 make g++
 WORKDIR /app
 
 COPY package.json yarn.lock ./
-RUN --mount=type=cache,id=yarn,target=/root/.yarn \
-    YARN_CACHE_FOLDER=/root/.yarn \
-    yarn install --frozen-lockfile
+RUN yarn install --frozen-lockfile
 
 # 2. 빌드 스테이지
 FROM node:22-alpine AS builder
@@ -19,8 +17,7 @@ COPY . .
 
 ENV NEXT_TELEMETRY_DISABLED=1
 
-RUN --mount=type=cache,id=next-build,target=/app/.next/cache \
-    yarn build
+RUN yarn build
 
 # 3. 프로덕션 실행 스테이지 (standalone — node_modules 불필요)
 FROM node:22-alpine AS runner
