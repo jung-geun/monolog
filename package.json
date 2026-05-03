@@ -27,7 +27,7 @@
     "@vercel/analytics": "^1.5.0",
     "@vercel/speed-insights": "^1.2.0",
     "caniuse-lite": "^1.0.30001751",
-    "cookies-next": "^4.3.0",
+    "cookies-next": "^6.1.1",
     "dotenv": "^17.2.3",
     "katex": "^0.16.25",
     "mermaid": "^11.4.0",
