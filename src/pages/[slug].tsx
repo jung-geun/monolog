@@ -50,7 +50,7 @@ export const getStaticProps: GetStaticProps = async (context) => {
   // Ensure the prefetched posts used in client cache include both Posts and Papers
   // so that navigating back to the feed preserves Paper entries.
   const feedPosts = filterPosts(posts, { acceptStatus: ["Public"], acceptType: ["Post", "Paper"] })
-  await queryClient.prefetchQuery(queryKey.posts(), () => feedPosts)
+  await queryClient.prefetchQuery({ queryKey: queryKey.posts(), queryFn: () => feedPosts })
 
     console.log(`🔍 [getStaticProps] Filtering posts with detail filter:`, filter)
     const detailPosts = filterPosts(posts, filter)
@@ -102,16 +102,13 @@ export const getStaticProps: GetStaticProps = async (context) => {
           databaseBlockIds.map(async ({ id, format }) => {
             const db = await getDatabase(id, format).catch(() => null)
             if (db) {
-              await queryClient.prefetchQuery(queryKey.database(id), () => db)
+              await queryClient.prefetchQuery({ queryKey: queryKey.database(id), queryFn: () => db })
             }
           })
         )
       }
 
-      await queryClient.prefetchQuery(queryKey.post(`${slug}`), () => ({
-        ...postDetail,
-        recordMap,
-      }))
+      await queryClient.prefetchQuery({ queryKey: queryKey.post(`${slug}`), queryFn: () => ({ ...postDetail, recordMap }) })
 
       return {
         props: {
@@ -123,10 +120,7 @@ export const getStaticProps: GetStaticProps = async (context) => {
       console.error(`Failed to get record map for ${slug}:`, recordMapError)
       
       // Return basic post data without recordMap as fallback
-      await queryClient.prefetchQuery(queryKey.post(`${slug}`), () => ({
-        ...postDetail,
-        recordMap: null,
-      }))
+      await queryClient.prefetchQuery({ queryKey: queryKey.post(`${slug}`), queryFn: () => ({ ...postDetail, recordMap: null }) })
 
       return {
         props: {
