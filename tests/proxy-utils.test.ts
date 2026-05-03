@@ -4,13 +4,41 @@
  * Tests for image proxy utilities, replacing scripts/test-unpack.js and scripts/test-unpack-cases.js
  */
 
-import { unwrapProxiedUrl, isAlreadyProxied } from 'src/libs/utils/image/proxyUtils'
+import { unwrapProxiedUrl, isAlreadyProxied, createProxyRequestUrl } from 'src/libs/utils/image/proxyUtils'
 import { customMapImageUrl } from 'src/libs/utils/notion/customMapImageUrl'
 
 describe('isAlreadyProxied', () => {
   it('should detect already proxied url', () => {
     const url = '/api/image-proxy?url=https%3A%2F%2Fprod-files-secure.s3.us-west-2.amazonaws.com%2Fimage.png'
     expect(isAlreadyProxied(url)).toBe(true)
+  })
+  it('should detect kind=s3 style proxied url', () => {
+    const url = '/api/image-proxy?id=abc123&kind=s3'
+    expect(isAlreadyProxied(url)).toBe(true)
+  })
+})
+
+describe('createProxyRequestUrl', () => {
+  it('emits ?id=<uuid>&kind=s3 for S3 presigned URLs', () => {
+    const s3Url = 'https://prod-files-secure.s3.us-west-2.amazonaws.com/da63dd0f-9bae-4c9d-a318-bd0705ed73e2/890470fe-bb50-4322-98d2-db52e89b2fa3/image.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Signature=abc123'
+    const result = createProxyRequestUrl(s3Url)
+    expect(result).toMatch(/[?&]id=890470fe-bb50-4322-98d2-db52e89b2fa3/)
+    expect(result).toMatch(/[?&]kind=s3/)
+    expect(result).not.toContain('X-Amz-Signature')
+  })
+
+  it('emits ?url= for non-S3 URLs (fallback path)', () => {
+    const notionUrl = 'https://www.notion.so/image/https%3A%2F%2Fexample.com%2Fphoto.jpg?cache=v2'
+    const result = createProxyRequestUrl(notionUrl)
+    expect(result).toMatch(/[?&]url=/)
+    expect(result).not.toContain('kind=s3')
+  })
+
+  it('stable URL: same S3 image with different X-Amz-Signature yields same proxy URL', () => {
+    const base = 'https://prod-files-secure.s3.us-west-2.amazonaws.com/da63dd0f/890470fe-bb50-4322-98d2-db52e89b2fa3/img.png'
+    const url1 = `${base}?X-Amz-Algorithm=AWS4&X-Amz-Signature=sig1`
+    const url2 = `${base}?X-Amz-Algorithm=AWS4&X-Amz-Signature=sig2`
+    expect(createProxyRequestUrl(url1)).toBe(createProxyRequestUrl(url2))
   })
 })
 

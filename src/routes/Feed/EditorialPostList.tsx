@@ -59,7 +59,6 @@ const EditorialPostList = () => {
                       fill
                       sizes="100px"
                       style={{ objectFit: "cover" }}
-                      unoptimized
                     />
                   </div>
                 ) : (
