@@ -1,6 +1,5 @@
 import { useMemo } from "react"
 import styled from "@emotion/styled"
-import TabBar from "src/layouts/RootLayout/EditorChrome/TabBar"
 import LineNumberGutter from "src/layouts/RootLayout/EditorChrome/LineNumberGutter"
 import { useRegisterChrome } from "src/layouts/RootLayout/EditorChrome/RouteChromeContext"
 import HomeHero from "./HomeHero"
@@ -9,8 +8,6 @@ import EditorialPostList from "./EditorialPostList"
 import ActivityGrid from "src/components/ActivityGrid"
 import usePostsQuery from "src/hooks/usePostsQuery"
 import { getStats, getActivityGrid } from "src/libs/utils/stats"
-
-const HOME_TABS = [{ label: "README.md", href: "/" }]
 
 const Feed = () => {
   const posts = usePostsQuery()
@@ -25,8 +22,6 @@ const Feed = () => {
 
   return (
     <StyledWrapper>
-      <TabBar tabs={HOME_TABS} activeIdx={0} />
-
       <div className="scroll-area">
         <div className="content-grid">
           <LineNumberGutter count={120} />

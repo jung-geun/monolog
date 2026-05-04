@@ -2,6 +2,7 @@ import React, { ReactNode } from "react"
 import styled from "@emotion/styled"
 import ActivityBar from "./ActivityBar"
 import FileTree from "./FileTree"
+import TabBar from "./TabBar"
 import TitleBar from "./TitleBar"
 import StatusBar from "./StatusBar"
 import { RouteChromeProvider, useRouteChrome } from "./RouteChromeContext"
@@ -20,6 +21,7 @@ const EditorShellInner = ({ children }: { children: ReactNode }) => {
           aria-hidden="true"
         />
         <div className="editor-body">
+          <TabBar />
           {children}
         </div>
       </div>

@@ -3,7 +3,6 @@ import Link from "next/link"
 import styled from "@emotion/styled"
 import usePostsQuery from "src/hooks/usePostsQuery"
 import { useSeriesQuery } from "src/hooks/useSeriesQuery"
-import TabBar from "src/layouts/RootLayout/EditorChrome/TabBar"
 import { useRegisterChrome } from "src/layouts/RootLayout/EditorChrome/RouteChromeContext"
 
 const SeriesList = () => {
@@ -18,8 +17,6 @@ const SeriesList = () => {
   )
   useRegisterChrome("series.md", statusItems)
 
-  const tabs = [{ label: "series", href: "/series", icon: "§" }]
-
   const latestBySeriesName: Record<string, string> = {}
   for (const post of allPosts) {
     const s = post.series?.[0]
@@ -30,8 +27,6 @@ const SeriesList = () => {
 
   return (
     <StyledWrapper>
-      <TabBar tabs={tabs} activeIdx={0} />
-
       <div className="scroll-area">
         <div className="body">
           <div className="breadcrumb">

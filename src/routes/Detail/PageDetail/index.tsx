@@ -2,14 +2,8 @@ import React, { useMemo } from "react"
 import styled from "@emotion/styled"
 import NotionRenderer from "../components/NotionRenderer"
 import usePostQuery from "src/hooks/usePostQuery"
-import TabBar from "src/layouts/RootLayout/EditorChrome/TabBar"
 import LineNumberGutter from "src/layouts/RootLayout/EditorChrome/LineNumberGutter"
 import { useRegisterChrome } from "src/layouts/RootLayout/EditorChrome/RouteChromeContext"
-
-const ABOUT_TABS = [
-  { label: "README.md", href: "/" },
-  { label: "about.md", href: "/about" },
-]
 
 const PageDetail: React.FC = () => {
   const data = usePostQuery()
@@ -21,8 +15,6 @@ const PageDetail: React.FC = () => {
 
   return (
     <StyledWrapper>
-      <TabBar tabs={ABOUT_TABS} activeIdx={1} />
-
       <div className="scroll-area">
         <div className="content-grid">
           <LineNumberGutter count={80} />

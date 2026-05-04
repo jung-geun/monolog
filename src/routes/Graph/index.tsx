@@ -2,11 +2,9 @@ import { useState, useMemo } from "react"
 import styled from "@emotion/styled"
 import Link from "next/link"
 import usePostsQuery from "src/hooks/usePostsQuery"
-import TabBar from "src/layouts/RootLayout/EditorChrome/TabBar"
 import { useRegisterChrome } from "src/layouts/RootLayout/EditorChrome/RouteChromeContext"
 import { buildGraph } from "src/libs/utils/graph"
 
-const TABS = [{ label: "graph.json", href: "/graph", icon: "✦" }]
 const W = 720
 const H = 520
 
@@ -36,8 +34,6 @@ const Graph = () => {
 
   return (
     <StyledWrapper>
-      <TabBar tabs={TABS} activeIdx={0} />
-
       <div className="graph-layout">
         {/* SVG canvas */}
         <div className="canvas-area">

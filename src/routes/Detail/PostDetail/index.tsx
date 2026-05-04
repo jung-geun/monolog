@@ -10,7 +10,6 @@ import Frontmatter from "src/components/Frontmatter"
 import ReadingProgress from "./ReadingProgress"
 import RightRail from "./RightRail"
 import LineNumberGutter from "src/layouts/RootLayout/EditorChrome/LineNumberGutter"
-import TabBar from "src/layouts/RootLayout/EditorChrome/TabBar"
 import { useRegisterChrome } from "src/layouts/RootLayout/EditorChrome/RouteChromeContext"
 
 const PostDetail: React.FC = () => {
@@ -26,14 +25,8 @@ const PostDetail: React.FC = () => {
   const category = data.category?.[0] || undefined
   const dateStr = data.date?.start_date || data.createdTime?.slice(0, 10) || ""
 
-  const tabs = [
-    { label: "README.md", href: "/" },
-    { label: filename, href: `/${data.slug}` },
-  ]
-
   return (
     <StyledWrapper>
-      <TabBar tabs={tabs} activeIdx={1} />
       <ReadingProgress />
 
       <div className="scroll-area">

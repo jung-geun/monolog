@@ -3,11 +3,8 @@ import { useRouter } from "next/router"
 import Link from "next/link"
 import styled from "@emotion/styled"
 import usePostsQuery from "src/hooks/usePostsQuery"
-import TabBar from "src/layouts/RootLayout/EditorChrome/TabBar"
 import { useRegisterChrome } from "src/layouts/RootLayout/EditorChrome/RouteChromeContext"
 import { TPost } from "src/types"
-
-const TABS = [{ label: "search", href: "/search", icon: "⌕" }]
 
 type Facet = "all" | "title" | "body" | "tags"
 
@@ -56,8 +53,6 @@ const Search = () => {
 
   return (
     <StyledWrapper>
-      <TabBar tabs={TABS} activeIdx={0} />
-
       <div className="scroll-area">
         <div className="search-header">
           <div className="search-box">

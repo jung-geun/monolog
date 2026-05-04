@@ -4,7 +4,6 @@ import Image from "next/image"
 import styled from "@emotion/styled"
 import usePostsQuery from "src/hooks/usePostsQuery"
 import { useSeriesQuery } from "src/hooks/useSeriesQuery"
-import TabBar from "src/layouts/RootLayout/EditorChrome/TabBar"
 import { useRegisterChrome } from "src/layouts/RootLayout/EditorChrome/RouteChromeContext"
 
 type Props = {
@@ -28,8 +27,6 @@ const SeriesArchive = ({ seriesName }: Props) => {
   const years = Object.keys(byYear).sort((a, b) => Number(b) - Number(a))
 
   const filename = `series/${seriesName}.md`
-  const tabs = [{ label: `§${seriesName}`, href: `/series/${seriesName}`, icon: "§" }]
-
   const statusItems = useMemo(
     () => ["main", `series: ${seriesName}`, `${posts.length} entries`, "Markdown"],
     [seriesName, posts.length]
@@ -40,8 +37,6 @@ const SeriesArchive = ({ seriesName }: Props) => {
 
   return (
     <StyledWrapper>
-      <TabBar tabs={tabs} activeIdx={0} />
-
       <div className="scroll-area">
         <div className="body">
           <div className="breadcrumb">

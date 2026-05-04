@@ -2,7 +2,6 @@ import { useMemo } from "react"
 import styled from "@emotion/styled"
 import React from "react"
 import Link from "next/link"
-import TabBar from "src/layouts/RootLayout/EditorChrome/TabBar"
 import { useRegisterChrome } from "src/layouts/RootLayout/EditorChrome/RouteChromeContext"
 
 const SHORTCUTS = [
@@ -12,16 +11,12 @@ const SHORTCUTS = [
   ["/", "search posts"],
 ]
 
-const TABS = [{ label: "404.md", href: "/404" }]
-
 const CustomError: React.FC = () => {
   const statusItems = useMemo(() => ["main", "✗ ENOENT", "404.md", "no such file"], [])
   useRegisterChrome("404.md", statusItems)
 
   return (
     <StyledWrapper>
-      <TabBar tabs={TABS} activeIdx={0} />
-
       <div className="center">
         <div className="inner">
           <div className="route-label"># /errors/404.md</div>

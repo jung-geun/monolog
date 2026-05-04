@@ -27,7 +27,7 @@ const ActivityBar = () => {
 
       <Link
         href="/search"
-        className={`icon-btn${router.pathname === "/search" ? " active" : ""}`}
+        className={`icon-btn${!isFileTreeOpen && router.pathname === "/search" ? " active" : ""}`}
         title="search"
         aria-label="search"
       >
@@ -36,7 +36,7 @@ const ActivityBar = () => {
 
       <Link
         href="/graph"
-        className={`icon-btn${router.pathname === "/graph" ? " active" : ""}`}
+        className={`icon-btn${!isFileTreeOpen && router.pathname === "/graph" ? " active" : ""}`}
         title="graph"
         aria-label="graph"
       >

@@ -1,30 +1,42 @@
 import Link from "next/link"
 import { useRouter } from "next/router"
 import styled from "@emotion/styled"
+import { useRouteChrome } from "./RouteChromeContext"
 
-type Tab = {
-  label: string
-  href: string
-  icon?: string
-}
+const README_LABEL = "README.md"
 
-type Props = {
-  tabs: Tab[]
-  activeIdx: number
-}
+const TabBar = () => {
+  const router = useRouter()
+  const { chrome } = useRouteChrome()
+  const isHome = router.pathname === "/"
+  const previewLabel = !isHome ? chrome.filename : null
+  const previewHref = !isHome ? router.asPath : null
 
-const TabBar = ({ tabs, activeIdx }: Props) => (
-  <StyledWrapper>
-    {tabs.map((tab, i) => (
-      <Link key={tab.href} href={tab.href} className={`tab${i === activeIdx ? " active" : ""}`}>
-        <span className="icon">{tab.icon ?? "◧"}</span>
-        {tab.label}
-        <span className="close">×</span>
+  return (
+    <StyledWrapper>
+      <Link
+        href="/"
+        className={`tab pinned${isHome ? " active" : ""}`}
+        aria-current={isHome ? "page" : undefined}
+      >
+        <span className="icon">◧</span>
+        <span className="label">{README_LABEL}</span>
       </Link>
-    ))}
-    <div className="filler" />
-  </StyledWrapper>
-)
+      {previewLabel && previewHref && (
+        <Link
+          href={previewHref}
+          className="tab preview active"
+          aria-current="page"
+        >
+          <span className="icon">◧</span>
+          <span className="label">{previewLabel}</span>
+          <span className="close" aria-hidden="true">×</span>
+        </Link>
+      )}
+      <div className="filler" />
+    </StyledWrapper>
+  )
+}
 
 export default TabBar
 
@@ -50,6 +62,10 @@ const StyledWrapper = styled.div`
     white-space: nowrap;
     cursor: pointer;
     text-decoration: none;
+
+    &.preview .label {
+      font-style: italic;
+    }
 
     &.active {
       background: ${({ theme }) => theme.colors.editor.bg};

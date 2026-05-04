@@ -3,7 +3,6 @@ import Link from "next/link"
 import styled from "@emotion/styled"
 import usePostsQuery from "src/hooks/usePostsQuery"
 import { useCategoriesQuery } from "src/hooks/useCategoriesQuery"
-import TabBar from "src/layouts/RootLayout/EditorChrome/TabBar"
 import { useRegisterChrome } from "src/layouts/RootLayout/EditorChrome/RouteChromeContext"
 import { DEFAULT_CATEGORY } from "src/constants"
 
@@ -28,8 +27,6 @@ const Archive = ({ categoryName }: Props) => {
   const years = Object.keys(byYear).sort((a, b) => Number(b) - Number(a))
 
   const filename = `categories/${categoryName}.md`
-  const tabs = [{ label: `#${categoryName}`, href: `/categories/${categoryName}`, icon: "#" }]
-
   const statusItems = useMemo(
     () => ["main", `category: ${categoryName}`, `${posts.length} entries`, "Markdown"],
     [categoryName, posts.length]
@@ -40,8 +37,6 @@ const Archive = ({ categoryName }: Props) => {
 
   return (
     <StyledWrapper>
-      <TabBar tabs={tabs} activeIdx={0} />
-
       <div className="scroll-area">
         <div className="body">
           <div className="breadcrumb">
