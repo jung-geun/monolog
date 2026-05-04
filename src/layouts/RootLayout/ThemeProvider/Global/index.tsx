@@ -77,10 +77,12 @@ export const Global = () => {
           font-family: ${pretendard.style.fontFamily};
         }
 
-        /* Accessible name fallback for empty Notion page-link title spans */
+        /* Accessible name fallback for empty Notion page links */
+        .notion-page-link,
         .notion-page-title-text {
           position: relative;
         }
+        .notion-page-link:empty::after,
         .notion-page-title-text:empty::before {
           content: "페이지";
           position: absolute;
