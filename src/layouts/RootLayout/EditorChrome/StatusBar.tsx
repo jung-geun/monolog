@@ -88,7 +88,7 @@ const StyledWrapper = styled.div`
   .accent-strip {
     flex: 1;
     background: ${({ theme }) => theme.colors.editor.accent};
-    color: #fff;
+    color: #1c1d1a;
     display: flex;
     align-items: center;
     padding: 0 12px;

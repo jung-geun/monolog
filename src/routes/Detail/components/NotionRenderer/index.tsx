@@ -157,6 +157,14 @@ const NotionRenderer: FC<Props> = ({ recordMap }) => {
   // Apply colors to list items (bullets, backgrounds) that might be missed by react-notion-x
   useListItemColorEffect(recordMap)
 
+  useEffect(() => {
+    document.querySelectorAll<HTMLAnchorElement>('.notion-page-link').forEach((el) => {
+      if (!el.textContent?.trim() && !el.getAttribute('aria-label')) {
+        el.setAttribute('aria-label', '페이지')
+      }
+    })
+  }, [recordMap])
+
   // KaTeX math rendering effect - moved to top level to follow React Hooks rules
   useEffect(() => {
     // Only run on client side and when recordMap is available

@@ -7,7 +7,7 @@ type Props = {
 const LineNumberGutter = ({ count = 80 }: Props) => (
   <StyledWrapper aria-hidden="true">
     {Array.from({ length: count }, (_, i) => (
-      <div key={i + 1} aria-hidden="true">{i + 1}</div>
+      <div key={i + 1} />
     ))}
   </StyledWrapper>
 )
@@ -27,6 +27,11 @@ const StyledWrapper = styled.div`
   user-select: none;
   flex-shrink: 0;
   overflow: hidden;
+  counter-reset: line;
+  div {
+    counter-increment: line;
+    &::before { content: counter(line); }
+  }
 
   @media (max-width: ${({ theme }) => theme.variables.breakpoint}px) {
     display: none;
