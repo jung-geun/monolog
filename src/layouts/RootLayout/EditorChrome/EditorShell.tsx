@@ -14,13 +14,11 @@ const EditorShellInner = ({ children }: { children: ReactNode }) => {
       <div className="main-row">
         <ActivityBar />
         <FileTree />
-        {isFileTreeOpen && (
-          <div
-            className="filetree-backdrop"
-            onClick={() => setFileTreeOpen(false)}
-            aria-hidden="true"
-          />
-        )}
+        <div
+          className={`filetree-backdrop${isFileTreeOpen ? " open" : ""}`}
+          onClick={() => setFileTreeOpen(false)}
+          aria-hidden="true"
+        />
         <div className="editor-body">
           {children}
         </div>
@@ -78,7 +76,15 @@ const StyledWrapper = styled.div`
       bottom: 0;
       background: rgba(0, 0, 0, 0.45);
       z-index: 15;
-      cursor: pointer;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.18s ease;
+
+      &.open {
+        opacity: 1;
+        pointer-events: auto;
+        cursor: pointer;
+      }
     }
   }
 `

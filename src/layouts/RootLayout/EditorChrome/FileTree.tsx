@@ -132,6 +132,9 @@ const StyledWrapper = styled.nav`
   overflow-x: hidden;
   padding: 10px 0;
   flex-shrink: 0;
+  margin-left: 0;
+  transition: margin-left 0.18s ease, transform 0.18s ease;
+  will-change: margin-left, transform;
 
   scrollbar-width: none;
   &::-webkit-scrollbar { display: none; }
@@ -201,7 +204,8 @@ const StyledWrapper = styled.nav`
   }
 
   &.closed {
-    display: none;
+    margin-left: -${({ theme }) => theme.variables.fileTreeWidth}px;
+    pointer-events: none;
   }
 
   @media (max-width: ${({ theme }) => theme.variables.breakpoint}px) {
@@ -212,5 +216,13 @@ const StyledWrapper = styled.nav`
     width: min(280px, calc(100% - ${({ theme }) => theme.variables.activityBarWidth}px));
     z-index: 20;
     box-shadow: 4px 0 16px rgba(0, 0, 0, 0.45);
+    margin-left: 0;
+    transform: translateX(0);
+
+    &.closed {
+      margin-left: 0;
+      transform: translateX(-100%);
+      box-shadow: none;
+    }
   }
 `
