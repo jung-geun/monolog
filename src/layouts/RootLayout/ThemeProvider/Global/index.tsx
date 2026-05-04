@@ -76,6 +76,22 @@ export const Global = () => {
         .notion-page blockquote {
           font-family: ${pretendard.style.fontFamily};
         }
+
+        /* Accessible name fallback for empty Notion page-link title spans */
+        .notion-page-title-text {
+          position: relative;
+        }
+        .notion-page-title-text:empty::before {
+          content: "페이지";
+          position: absolute;
+          width: 1px;
+          height: 1px;
+          margin: -1px;
+          padding: 0;
+          overflow: hidden;
+          clip: rect(0, 0, 0, 0);
+          white-space: nowrap;
+        }
       `}
     />
   )

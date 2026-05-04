@@ -52,7 +52,7 @@ const editorDark: EditorColors = {
   fg: "#ececea",
   fg2: "#a4a69e",
   fg3: "#888a80",
-  fg4: "#44463e",
+  fg4: "#6b6d63",
   line: "#262830",
   line2: "#383a42",
   gutter: "#131419",
