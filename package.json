@@ -21,7 +21,7 @@
     "@emotion/react": "^11.11.1",
     "@emotion/styled": "^11.11.0",
     "@notionhq/client": "^5.1.0",
-    "@radix-ui/colors": "^1.0.0",
+    "@radix-ui/colors": "^2.1.0",
     "@tanstack/react-query": "^5.100.8",
     "@types/katex": "^0.16.7",
     "caniuse-lite": "^1.0.30001751",
