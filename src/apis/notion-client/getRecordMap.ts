@@ -5,6 +5,7 @@ import { unwrapBlock, getBlockById } from "src/libs/utils/notion/unwrapBlock"
 import { TPosts } from "src/types"
 import { cacheStore, keys } from "src/libs/cache"
 import { CONFIG } from "site.config"
+import { debugLog } from "src/libs/utils/logger"
 
 const RECORD_MAP_TTL_MS = CONFIG.revalidateTime * 1000
 
@@ -124,7 +125,7 @@ async function fetchChildBlocks(blockId: string, notion: any, recordMap: Extende
     } while (cursor)
 
     if (childIds.length > 0) {
-      console.log(`📦 [fetchChildBlocks] Fetched ${childIds.length} children for block ${blockId}`)
+      debugLog(`📦 [fetchChildBlocks] Fetched ${childIds.length} children for block ${blockId}`)
     }
 
     return childIds
@@ -251,10 +252,10 @@ async function processBlock(block: any, parentId: string, notion: any, recordMap
 
       case 'image':
         const imageUrl = blockData.file?.url || blockData.external?.url
-        console.log('🖼️ [processBlock] Image block found:', block.id, imageUrl)
-        console.log('🖼️ [processBlock] Full block data:', blockData)
+        debugLog('🖼️ [processBlock] Image block found:', block.id, imageUrl)
+        debugLog('🖼️ [processBlock] Full block data:', blockData)
         if (imageUrl) {
-          console.log('🖼️ Image URL from Notion API:', imageUrl)
+          debugLog('🖼️ Image URL from Notion API:', imageUrl)
 
           properties.source = [[imageUrl]]
 
@@ -347,7 +348,7 @@ async function processBlock(block: any, parentId: string, notion: any, recordMap
 
       case 'child_database':
         // Database block - store metadata for placeholder rendering
-        console.log('📊 [getRecordMap] Found child_database block:', block.id)
+        debugLog('📊 [getRecordMap] Found child_database block:', block.id)
         if (blockData.title) {
           properties.title = convertRichText(blockData.title)
         }
@@ -361,7 +362,7 @@ async function processBlock(block: any, parentId: string, notion: any, recordMap
       case 'synced_block':
         // Synced block - children will be fetched automatically via has_children
         // Store synced_from reference if available (points to original block)
-        console.log('� [synced_block] Found:', {
+        debugLog('📋 [synced_block] Found:', {
           id: block.id,
           has_children: block.has_children,
           synced_from: blockData.synced_from,
@@ -378,7 +379,7 @@ async function processBlock(block: any, parentId: string, notion: any, recordMap
           properties.source = [[audioUrl]]
           // Add format for audio display
           format.display_source = audioUrl
-          console.log('🎵 [getRecordMap] Audio block found:', block.id, audioUrl)
+          debugLog('🎵 [getRecordMap] Audio block found:', block.id, audioUrl)
         }
         if (blockData.caption && blockData.caption.length > 0) {
           properties.caption = convertRichText(blockData.caption)
@@ -489,7 +490,7 @@ export const getRecordMap = async (pageId: string, allPosts?: TPosts): Promise<E
 
   const cached = await cacheStore.get<ExtendedRecordMap>(keys.recordMap(pageId, lastEdited))
   if (cached) {
-    console.log(`✅ Cache hit for recordMap: ${pageId}`)
+    debugLog(`✅ Cache hit for recordMap: ${pageId}`)
     return cached
   }
 
@@ -511,7 +512,7 @@ async function fetchRecordMap(
 
   while (retryCount < maxRetries) {
     try {
-      console.log(`📡 Fetching page content for ${pageId}`)
+      debugLog(`📡 Fetching page content for ${pageId}`)
 
       // Get page metadata
       const page = await notion.pages.retrieve({ page_id: pageId })
@@ -531,7 +532,7 @@ async function fetchRecordMap(
       } while (topCursor)
 
       const blocks = { results: allBlocks }
-      console.log(`✅ Retrieved page ${pageId} with ${blocks.results.length} blocks`)
+      debugLog(`✅ Retrieved page ${pageId} with ${blocks.results.length} blocks`)
 
       // Transform to ExtendedRecordMap format for react-notion-x compatibility
       const recordMap: ExtendedRecordMap = {
@@ -586,7 +587,7 @@ async function fetchRecordMap(
 
       // Exponential backoff
       const waitTime = Math.pow(2, retryCount) * 1500
-      console.log(`⏳ Waiting ${waitTime / 1000} seconds before retry...`)
+      debugLog(`⏳ Waiting ${waitTime / 1000} seconds before retry...`)
       await new Promise(resolve => setTimeout(resolve, waitTime))
     }
   }

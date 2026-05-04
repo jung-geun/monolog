@@ -1,8 +1,12 @@
 import path from 'path'
+import os from 'os'
 import { BlobFsBackend } from './blobFsBackend'
 import { generateImageHash } from 'src/libs/utils/image/cache/hashUtils'
 
-const CACHE_DIR = path.join(process.cwd(), '.image-cache')
+const CACHE_DIR = process.env.IMAGE_CACHE_DIR
+  ?? (process.env.NODE_ENV === 'production'
+    ? path.join(process.cwd(), '.image-cache')
+    : path.join(os.tmpdir(), 'monolog-image-cache'))
 
 // S3 UUID-keyed images are content-addressed — 30-day TTL is safe
 const TTL_S3_MS = 30 * 24 * 60 * 60 * 1000

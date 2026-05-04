@@ -9,6 +9,7 @@ import {
 } from "src/types"
 import { getOfficialNotionClient } from "./notionClient"
 import { cacheStore, keys } from "src/libs/cache"
+import { debugLog } from "src/libs/utils/logger"
 
 const DATABASE_TTL_MS = 30 * 60 * 1000 // 30 minutes
 
@@ -133,7 +134,7 @@ export async function getDatabase(
       keys.database(databaseId, lastEdited),
       DATABASE_TTL_MS,
       async () => {
-        console.log(`📡 Fetching database: ${databaseId} (data_source: ${dataSourceId})`)
+        debugLog(`📡 Fetching database: ${databaseId} (data_source: ${dataSourceId})`)
 
         // Step 2: query rows + retrieve full schema (for select/status option order)
         const [queryResp, dsMeta] = await Promise.all([
@@ -191,7 +192,7 @@ export async function getDatabase(
           groupOptions: groupOptions ?? undefined,
         }
 
-        console.log(
+        debugLog(
           `✅ Fetched database "${title}" with ${rows.length} rows (view: ${database.view}${
             groupBy ? `, groupBy: ${groupBy}, ${groupOptions?.length ?? 0} options` : ""
           })`

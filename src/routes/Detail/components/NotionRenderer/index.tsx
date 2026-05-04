@@ -219,18 +219,16 @@ const NotionRenderer: FC<Props> = ({ recordMap }) => {
       }
     }
 
-    // Wait a bit for the page to fully render
     setTimeout(checkAndRenderMath, 1000)
 
-    // Also check after navigation changes
+    let mathTimer: ReturnType<typeof setTimeout>
     const observer = new MutationObserver(() => {
-      setTimeout(checkAndRenderMath, 500)
+      clearTimeout(mathTimer)
+      mathTimer = setTimeout(checkAndRenderMath, 500)
     })
 
-    observer.observe(document.body, {
-      childList: true,
-      subtree: true
-    })
+    const notionPage = document.querySelector('.notion-page') ?? document.body
+    observer.observe(notionPage, { childList: true, subtree: true })
 
     // Manual re-render function for debugging
     window.renderMathManually = checkAndRenderMath
@@ -373,20 +371,17 @@ const NotionRenderer: FC<Props> = ({ recordMap }) => {
       })
     }
 
-    // 페이지 렌더링 후 실행
     setTimeout(replaceYouTubeLite, 500)
     setTimeout(renderAudioBlocks, 500)
 
-    // DOM 변경 감지
+    let ytTimer: ReturnType<typeof setTimeout>
     const observer = new MutationObserver(() => {
-      setTimeout(replaceYouTubeLite, 100)
-      setTimeout(renderAudioBlocks, 100)
+      clearTimeout(ytTimer)
+      ytTimer = setTimeout(() => { replaceYouTubeLite(); renderAudioBlocks() }, 300)
     })
 
-    observer.observe(document.body, {
-      childList: true,
-      subtree: true
-    })
+    const notionPage = document.querySelector('.notion-page') ?? document.body
+    observer.observe(notionPage, { childList: true, subtree: true })
 
     return () => {
       observer.disconnect()
@@ -467,21 +462,16 @@ const NotionRenderer: FC<Props> = ({ recordMap }) => {
       }
     }
 
-    // Add error listener to all images
     const observer = new MutationObserver(() => {
       const images = document.querySelectorAll('img.notion-asset-wrapper-image, img.medium-zoom-image')
       images.forEach(img => {
-        // Remove existing listener to avoid duplicates
         img.removeEventListener('error', handleImageError)
         img.addEventListener('error', handleImageError)
       })
     })
 
-    // Initial setup
-    observer.observe(document.body, {
-      childList: true,
-      subtree: true
-    })
+    const notionPage = document.querySelector('.notion-page') ?? document.body
+    observer.observe(notionPage, { childList: true, subtree: true })
 
     return () => {
       observer.disconnect()

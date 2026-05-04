@@ -3,6 +3,9 @@ module.exports = {
   compiler: {
     emotion: true,
   },
+  experimental: {
+    turbopackSourceMaps: false,
+  },
   async headers() {
     const securityHeaders = [
       { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains; preload' },
@@ -33,7 +36,7 @@ module.exports = {
   },
   // Error handling during static generation
   onDemandEntries: {
-    maxInactiveAge: 25 * 1000,
+    maxInactiveAge: 60 * 1000,
     pagesBufferLength: 2,
   }
 }

@@ -1,10 +1,8 @@
-/**
- * Debug logger that only logs in development environment
- */
+const DEBUG_ENABLED =
+  process.env.NODE_ENV !== "production" && process.env.MONOLOG_DEBUG === "1"
+
 export const debugLog = (...args: any[]) => {
-  if (process.env.NODE_ENV !== 'production') {
-    console.log(...args)
-  }
+  if (DEBUG_ENABLED) console.log(...args)
 }
 
 /**

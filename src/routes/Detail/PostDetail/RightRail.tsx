@@ -134,7 +134,7 @@ const RightRail = ({ recordMap, post }: Props) => {
         </div>
       )}
 
-      {nodes.length > 0 && (
+      {nodes.length > 0 && post.slug !== "about" && (
         <div className="section">
           <div className="section-label">graph</div>
           <div className="mini-graph">

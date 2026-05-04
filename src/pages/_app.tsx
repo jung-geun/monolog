@@ -1,10 +1,10 @@
 import { AppPropsWithLayout } from "../types"
 import { HydrationBoundary, QueryClientProvider } from "@tanstack/react-query"
 import { RootLayout } from "src/layouts"
-import { queryClient } from "src/libs/react-query"
+import { queryClient as sharedQueryClient, createServerQueryClient } from "src/libs/react-query"
 import GoogleAnalytics from "src/components/GoogleAnalytics"
 import { JetBrains_Mono } from "next/font/google"
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/router"
 
 export const jetbrainsMono = JetBrains_Mono({
@@ -22,6 +22,12 @@ if (process.env.NODE_ENV === 'production') {
 function App({ Component, pageProps }: AppPropsWithLayout) {
   const getLayout = Component.getLayout || ((page) => page)
   const router = useRouter()
+  // Server always gets a fresh QueryClient; browser reuses the shared singleton.
+  // This prevents React Query v5's HydrationBoundary from deferring existing
+  // queries to useEffect (which never runs on the server), causing hydration mismatches.
+  const [qClient] = useState(() =>
+    typeof window === "undefined" ? createServerQueryClient() : sharedQueryClient
+  )
 
   // ⌘K / Ctrl+K global listener — opens command palette
   useEffect(() => {
@@ -37,7 +43,7 @@ function App({ Component, pageProps }: AppPropsWithLayout) {
   }, [])
 
   return (
-    <QueryClientProvider client={queryClient}>
+    <QueryClientProvider client={qClient}>
       <HydrationBoundary state={pageProps.dehydratedState}>
         <div className={jetbrainsMono.variable} style={{ height: "100%" }}>
           <RootLayout>{getLayout(<Component {...pageProps} />)}</RootLayout>

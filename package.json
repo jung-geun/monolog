@@ -7,7 +7,7 @@
     "url": "https://github.com/jung-geun/monolog.git"
   },
   "scripts": {
-    "dev": "next dev",
+    "dev": "nice -n 10 next dev",
     "prebuild": "rm -f public/sitemap.xml public/sitemap-*.xml",
     "build": "next build",
     "start": "next start",

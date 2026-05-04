@@ -17,32 +17,32 @@ const PostList: React.FC<Props> = ({ q }) => {
   const currentCategory = `${router.query.category || ``}` || DEFAULT_CATEGORY
   const currentOrder = `${router.query.order || ``}` || "desc"
 
-  // Persist UI filters across navigation using sessionStorage as a fallback.
-  // This allows the feed to remember the user's selected tag/category/order
-  // even after navigating into a post and returning.
   const STORAGE_KEY = 'feed.filters'
 
-  // If router query doesn't contain values (e.g., when navigating back),
-  // restore from sessionStorage.
-  const storedRaw = typeof window !== 'undefined' ? sessionStorage.getItem(STORAGE_KEY) : null
-  let stored: { tag?: string; category?: string; order?: string } | null = null
-  try {
-    stored = storedRaw ? JSON.parse(storedRaw) : null
-  } catch {
-    stored = null
-  }
+  // Restored from sessionStorage after hydration — always null on first render
+  // to keep SSR and client output identical.
+  const [restoredFilters, setRestoredFilters] = useState<{
+    tag?: string; category?: string; order?: string
+  } | null>(null)
 
-  // Check if tag/category/order is explicitly present in URL query.
-  // If explicitly set (even to empty), use URL value; otherwise fallback to sessionStorage.
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(STORAGE_KEY)
+      if (raw) setRestoredFilters(JSON.parse(raw))
+    } catch {
+      // ignore storage errors
+    }
+  }, [])
+
   const tagInQuery = 'tag' in router.query
   const categoryInQuery = 'category' in router.query
   const orderInQuery = 'order' in router.query
 
-  const effectiveTag = tagInQuery ? currentTag : (stored && stored.tag) || undefined
+  const effectiveTag = tagInQuery ? currentTag : restoredFilters?.tag
   const effectiveCategory = categoryInQuery
     ? (router.query.category as string)
-    : (stored && stored.category) || DEFAULT_CATEGORY
-  const effectiveOrder = orderInQuery ? currentOrder : (stored && stored.order) || 'desc'
+    : restoredFilters?.category || DEFAULT_CATEGORY
+  const effectiveOrder = orderInQuery ? currentOrder : restoredFilters?.order || 'desc'
 
   useEffect(() => {
     setFilteredPosts(() => {

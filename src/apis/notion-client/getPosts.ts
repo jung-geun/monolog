@@ -3,12 +3,10 @@ import { TPosts, TPost } from "src/types"
 import { getOfficialNotionClient } from "./notionClient"
 import { createProxyRequestUrl } from "src/libs/utils/image/proxyUtils"
 import { cacheStore, keys } from "src/libs/cache"
+import { debugLog } from "src/libs/utils/logger"
 
 const POSTS_TTL_MS = Math.floor((CONFIG.revalidateTime / 2) * 1000)
 
-/**
- * Fetch all posts from Notion database using official @notionhq/client
- */
 export const getPosts = async (options?: { bypassCache?: boolean }): Promise<TPosts> => {
   const dataSourceId = process.env.NOTION_DATASOURCE_ID
 
@@ -18,8 +16,14 @@ export const getPosts = async (options?: { bypassCache?: boolean }): Promise<TPo
   }
 
   const bypass = options?.bypassCache === true
+
   if (bypass) {
-    await cacheStore.invalidate(keys.posts(dataSourceId))
+    debugLog(`[getPosts] bypass fetch: ${keys.posts(dataSourceId)}`)
+    const fresh = await fetchFromNotion(dataSourceId)
+    if (fresh.length > 0) {
+      await cacheStore.set(keys.posts(dataSourceId), fresh, POSTS_TTL_MS)
+    }
+    return fresh
   }
 
   return cacheStore.getOrSet(
@@ -38,14 +42,14 @@ async function fetchFromNotion(dataSourceId: string): Promise<TPosts> {
 
   while (retryCount < maxRetries) {
     try {
-      console.log(`📡 Fetching posts from Notion DataSource: ${dataSourceId}`)
+      debugLog(`[fetchFromNotion] fetching DataSource: ${dataSourceId}`)
 
       const response = await notion.dataSources.query({
         data_source_id: dataSourceId,
         page_size: 100,
       })
 
-      console.log(`✅ Found ${response.results.length} posts`)
+      debugLog(`[fetchFromNotion] ${response.results.length} results`)
 
       const posts: TPosts = response.results.map((page: any) => {
         const post: any = { id: page.id }
@@ -151,7 +155,7 @@ async function fetchFromNotion(dataSourceId: string): Promise<TPosts> {
         return dateB.getTime() - dateA.getTime()
       })
 
-      console.log(`✅ Filtered to ${publicPosts.length} public posts`)
+      debugLog(`[fetchFromNotion] ${publicPosts.length} public posts`)
       return publicPosts
     } catch (error: any) {
       retryCount++

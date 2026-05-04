@@ -1,7 +1,11 @@
 import path from "path"
+import os from "os"
 import { CacheBackend, CacheEntry } from "./types"
 
-const CACHE_DIR = path.join(process.cwd(), ".notion-cache")
+const CACHE_DIR = process.env.NOTION_CACHE_DIR
+  ?? (process.env.NODE_ENV === "production"
+    ? path.join(process.cwd(), ".notion-cache")
+    : path.join(os.tmpdir(), "monolog-notion-cache"))
 
 function isServerless(): boolean {
   return !!(process.env.VERCEL || process.env.NETLIFY || process.env.AWS_LAMBDA_FUNCTION_NAME)
