@@ -2,9 +2,7 @@ import { AppPropsWithLayout } from "../types"
 import { HydrationBoundary, QueryClientProvider } from "@tanstack/react-query"
 import { RootLayout } from "src/layouts"
 import { queryClient } from "src/libs/react-query"
-import { Analytics } from "@vercel/analytics/next"
 import GoogleAnalytics from "src/components/GoogleAnalytics"
-import { SpeedInsights } from "@vercel/speed-insights/next"
 import { JetBrains_Mono } from "next/font/google"
 import { useEffect } from "react"
 import { useRouter } from "next/router"
@@ -45,8 +43,6 @@ function App({ Component, pageProps }: AppPropsWithLayout) {
           <RootLayout>{getLayout(<Component {...pageProps} />)}</RootLayout>
         </div>
         <GoogleAnalytics />
-        <Analytics />
-        <SpeedInsights />
       </HydrationBoundary>
     </QueryClientProvider>
   )

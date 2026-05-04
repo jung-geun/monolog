@@ -73,7 +73,7 @@ When Pull Requests are created:
 5. Clone the forked repository and customize `site.config.js` as desired.
 6. Choose one of the deployment methods below.
 
-### Environment Variables for Vercel Deployment
+### Environment Variables
 
 | Variable Name | Required | Description |
 |---------------|----------|-------------|
@@ -82,39 +82,6 @@ When Pull Requests are created:
 | `NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION` | Optional | For Google Search Console plugin |
 | `NEXT_PUBLIC_NAVER_SITE_VERIFICATION` | Optional | For Naver Search Advisor plugin |
 | `NEXT_PUBLIC_UTTERANCES_REPO` | Optional | For Utterances plugin |
-
-## ☁️ Vercel Deployment Method
-
-### Quick Deploy (10-Step Guide)
-
-<details>
-   <summary>View Step-by-Step Guide</summary>
-
-   0. Prepare Notion and Vercel accounts.
-
-   1. ⭐ `Star` and `Fork` this repository.
-
-   2. Click the [Notion template](https://quasar-season-ed5.notion.site/12c38b5f459d4eb9a759f92fba6cea36?v=2e7962408e3842b2a1a801bf3546edda) to open the Notion page in your browser. Click the `Duplicate` button in the top right corner.
-
-   3. You can check your Notion page in your account in the Notion app.
-
-   4. Click `Share` and `Publish` in the top right corner and check the web link. (Copy web link)
-
-   5. `Modify` the **site.config.js** file in the forked repository.
-
-   6. Log in to Vercel.
-
-   7. `Create` a new project using **Add New...**.
-
-   8. `Import` the forked monolog repository.
-
-   9. `Add` environment variables to the Vercel project.
-
-   10. `Wait` for deployment to complete. When deployment is successful, you'll see a screen like below.
-
-   🥳 Congratulations! Now check out your blog!
-
-</details>
 
 ## 🐳 Docker Local Execution
 

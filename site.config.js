@@ -80,7 +80,7 @@ const CONFIG = {
       appid: "", // Embed Code -> data-app-id value
     },
   },
-  isProd: process.env.VERCEL_ENV === "production", // distinguish between development and production environment (ref: https://vercel.com/docs/environment-variables#system-environment-variables)
+  isProd: process.env.NODE_ENV === "production",
   // revalidate time (in seconds) for ISR on pages like [slug] and index.
   // Can be configured via environment variable REVALIDATE_HOURS (e.g., 6 or 12).
   revalidateTime: (function () {
