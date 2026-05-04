@@ -1,5 +1,6 @@
 import { useMemo } from "react"
 import Link from "next/link"
+import Image from "next/image"
 import styled from "@emotion/styled"
 import usePostsQuery from "src/hooks/usePostsQuery"
 import { useSeriesQuery } from "src/hooks/useSeriesQuery"
@@ -93,6 +94,19 @@ const SeriesArchive = ({ seriesName }: Props) => {
                           <div className="item-tags">
                             {post.tags.map((t) => `#${t}`).join(" · ")}
                           </div>
+                        )}
+                      </div>
+                      <div className="item-thumb">
+                        {post.thumbnail ? (
+                          <Image
+                            src={post.thumbnail}
+                            alt=""
+                            fill
+                            sizes="100px"
+                            style={{ objectFit: "cover" }}
+                          />
+                        ) : (
+                          <div className="thumb-placeholder" aria-hidden />
                         )}
                       </div>
                     </Link>
@@ -246,12 +260,17 @@ const StyledWrapper = styled.div`
 
   .timeline-item {
     display: grid;
-    grid-template-columns: 62px 16px 1fr;
+    grid-template-columns: 62px 16px 1fr 100px;
     gap: 16px;
     align-items: baseline;
     padding: 10px 0;
     text-decoration: none;
     color: inherit;
+
+    @media (max-width: ${({ theme }) => theme.variables.breakpoint}px) {
+      grid-template-columns: 62px 16px 1fr;
+      .item-thumb { display: none; }
+    }
 
     &:hover .item-title { color: ${({ theme }) => theme.colors.editor.accent3}; }
 
@@ -272,6 +291,22 @@ const StyledWrapper = styled.div`
       justify-self: center;
       align-self: center;
       flex-shrink: 0;
+    }
+
+    .item-thumb {
+      position: relative;
+      width: 100px;
+      height: 72px;
+      border: 1px solid ${({ theme }) => theme.colors.editor.line};
+      background: ${({ theme }) => theme.colors.editor.bg2};
+      overflow: hidden;
+      align-self: center;
+      flex-shrink: 0;
+
+      .thumb-placeholder {
+        width: 100%;
+        height: 100%;
+      }
     }
 
     .item-content {
