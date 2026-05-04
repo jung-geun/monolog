@@ -1,3 +1,4 @@
+import { useEffect } from "react"
 import Link from "next/link"
 import { useRouter } from "next/router"
 import styled from "@emotion/styled"
@@ -6,6 +7,7 @@ import { useCategoriesQuery } from "src/hooks/useCategoriesQuery"
 import { useSeriesQuery } from "src/hooks/useSeriesQuery"
 import { CONFIG } from "site.config"
 import { DEFAULT_CATEGORY } from "src/constants"
+import { useRouteChrome } from "./RouteChromeContext"
 
 const FileTree = () => {
   const router = useRouter()
@@ -13,6 +15,18 @@ const FileTree = () => {
   const categories = useCategoriesQuery()
   const series = useSeriesQuery()
   const activeSlug = router.query.slug as string | undefined
+  const { isFileTreeOpen, setFileTreeOpen } = useRouteChrome()
+
+  useEffect(() => {
+    const handleRouteChange = () => {
+      if (typeof window === "undefined") return
+      if (window.matchMedia("(max-width: 960px)").matches) {
+        setFileTreeOpen(false)
+      }
+    }
+    router.events.on("routeChangeStart", handleRouteChange)
+    return () => router.events.off("routeChangeStart", handleRouteChange)
+  }, [router, setFileTreeOpen])
 
   const recentPosts = posts.slice(0, 15)
   const categoryEntries = Object.entries(categories).filter(
@@ -20,7 +34,7 @@ const FileTree = () => {
   )
 
   return (
-    <StyledWrapper>
+    <StyledWrapper className={isFileTreeOpen ? "open" : "closed"}>
       <div className="workspace-label">pieroot.log</div>
 
       <div className="section-header">▾ posts/</div>
@@ -186,7 +200,17 @@ const StyledWrapper = styled.nav`
     .cat-count { color: ${({ theme }) => theme.colors.editor.fg3}; flex-shrink: 0; margin-left: 8px; }
   }
 
-  @media (max-width: ${({ theme }) => theme.variables.breakpoint}px) {
+  &.closed {
     display: none;
+  }
+
+  @media (max-width: ${({ theme }) => theme.variables.breakpoint}px) {
+    position: absolute;
+    top: 0;
+    left: ${({ theme }) => theme.variables.activityBarWidth}px;
+    bottom: 0;
+    width: min(280px, calc(100% - ${({ theme }) => theme.variables.activityBarWidth}px));
+    z-index: 20;
+    box-shadow: 4px 0 16px rgba(0, 0, 0, 0.45);
   }
 `

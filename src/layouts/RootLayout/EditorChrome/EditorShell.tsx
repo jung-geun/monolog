@@ -7,13 +7,20 @@ import StatusBar from "./StatusBar"
 import { RouteChromeProvider, useRouteChrome } from "./RouteChromeContext"
 
 const EditorShellInner = ({ children }: { children: ReactNode }) => {
-  const { chrome } = useRouteChrome()
+  const { chrome, isFileTreeOpen, setFileTreeOpen } = useRouteChrome()
   return (
     <StyledWrapper>
       <TitleBar filename={chrome.filename} />
       <div className="main-row">
         <ActivityBar />
         <FileTree />
+        {isFileTreeOpen && (
+          <div
+            className="filetree-backdrop"
+            onClick={() => setFileTreeOpen(false)}
+            aria-hidden="true"
+          />
+        )}
         <div className="editor-body">
           {children}
         </div>
@@ -46,6 +53,7 @@ const StyledWrapper = styled.div`
     display: flex;
     min-height: 0;
     overflow: hidden;
+    position: relative;
   }
 
   .editor-body {
@@ -54,5 +62,23 @@ const StyledWrapper = styled.div`
     display: flex;
     flex-direction: column;
     overflow: hidden;
+  }
+
+  .filetree-backdrop {
+    display: none;
+  }
+
+  @media (max-width: ${({ theme }) => theme.variables.breakpoint}px) {
+    .filetree-backdrop {
+      display: block;
+      position: absolute;
+      top: 0;
+      left: ${({ theme }) => theme.variables.activityBarWidth}px;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.45);
+      z-index: 15;
+      cursor: pointer;
+    }
   }
 `

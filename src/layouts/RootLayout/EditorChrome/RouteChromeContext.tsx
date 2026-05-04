@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, ReactNode } from "react"
+import React, { createContext, useCallback, useContext, useEffect, useState, ReactNode } from "react"
 
 export type ChromeConfig = {
   filename: string
@@ -8,6 +8,9 @@ export type ChromeConfig = {
 type RouteChromeContextValue = {
   chrome: ChromeConfig
   setChrome: (config: ChromeConfig) => void
+  isFileTreeOpen: boolean
+  setFileTreeOpen: (open: boolean) => void
+  toggleFileTree: () => void
 }
 
 const defaultChrome: ChromeConfig = {
@@ -18,14 +21,30 @@ const defaultChrome: ChromeConfig = {
 const RouteChromeContext = createContext<RouteChromeContextValue>({
   chrome: defaultChrome,
   setChrome: () => {},
+  isFileTreeOpen: true,
+  setFileTreeOpen: () => {},
+  toggleFileTree: () => {},
 })
 
 export const useRouteChrome = () => useContext(RouteChromeContext)
 
 export const RouteChromeProvider = ({ children }: { children: ReactNode }) => {
   const [chrome, setChrome] = useState<ChromeConfig>(defaultChrome)
+  const [isFileTreeOpen, setFileTreeOpen] = useState(true)
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    if (window.matchMedia("(max-width: 960px)").matches) {
+      setFileTreeOpen(false)
+    }
+  }, [])
+
+  const toggleFileTree = useCallback(() => setFileTreeOpen((v) => !v), [])
+
   return (
-    <RouteChromeContext.Provider value={{ chrome, setChrome }}>
+    <RouteChromeContext.Provider
+      value={{ chrome, setChrome, isFileTreeOpen, setFileTreeOpen, toggleFileTree }}
+    >
       {children}
     </RouteChromeContext.Provider>
   )

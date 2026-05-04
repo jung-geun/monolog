@@ -2,29 +2,12 @@ import { useRouter } from "next/router"
 import Link from "next/link"
 import styled from "@emotion/styled"
 import useScheme from "src/hooks/useScheme"
+import { useRouteChrome } from "./RouteChromeContext"
 
-const ICONS = [
-  { icon: "▤", label: "explorer", href: "/" },
-  { icon: "⌕", label: "search", href: "/search" },
-  { icon: "✦", label: "graph", href: "/graph" },
-  { icon: "⌘", label: "commands", href: null },
-  { icon: "✎", label: "drafts", href: null, disabled: true },
-]
-
-type Props = {
-  activeActivity?: string
-}
-
-const ActivityBar = ({ activeActivity }: Props) => {
+const ActivityBar = () => {
   const router = useRouter()
   const [scheme, setScheme] = useScheme()
-
-  const current = activeActivity || (() => {
-    if (router.pathname === "/") return "explorer"
-    if (router.pathname === "/search") return "search"
-    if (router.pathname === "/graph") return "graph"
-    return "explorer"
-  })()
+  const { isFileTreeOpen, toggleFileTree } = useRouteChrome()
 
   const handleCommandsClick = () => {
     window.dispatchEvent(new CustomEvent("open-command-palette"))
@@ -32,33 +15,46 @@ const ActivityBar = ({ activeActivity }: Props) => {
 
   return (
     <StyledWrapper>
-      {ICONS.map(({ icon, label, href, disabled }) => {
-        const isActive = current === label
-        if (href) {
-          return (
-            <Link
-              key={label}
-              href={href}
-              className={`icon-btn${isActive ? " active" : ""}${disabled ? " disabled" : ""}`}
-              title={label}
-              aria-label={label}
-            >
-              {icon}
-            </Link>
-          )
-        }
-        return (
-          <button
-            key={label}
-            className={`icon-btn${isActive ? " active" : ""}${disabled ? " disabled" : ""}`}
-            title={label}
-            aria-label={label}
-            onClick={label === "commands" ? handleCommandsClick : undefined}
-          >
-            {icon}
-          </button>
-        )
-      })}
+      <button
+        className={`icon-btn${isFileTreeOpen ? " active" : ""}`}
+        title="explorer"
+        aria-label="explorer"
+        aria-pressed={isFileTreeOpen}
+        onClick={toggleFileTree}
+      >
+        ▤
+      </button>
+
+      <Link
+        href="/search"
+        className={`icon-btn${router.pathname === "/search" ? " active" : ""}`}
+        title="search"
+        aria-label="search"
+      >
+        ⌕
+      </Link>
+
+      <Link
+        href="/graph"
+        className={`icon-btn${router.pathname === "/graph" ? " active" : ""}`}
+        title="graph"
+        aria-label="graph"
+      >
+        ✦
+      </Link>
+
+      <button
+        className="icon-btn"
+        title="commands"
+        aria-label="commands"
+        onClick={handleCommandsClick}
+      >
+        ⌘
+      </button>
+
+      <button className="icon-btn disabled" title="drafts" aria-label="drafts">
+        ✎
+      </button>
 
       <div className="spacer" />
 
@@ -92,7 +88,7 @@ const StyledWrapper = styled.aside`
   align-items: center;
   padding: 12px 0;
   gap: 8px;
-  z-index: 5;
+  z-index: 30;
 
   .spacer { flex: 1; }
 
@@ -135,6 +131,7 @@ const StyledWrapper = styled.aside`
   }
 
   @media (max-width: ${({ theme }) => theme.variables.breakpoint}px) {
-    display: none;
+    padding: 8px 0;
+    gap: 4px;
   }
 `

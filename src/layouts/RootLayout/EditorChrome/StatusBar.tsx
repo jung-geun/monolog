@@ -95,6 +95,12 @@ const StyledWrapper = styled.div`
     gap: 16px;
     min-width: 0;
     overflow: hidden;
+    flex-wrap: nowrap;
+
+    > span {
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
 
     .last {
       margin-left: auto;
@@ -107,6 +113,13 @@ const StyledWrapper = styled.div`
       gap: 4px;
       .ip { display: none; }
       .sep { display: none; }
+    }
+    .accent-strip {
+      gap: 8px;
+      padding: 0 10px;
+      > span:not(:first-of-type):not(:last-of-type) {
+        display: none;
+      }
     }
   }
 `
