@@ -18,21 +18,7 @@ class MyDocument extends Document {
             title="RSS 2.0"
             href="/feed"
           ></link>
-          
-          {/* KaTeX for math equation rendering */}
-          <link
-            rel="stylesheet"
-            href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css"
-          />
-          <script
-            defer
-            src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"
-          />
-          <script
-            defer
-            src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"
-          />
-          
+
           {/* google search console */}
           {CONFIG.googleSearchConsole.enable === true && (
             <>

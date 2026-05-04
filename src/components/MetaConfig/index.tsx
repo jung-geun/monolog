@@ -39,12 +39,14 @@ const MetaConfig: React.FC<MetaConfigProps> = (props) => {
           </>
         )}
       </Head>
-      <Script
-        async
-        src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6070999186513755"
-        crossOrigin="anonymous"
-        strategy="afterInteractive"
-      />
+      {CONFIG.googleAdsense?.enable && CONFIG.googleAdsense.config.client && (
+        <Script
+          async
+          src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${CONFIG.googleAdsense.config.client}`}
+          crossOrigin="anonymous"
+          strategy="lazyOnload"
+        />
+      )}
     </>
   )
 }

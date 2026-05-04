@@ -1,7 +1,6 @@
 import React, { ReactNode, useEffect } from "react"
 import { ThemeProvider } from "./ThemeProvider"
 import useScheme from "src/hooks/useScheme"
-import Scripts from "src/layouts/RootLayout/Scripts"
 import useGtagEffect from "./useGtagEffect"
 import Prism from "prismjs/prism"
 import 'prismjs/components/prism-markup-templating.js'
@@ -52,7 +51,6 @@ const RootLayout = ({ children }: Props) => {
 
   return (
     <ThemeProvider scheme={scheme}>
-      <Scripts />
       <EditorShell>
         {children}
       </EditorShell>

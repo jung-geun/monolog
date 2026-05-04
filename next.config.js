@@ -1,5 +1,8 @@
 module.exports = {
   output: 'standalone',
+  compiler: {
+    emotion: true,
+  },
   async headers() {
     const securityHeaders = [
       { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains; preload' },

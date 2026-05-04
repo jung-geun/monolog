@@ -53,6 +53,13 @@ const CONFIG = {
       measurementId: process.env.NEXT_PUBLIC_GOOGLE_MEASUREMENT_ID || "",
     },
   },
+  googleAdsense: {
+    enable: process.env.NEXT_PUBLIC_GOOGLE_ADSENSE_DISABLE !== "true",
+    config: {
+      client:
+        process.env.NEXT_PUBLIC_GOOGLE_ADSENSE_CLIENT || "ca-pub-6070999186513755",
+    },
+  },
   googleSearchConsole: {
     enable: false,
     config: {
