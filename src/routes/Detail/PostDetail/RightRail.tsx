@@ -142,8 +142,8 @@ const RightRail = ({ recordMap, post }: Props) => {
               <title>{post.title}</title>
               {nodes.map((n, i) => {
                 const angle = (i / nodes.length) * Math.PI * 2
-                const x = 100 + Math.cos(angle) * 65
-                const y = 55 + Math.sin(angle) * 40
+                const x = Math.round((100 + Math.cos(angle) * 65) * 100) / 100
+                const y = Math.round((55 + Math.sin(angle) * 40) * 100) / 100
                 return (
                   <g key={n.slug}>
                     <line

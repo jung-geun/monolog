@@ -158,7 +158,7 @@ const StyledWrapper = styled.nav`
   .file-item {
     display: flex;
     align-items: center;
-    padding: 3px 12px 3px 26px;
+    padding: 5px 12px 5px 26px;
     color: ${({ theme }) => theme.colors.editor.fg2};
     background: transparent;
     border-left: 2px solid transparent;

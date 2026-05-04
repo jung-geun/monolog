@@ -8,10 +8,10 @@ const Footer: React.FC<Props> = () => {
   const router = useRouter()
   return (
     <StyledWrapper>
-      <a onClick={() => router.push("/")}>← Back</a>
-      <a onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}>
+      <button type="button" onClick={() => router.push("/")}>← Back</button>
+      <button type="button" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}>
         ↑ Top
-      </a>
+      </button>
     </StyledWrapper>
   )
 }
@@ -23,9 +23,14 @@ const StyledWrapper = styled.div`
   justify-content: space-between;
   font-weight: 500;
   color: ${({ theme }) => theme.colors.gray10};
-  a {
+  button {
     margin-top: 0.5rem;
     cursor: pointer;
+    background: none;
+    border: none;
+    padding: 0;
+    font: inherit;
+    color: inherit;
 
     :hover {
       color: ${({ theme }) => theme.colors.gray12};
