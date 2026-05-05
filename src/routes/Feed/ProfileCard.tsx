@@ -14,7 +14,12 @@ const ProfileCard: React.FC<Props> = () => {
       </div>
       <div className="content">
         <div className="top">
-          <Image src={CONFIG.profile.image} fill alt="" />
+          <Image
+              src={CONFIG.profile.image}
+              fill
+              alt={CONFIG.profile.name ? `${CONFIG.profile.name} profile photo` : "profile"}
+              sizes="(max-width: 768px) 100vw, 240px"
+            />
         </div>
         <div className="mid">
           <div className="name">{CONFIG.profile.name}</div>

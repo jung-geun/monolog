@@ -28,7 +28,10 @@ module.exports = {
       { protocol: 'https', hostname: 's3-us-west-2.amazonaws.com' },
       { protocol: 'https', hostname: 'prod-files-secure.s3.us-west-2.amazonaws.com' },
     ],
-    minimumCacheTTL: 3600,
+    formats: ['image/avif', 'image/webp'],
+    deviceSizes: [320, 480, 640, 828, 1080, 1280, 1920],
+    imageSizes: [16, 32, 48, 64, 96, 128, 256],
+    minimumCacheTTL: 86400,
   },
   // Generate 404 page instead of failing build for missing pages
   generateBuildId: async () => {
