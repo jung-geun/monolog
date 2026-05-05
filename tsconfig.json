@@ -22,6 +22,7 @@
     "incremental": true,
     "tsBuildInfoFile": ".next/cache/tsbuildinfo",
     "baseUrl": ".",
+    "ignoreDeprecations": "6.0",
     "plugins": [
       {
         "name": "next"
