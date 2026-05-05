@@ -1,10 +1,39 @@
 import { useMemo } from "react"
 import Link from "next/link"
-import Image from "next/image"
 import styled from "@emotion/styled"
 import usePostsQuery from "src/hooks/usePostsQuery"
 import { useSeriesQuery } from "src/hooks/useSeriesQuery"
 import { useRegisterChrome } from "src/layouts/RootLayout/EditorChrome/RouteChromeContext"
+
+const COLORS = ["signal", "paper", "cs", "research"] as const
+type Color = (typeof COLORS)[number]
+
+const GRADIENTS: Record<Color, string> = {
+  signal:   "bg-gradient-to-br from-signal-900 to-signal",
+  paper:    "bg-gradient-to-br from-paper-900 to-paper",
+  cs:       "bg-gradient-to-br from-cs-900 to-cs",
+  research: "bg-gradient-to-br from-research-900 to-research",
+}
+
+const ACCENT_NUM: Record<Color, string> = {
+  signal:   "text-signal/70",
+  paper:    "text-paper/70",
+  cs:       "text-cs/70",
+  research: "text-research/70",
+}
+
+const ACCENT_LABEL: Record<Color, string> = {
+  signal:   "text-signal-200",
+  paper:    "text-paper-50",
+  cs:       "text-cs-50",
+  research: "text-research-50",
+}
+
+function pickColor(name: string): Color {
+  let h = 0
+  for (let i = 0; i < name.length; i++) h += name.charCodeAt(i)
+  return COLORS[h % COLORS.length]
+}
 
 type Props = {
   seriesName: string
@@ -14,17 +43,13 @@ const SeriesArchive = ({ seriesName }: Props) => {
   const allPosts = usePostsQuery()
   const series = useSeriesQuery()
 
-  const posts = allPosts.filter(
-    (p) => p.series && p.series.includes(seriesName)
-  )
-
-  const byYear: Record<string, typeof posts> = {}
-  for (const post of posts) {
-    const year = (post.date?.start_date || post.createdTime || "").slice(0, 4) || "—"
-    if (!byYear[year]) byYear[year] = []
-    byYear[year].push(post)
-  }
-  const years = Object.keys(byYear).sort((a, b) => Number(b) - Number(a))
+  const posts = allPosts
+    .filter((p) => p.series && p.series.includes(seriesName))
+    .sort((a, b) => {
+      const da = (a.date?.start_date || a.createdTime || "")
+      const db = (b.date?.start_date || b.createdTime || "")
+      return da < db ? -1 : da > db ? 1 : 0
+    })
 
   const filename = `series/${seriesName}.md`
   const statusItems = useMemo(
@@ -34,25 +59,35 @@ const SeriesArchive = ({ seriesName }: Props) => {
   useRegisterChrome(filename, statusItems)
 
   const seriesNames = Object.keys(series)
+  const color = pickColor(seriesName)
 
   return (
     <StyledWrapper>
       <div className="scroll-area">
         <div className="body">
-          <div className="breadcrumb">
-            <span className="home">~</span> /{" "}
-            <Link href="/series" className="breadcrumb-link">series</Link> /{" "}
-            <span className="current">{seriesName}</span>
+          {/* YAML frontmatter */}
+          <div className="font-mono text-[13px] space-y-0.5 mb-6">
+            <p className="text-mute">---</p>
+            <p><span className="text-signal-200">view</span><span className="text-mute">: </span><span className="text-zinc-300">series</span></p>
+            <p><span className="text-signal-200">name</span><span className="text-mute">: </span><span className="text-zinc-300">{seriesName}</span></p>
+            <p><span className="text-signal-200">count</span><span className="text-mute">: </span><span className="text-zinc-300">{posts.length}</span></p>
+            <p className="text-mute">---</p>
           </div>
 
-          <h1 className="series-title">
-            §{seriesName}
-          </h1>
-          <p className="sub">
-            <span className="comment">{"// "}</span>
-            {posts.length} entries in this series.
-          </p>
+          {/* Series header card */}
+          <div className="flex items-start gap-3 mb-6">
+            <span className={`grid h-12 w-12 shrink-0 place-items-center rounded-md font-mono text-xl font-medium text-zinc-50 ${GRADIENTS[color]}`}>
+              §
+            </span>
+            <div>
+              <p className={`font-mono text-[10px] tracking-widest ${ACCENT_LABEL[color]}`}>
+                SERIES · {posts.length} ENTRIES
+              </p>
+              <h1 className="text-2xl font-medium text-zinc-50">{seriesName}</h1>
+            </div>
+          </div>
 
+          {/* Series nav chips */}
           <div className="series-nav">
             {seriesNames.map((name) => (
               <Link
@@ -65,50 +100,37 @@ const SeriesArchive = ({ seriesName }: Props) => {
             ))}
           </div>
 
-          <div className="timeline">
-            <div className="timeline-axis" />
-            {years.map((year) => (
-              <div key={year} className="year-group">
-                <div className="year-header">
-                  <div className="year-label">{year}</div>
-                  <div className="year-line" />
-                </div>
-                {byYear[year].map((post) => {
-                  const dateOnly = (post.date?.start_date || post.createdTime || "").slice(0, 10)
-                  const monthDay = dateOnly.slice(5).replace("-", "/")
-                  return (
-                    <Link key={post.id} href={`/${post.slug}`} className="timeline-item">
-                      <div className="item-date">{monthDay}</div>
-                      <div className="item-dot" />
-                      <div className="item-content">
-                        <div className="item-title">{post.title}</div>
-                        {post.summary && (
-                          <div className="item-summary">{post.summary}</div>
-                        )}
-                        {post.tags && (
-                          <div className="item-tags">
-                            {post.tags.map((t) => `#${t}`).join(" · ")}
-                          </div>
-                        )}
-                      </div>
-                      <div className="item-thumb">
-                        {post.thumbnail ? (
-                          <Image
-                            src={post.thumbnail}
-                            alt=""
-                            fill
-                            sizes="100px"
-                            style={{ objectFit: "cover" }}
-                          />
-                        ) : (
-                          <div className="thumb-placeholder" aria-hidden />
-                        )}
-                      </div>
-                    </Link>
-                  )
-                })}
-              </div>
-            ))}
+          {/* Reading order comment */}
+          <p className="font-mono text-[12px] text-mute italic mb-3">{"// in reading order"}</p>
+
+          {/* Numbered post list */}
+          <div className="space-y-1.5">
+            {posts.map((post, i) => {
+              const dateOnly = (post.date?.start_date || post.createdTime || "").slice(0, 10)
+              return (
+                <Link
+                  key={post.id}
+                  href={`/${post.slug}`}
+                  className="group flex items-start gap-3 rounded-md border border-hairline bg-card/60 p-3 transition-colors hover:border-signal/45 hover:bg-card/85"
+                >
+                  <span className={`font-mono text-base font-medium shrink-0 w-7 text-right tabular-nums ${ACCENT_NUM[color]}`}>
+                    {String(i).padStart(2, "0")}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-[14px] font-medium text-zinc-50 leading-snug line-clamp-2 mb-1">
+                      {post.title}
+                    </h3>
+                    {post.summary && (
+                      <p className="text-[12px] text-soft line-clamp-2 mb-1.5">{post.summary}</p>
+                    )}
+                    <p className="font-mono text-[10px] text-mute">{dateOnly}</p>
+                  </div>
+                  <span className="font-mono text-xs text-mute transition-colors group-hover:text-signal-200 shrink-0">
+                    →
+                  </span>
+                </Link>
+              )
+            })}
           </div>
         </div>
       </div>
@@ -134,59 +156,18 @@ const StyledWrapper = styled.div`
 
   .body {
     padding: 36px 56px;
-    max-width: 1000px;
+    max-width: 900px;
 
     @media (max-width: ${({ theme }) => theme.variables.breakpoint}px) {
       padding: 20px 20px;
     }
   }
 
-  .breadcrumb {
-    font-family: var(--font-mono, monospace);
-    font-size: 12px;
-    color: ${({ theme }) => theme.colors.editor.fg3};
-    margin-bottom: 12px;
-
-    .home { color: ${({ theme }) => theme.colors.editor.accent3}; }
-    .current { color: ${({ theme }) => theme.colors.editor.accent}; }
-    .breadcrumb-link {
-      color: ${({ theme }) => theme.colors.editor.fg2};
-      text-decoration: none;
-      &:hover { color: ${({ theme }) => theme.colors.editor.accent}; }
-    }
-  }
-
-  .series-title {
-    font-family: var(--font-mono, monospace);
-    font-size: clamp(32px, 5vw, 56px);
-    font-weight: 500;
-    margin: 0 0 6px;
-    color: ${({ theme }) => theme.colors.editor.fg};
-    line-height: 1.0;
-    letter-spacing: -0.01em;
-
-    &::before {
-      content: "# ";
-      color: ${({ theme }) => theme.colors.editor.accent};
-      font-weight: 400;
-    }
-  }
-
-  .sub {
-    font-family: var(--font-mono, monospace);
-    font-size: 13px;
-    color: ${({ theme }) => theme.colors.editor.fg2};
-    line-height: 1.7;
-    margin: 8px 0 24px;
-
-    .comment { color: ${({ theme }) => theme.colors.editor.fg3}; }
-  }
-
   .series-nav {
     display: flex;
     gap: 6px;
     flex-wrap: wrap;
-    margin-bottom: 28px;
+    margin-bottom: 20px;
     padding-bottom: 18px;
     border-bottom: 1px solid ${({ theme }) => theme.colors.editor.line};
 
@@ -211,123 +192,6 @@ const StyledWrapper = styled.div`
       &:hover:not(.active) {
         border-color: ${({ theme }) => theme.colors.editor.accent};
         color: ${({ theme }) => theme.colors.editor.accent};
-      }
-    }
-  }
-
-  .timeline {
-    position: relative;
-
-    .timeline-axis {
-      position: absolute;
-      left: 75px;
-      top: 8px;
-      bottom: 8px;
-      width: 1px;
-      background: ${({ theme }) => theme.colors.editor.line2};
-    }
-  }
-
-  .year-group {
-    margin-bottom: 28px;
-
-    .year-header {
-      display: grid;
-      grid-template-columns: 62px 1fr;
-      align-items: center;
-      margin-bottom: 12px;
-      gap: 16px;
-
-      .year-label {
-        font-family: var(--font-mono, monospace);
-        font-size: 24px;
-        font-weight: 500;
-        color: ${({ theme }) => theme.colors.editor.fg3};
-        text-align: right;
-      }
-
-      .year-line {
-        height: 1px;
-        background: ${({ theme }) => theme.colors.editor.line};
-      }
-    }
-  }
-
-  .timeline-item {
-    display: grid;
-    grid-template-columns: 62px 16px 1fr 100px;
-    gap: 16px;
-    align-items: baseline;
-    padding: 10px 0;
-    text-decoration: none;
-    color: inherit;
-
-    @media (max-width: ${({ theme }) => theme.variables.breakpoint}px) {
-      grid-template-columns: 62px 16px 1fr;
-      .item-thumb { display: none; }
-    }
-
-    &:hover .item-title { color: ${({ theme }) => theme.colors.editor.accent3}; }
-
-    .item-date {
-      font-family: var(--font-mono, monospace);
-      font-size: 12px;
-      color: ${({ theme }) => theme.colors.editor.fg3};
-      text-align: right;
-    }
-
-    .item-dot {
-      width: 9px;
-      height: 9px;
-      border-radius: 50%;
-      background: ${({ theme }) => theme.colors.editor.accent};
-      border: 2px solid ${({ theme }) => theme.colors.editor.bg};
-      box-shadow: 0 0 0 1px ${({ theme }) => theme.colors.editor.line2};
-      justify-self: center;
-      align-self: center;
-      flex-shrink: 0;
-    }
-
-    .item-thumb {
-      position: relative;
-      width: 100px;
-      height: 72px;
-      border: 1px solid ${({ theme }) => theme.colors.editor.line};
-      background: ${({ theme }) => theme.colors.editor.bg2};
-      overflow: hidden;
-      align-self: center;
-      flex-shrink: 0;
-
-      .thumb-placeholder {
-        width: 100%;
-        height: 100%;
-      }
-    }
-
-    .item-content {
-      min-width: 0;
-
-      .item-title {
-        font-family: var(--font-mono, monospace);
-        font-size: 18px;
-        color: ${({ theme }) => theme.colors.editor.fg};
-        line-height: 1.3;
-        transition: color 0.15s;
-      }
-
-      .item-summary {
-        font-family: var(--font-mono, monospace);
-        font-size: 11px;
-        color: ${({ theme }) => theme.colors.editor.fg2};
-        margin-top: 4px;
-        line-height: 1.5;
-      }
-
-      .item-tags {
-        font-family: var(--font-mono, monospace);
-        font-size: 10px;
-        color: ${({ theme }) => theme.colors.editor.fg3};
-        margin-top: 4px;
       }
     }
   }

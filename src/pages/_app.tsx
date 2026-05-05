@@ -1,3 +1,4 @@
+import "../styles/globals.css"
 import { AppPropsWithLayout } from "../types"
 import { HydrationBoundary, QueryClientProvider } from "@tanstack/react-query"
 import { RootLayout } from "src/layouts"
@@ -6,7 +7,6 @@ import GoogleAnalytics from "src/components/GoogleAnalytics"
 import { JetBrains_Mono } from "next/font/google"
 import { useEffect, useState } from "react"
 import { useRouter } from "next/router"
-
 export const jetbrainsMono = JetBrains_Mono({
   subsets: ["latin"],
   weight: ["400", "500", "600"],

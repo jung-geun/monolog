@@ -13,7 +13,7 @@ const StatsGrid = ({ stats }: Props) => {
 
   const items = [
     { key: "entries", value: stats.posts, hint: `since ${new Date().getFullYear() - 1}` },
-    { key: "categories", value: stats.categories, hint: "by topic" },
+    { key: "series", value: stats.series, hint: "ongoing" },
     { key: "tags", value: stats.tags, hint: "loosely coupled" },
     { key: "words", value: words, hint: "≈ good reading" },
   ]

@@ -4,7 +4,8 @@ import LineNumberGutter from "src/layouts/RootLayout/EditorChrome/LineNumberGutt
 import { useRegisterChrome } from "src/layouts/RootLayout/EditorChrome/RouteChromeContext"
 import HomeHero from "./HomeHero"
 import StatsGrid from "./StatsGrid"
-import EditorialPostList from "./EditorialPostList"
+import FeaturedSeriesGrid from "./FeaturedSeriesGrid"
+import RecentPostsCompact from "./RecentPostsCompact"
 import ActivityGrid from "src/components/ActivityGrid"
 import usePostsQuery from "src/hooks/usePostsQuery"
 import { getStats, getActivityGrid } from "src/libs/utils/stats"
@@ -38,7 +39,9 @@ const Feed = () => {
               <ActivityGrid grid={activityGrid} />
             </div>
 
-            <EditorialPostList />
+            <FeaturedSeriesGrid />
+
+            <RecentPostsCompact />
           </div>
         </div>
       </div>
