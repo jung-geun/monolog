@@ -4,12 +4,23 @@ import NotionRenderer from "../components/NotionRenderer"
 import usePostQuery from "src/hooks/usePostQuery"
 import LineNumberGutter from "src/layouts/RootLayout/EditorChrome/LineNumberGutter"
 import { useRegisterChrome } from "src/layouts/RootLayout/EditorChrome/RouteChromeContext"
+import { CONFIG } from "site.config"
+import ActivityHeatmap from "./components/ActivityHeatmap"
+import ContactBlock from "./components/ContactBlock"
+import StackGrid from "./components/StackGrid"
+
+const aboutSlug = (CONFIG as any).aboutSlug ?? "about"
 
 const PageDetail: React.FC = () => {
   const data = usePostQuery()
 
-  const statusItems = useMemo(() => ["main", "about.md", "Markdown"], [])
-  useRegisterChrome("about.md", statusItems)
+  const isAbout = data?.slug === aboutSlug
+  const filename = isAbout ? "about.md" : `${data?.slug ?? "page"}.md`
+  const statusItems = useMemo(
+    () => ["main", filename, "Markdown"],
+    [filename]
+  )
+  useRegisterChrome(filename, statusItems)
 
   if (!data) return null
 
@@ -19,6 +30,36 @@ const PageDetail: React.FC = () => {
         <div className="content-grid">
           <LineNumberGutter count={80} />
           <div className="body">
+            {isAbout && (
+              <>
+                {/* YAML frontmatter */}
+                <div className="font-mono text-[13px] space-y-0.5 mb-6">
+                  <p className="text-mute">---</p>
+                  <p>
+                    <span className="text-signal-200">author</span>
+                    <span className="text-mute">{": "}</span>
+                    <span className="text-zinc-300">{CONFIG.profile.name}</span>
+                  </p>
+                  <p>
+                    <span className="text-signal-200">role</span>
+                    <span className="text-mute">{": "}</span>
+                    <span className="text-zinc-300">{CONFIG.profile.role}</span>
+                  </p>
+                  <p>
+                    <span className="text-signal-200">bio</span>
+                    <span className="text-mute">{": "}</span>
+                    <span className="text-zinc-300">{CONFIG.profile.bio}</span>
+                  </p>
+                  <p className="text-mute">---</p>
+                </div>
+
+                <ActivityHeatmap />
+                <StackGrid />
+                <ContactBlock />
+
+                <hr className="border-hairline mb-6" />
+              </>
+            )}
             <NotionRenderer recordMap={data.recordMap} />
           </div>
         </div>

@@ -87,6 +87,19 @@ const CONFIG = {
       appid: "", // Embed Code -> data-app-id value
     },
   },
+  // about page slug (optional — for showing widgets on the about page)
+  aboutSlug: "about",
+
+  // stack/skills for About page widget (optional — remove to hide StackGrid)
+  stack: {
+    Languages:   ["TypeScript", "Python", "Go", "Bash"],
+    Infra:       ["OpenStack", "Kubernetes", "Docker", "Ceph"],
+    "AI / ML":   ["PyTorch", "Transformers", "vLLM", "DCGM"],
+    Observability: ["Prometheus", "Grafana", "Loki"],
+    Editors:     ["Neovim", "VS Code"],
+    OS:          ["Ubuntu", "Rocky Linux", "macOS"],
+  },
+
   isProd: process.env.NODE_ENV === "production",
   // revalidate time (in seconds) for ISR on pages like [slug] and index.
   // Can be configured via environment variable REVALIDATE_HOURS (e.g., 6 or 12).

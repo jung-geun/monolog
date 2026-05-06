@@ -11,6 +11,12 @@ import ReadingProgress from "./ReadingProgress"
 import RightRail from "./RightRail"
 import LineNumberGutter from "src/layouts/RootLayout/EditorChrome/LineNumberGutter"
 import { useRegisterChrome } from "src/layouts/RootLayout/EditorChrome/RouteChromeContext"
+import { CONFIG } from "site.config"
+import ActivityHeatmap from "src/routes/Detail/PageDetail/components/ActivityHeatmap"
+import ContactBlock from "src/routes/Detail/PageDetail/components/ContactBlock"
+import StackGrid from "src/routes/Detail/PageDetail/components/StackGrid"
+
+const aboutSlug = (CONFIG as any).aboutSlug ?? "about"
 
 const PostDetail: React.FC = () => {
   const data = usePostQuery()
@@ -22,8 +28,53 @@ const PostDetail: React.FC = () => {
 
   if (!data) return null
 
+  const isAbout = data.slug === aboutSlug
   const category = data.category?.[0] || undefined
   const dateStr = data.date?.start_date || data.createdTime?.slice(0, 10) || ""
+
+  if (isAbout) {
+    return (
+      <StyledWrapper>
+        <div className="scroll-area">
+          <div className="content-grid content-grid--about">
+            <LineNumberGutter count={80} />
+            <div className="body">
+              {/* YAML frontmatter */}
+              <div className="font-mono text-[13px] space-y-0.5 mb-6">
+                <p className="text-mute">---</p>
+                <p>
+                  <span className="text-signal-200">author</span>
+                  <span className="text-mute">{": "}</span>
+                  <span className="text-zinc-300">{CONFIG.profile.name}</span>
+                </p>
+                <p>
+                  <span className="text-signal-200">role</span>
+                  <span className="text-mute">{": "}</span>
+                  <span className="text-zinc-300">{CONFIG.profile.role}</span>
+                </p>
+                <p>
+                  <span className="text-signal-200">bio</span>
+                  <span className="text-mute">{": "}</span>
+                  <span className="text-zinc-300">{CONFIG.profile.bio}</span>
+                </p>
+                <p className="text-mute">---</p>
+              </div>
+
+              <ActivityHeatmap />
+              <StackGrid />
+              <ContactBlock />
+
+              <hr className="border-hairline mb-6" />
+
+              <div className="notion-content">
+                <NotionRenderer recordMap={data.recordMap} />
+              </div>
+            </div>
+          </div>
+        </div>
+      </StyledWrapper>
+    )
+  }
 
   return (
     <StyledWrapper>
@@ -80,6 +131,16 @@ const StyledWrapper = styled.div`
 
     @media (max-width: ${({ theme }) => theme.variables.breakpoint}px) {
       grid-template-columns: 1fr;
+    }
+
+    &--about {
+      grid-template-columns: ${({ theme }) => theme.variables.gutterWidth}px 1fr;
+
+      .body { max-width: 900px; }
+
+      @media (max-width: ${({ theme }) => theme.variables.breakpoint}px) {
+        grid-template-columns: 1fr;
+      }
     }
   }
 
