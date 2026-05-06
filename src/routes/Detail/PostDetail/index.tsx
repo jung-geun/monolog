@@ -1,6 +1,7 @@
 import { useMemo } from "react"
 import styled from "@emotion/styled"
 import React from "react"
+import Image from "next/image"
 import usePostQuery from "src/hooks/usePostQuery"
 import usePostsQuery from "src/hooks/usePostsQuery"
 import NotionRenderer from "../components/NotionRenderer"
@@ -88,6 +89,19 @@ const PostDetail: React.FC = () => {
         <div className="content-grid">
           <LineNumberGutter count={120} />
           <div className="body">
+            {data.thumbnail && (
+              <div className="hero-thumb">
+                <Image
+                  src={data.thumbnail}
+                  alt={data.title}
+                  fill
+                  sizes="(max-width: 768px) 100vw, 760px"
+                  priority
+                  className="object-cover"
+                />
+              </div>
+            )}
+
             <Frontmatter
               title={data.title}
               date={dateStr}
@@ -156,6 +170,17 @@ const StyledWrapper = styled.div`
     @media (max-width: ${({ theme }) => theme.variables.breakpoint}px) {
       padding: 24px 20px 60px;
     }
+  }
+
+  .hero-thumb {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    margin: 0 0 24px;
+    border: 1px solid ${({ theme }) => theme.colors.editor.line};
+    border-radius: 4px;
+    overflow: hidden;
+    background: ${({ theme }) => theme.colors.editor.bg2};
   }
 
   .post-title {

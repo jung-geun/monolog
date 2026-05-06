@@ -16,10 +16,14 @@ const Graph = () => {
 
   const selected = nodes[selectedIdx]
   const connectedEdges = edges.filter((e) => e.a === selectedIdx || e.b === selectedIdx)
-  const connectedNodes = connectedEdges.map((e) => ({
-    node: nodes[e.a === selectedIdx ? e.b : e.a],
-    via: nodes[e.a === selectedIdx ? e.b : e.a].tags.filter((t) => selected?.tags.includes(t)),
-  }))
+  const connectedNodes = connectedEdges.map((e) => {
+    const idx = e.a === selectedIdx ? e.b : e.a
+    return {
+      idx,
+      node: nodes[idx],
+      via: nodes[idx].tags.filter((t) => selected?.tags.includes(t)),
+    }
+  })
 
   const catColors: Record<string, string> = {}
   nodes.forEach((n) => { catColors[n.category] = n.color })
@@ -159,11 +163,16 @@ const Graph = () => {
               <div className="panel-label" style={{ marginTop: 20 }}>
                 connected ({connectedNodes.length})
               </div>
-              {connectedNodes.slice(0, 5).map(({ node, via }) => (
-                <div key={node.slug} className="connected-item">
+              {connectedNodes.slice(0, 5).map(({ idx, node, via }) => (
+                <button
+                  key={node.slug}
+                  type="button"
+                  className="connected-item"
+                  onClick={() => setSelectedIdx(idx)}
+                >
                   <div className="connected-title">→ {node.title.slice(0, 30)}{node.title.length > 30 ? "…" : ""}</div>
                   <div className="connected-via">via {via.map((t) => `#${t}`).join(", ")}</div>
-                </div>
+                </button>
               ))}
 
               <div className="panel-label" style={{ marginTop: 20 }}>filter</div>
@@ -346,11 +355,28 @@ const StyledWrapper = styled.div`
   }
 
   .connected-item {
-    padding: 6px 0;
+    display: block;
+    width: 100%;
+    text-align: left;
+    background: transparent;
+    border: none;
     border-bottom: 1px dashed ${({ theme }) => theme.colors.editor.line};
+    padding: 6px 0;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 0.12s;
 
     .connected-title { color: ${({ theme }) => theme.colors.editor.accent3}; font-size: 12px; }
     .connected-via { color: ${({ theme }) => theme.colors.editor.fg3}; font-size: 10px; margin-top: 2px; }
+
+    &:hover {
+      background: ${({ theme }) => theme.colors.editor.bg};
+      .connected-title { color: ${({ theme }) => theme.colors.editor.accent}; }
+    }
+    &:focus-visible {
+      outline: 1px solid ${({ theme }) => theme.colors.editor.accent};
+      outline-offset: -1px;
+    }
   }
 
   .cat-filters {

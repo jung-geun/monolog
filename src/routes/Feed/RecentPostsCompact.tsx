@@ -1,4 +1,5 @@
 import Link from "next/link"
+import Image from "next/image"
 import usePostsQuery from "src/hooks/usePostsQuery"
 
 const CAT_RAIL: Record<string, string> = {
@@ -29,8 +30,8 @@ function toCatKey(cat: string): string {
 
 const RecentPostsCompact = () => {
   const posts = usePostsQuery()
-  const recent = posts.slice(0, 6)
-  const rest = posts.length - 6
+  const recent = posts.slice(0, 15)
+  const rest = posts.length - 15
 
   if (!recent.length) return null
 
@@ -57,9 +58,9 @@ const RecentPostsCompact = () => {
               href={`/${post.slug}`}
               className="group block rounded-md border border-hairline bg-card/60 overflow-hidden transition-colors hover:border-signal/45 hover:bg-card/85"
             >
-              <div className="grid grid-cols-[6px_1fr]">
+              <div className={`grid ${post.thumbnail ? "grid-cols-[6px_1fr_auto]" : "grid-cols-[6px_1fr]"}`}>
                 <div className={rail} />
-                <div className="p-3.5">
+                <div className="p-3.5 min-w-0">
                   <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mb-1.5">
                     {cat && (
                       <span className={`font-mono text-[10px] font-medium px-2 py-0.5 rounded ${badge.bg} ${badge.text}`}>
@@ -85,6 +86,17 @@ const RecentPostsCompact = () => {
                     </span>
                   </div>
                 </div>
+                {post.thumbnail && (
+                  <div className="relative w-[110px] sm:w-[130px] shrink-0 overflow-hidden">
+                    <Image
+                      src={post.thumbnail}
+                      alt=""
+                      fill
+                      sizes="130px"
+                      className="object-cover"
+                    />
+                  </div>
+                )}
               </div>
             </Link>
           )
