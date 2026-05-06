@@ -92,12 +92,12 @@ const CONFIG = {
 
   // stack/skills for About page widget (optional — remove to hide StackGrid)
   stack: {
-    Languages:   ["TypeScript", "Python", "Go", "Bash"],
-    Infra:       ["OpenStack", "Kubernetes", "Docker", "Ceph"],
-    "AI / ML":   ["PyTorch", "Transformers", "vLLM", "DCGM"],
-    Observability: ["Prometheus", "Grafana", "Loki"],
-    Editors:     ["Neovim", "VS Code"],
-    OS:          ["Ubuntu", "Rocky Linux", "macOS"],
+    Languages:   ["TypeScript", "Python", "Go", "Bash", "Rust", "C/C++", "SQL", "PHP", "Java"],
+    Infra:       ["OpenStack", "Kubernetes", "Docker", "Ceph", "GCP"],
+    "AI / ML":   ["TensorFlow", "PyTorch", "Transformers", "DCGM"],
+    Observability: ["Prometheus", "Grafana", "OpenSearch"],
+    Editors:     ["vim", "VS Code"],
+    OS:          ["Ubuntu", "CentOS", "macOS"],
   },
 
   isProd: process.env.NODE_ENV === "production",
