@@ -15,6 +15,8 @@ import { CONFIG } from "site.config"
 import ActivityHeatmap from "src/routes/Detail/PageDetail/components/ActivityHeatmap"
 import ContactBlock from "src/routes/Detail/PageDetail/components/ContactBlock"
 import StackGrid from "src/routes/Detail/PageDetail/components/StackGrid"
+import StatsGrid from "src/routes/Feed/StatsGrid"
+import { getStats } from "src/libs/utils/stats"
 
 const aboutSlug = (CONFIG as any).aboutSlug ?? "about"
 
@@ -33,6 +35,7 @@ const PostDetail: React.FC = () => {
   const dateStr = data.date?.start_date || data.createdTime?.slice(0, 10) || ""
 
   if (isAbout) {
+    const stats = getStats(allPosts)
     return (
       <StyledWrapper>
         <div className="scroll-area">
@@ -60,6 +63,7 @@ const PostDetail: React.FC = () => {
                 <p className="text-mute">---</p>
               </div>
 
+              <StatsGrid stats={stats} />
               <ActivityHeatmap />
               <StackGrid />
               <ContactBlock />
