@@ -228,9 +228,14 @@ export const useRegisterChrome = (filename: string, statusItems: string[]) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key, setChrome])
 
-  // Also open a tab for the current route
+  // Also open (or activate) a tab for the current route
   useEffect(() => {
-    if (!filename || filename === "README.md") return
+    if (!filename) return
+    // README is always the first, non-closeable tab
+    if (filename === "README.md") {
+      openTab(README_TAB)
+      return
+    }
     const href = router.asPath
     const kind: TabKind = filename.endsWith(".md") ? "post" : "page"
     openTab({
