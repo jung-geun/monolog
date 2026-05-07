@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useMemo } from "react"
+import { useEffect, useRef, useState, useMemo, type ReactNode } from "react"
 import { useRouter } from "next/router"
 import styled, { CSSObject } from "@emotion/styled"
 import { keyframes } from "@emotion/react"
@@ -8,6 +8,12 @@ import { useCategoriesQuery } from "src/hooks/useCategoriesQuery"
 import { useTagsQuery } from "src/hooks/useTagsQuery"
 import useScheme from "src/hooks/useScheme"
 import { DEFAULT_CATEGORY } from "src/constants"
+import {
+  SunIcon,
+  SearchIcon,
+  GraphIcon,
+  ExplorerIcon,
+} from "src/layouts/RootLayout/EditorChrome/ActivityIcons"
 
 type CommandKind = "action" | "post" | "tag" | "cat"
 
@@ -16,7 +22,7 @@ type Command = {
   label: string
   sub?: string
   hint?: string
-  icon: string
+  icon: ReactNode
   href?: string
   action?: () => void
 }
@@ -52,13 +58,13 @@ const CommandPalette = () => {
       kind: "action",
       label: "Toggle theme",
       hint: "⌘⇧L",
-      icon: "☀",
+      icon: <SunIcon size={14} />,
       action: () => setScheme(scheme === "light" ? "dark" : "light"),
     },
     { kind: "action", label: "Go home", hint: "g h", icon: "→", href: "/" },
     { kind: "action", label: "Open about", hint: "g a", icon: "→", href: "/about" },
-    { kind: "action", label: "Knowledge graph", hint: "g g", icon: "✦", href: "/graph" },
-    { kind: "action", label: "Search posts", hint: "/", icon: "⌕", href: "/search" },
+    { kind: "action", label: "Knowledge graph", hint: "g g", icon: <GraphIcon size={14} />, href: "/graph" },
+    { kind: "action", label: "Search posts", hint: "/", icon: <SearchIcon size={14} />, href: "/search" },
     ...posts.map((p): Command => ({
       kind: "post",
       label: p.title,
@@ -82,7 +88,7 @@ const CommandPalette = () => {
         kind: "cat",
         label: c,
         sub: `${categories[c]} posts`,
-        icon: "▤",
+        icon: <ExplorerIcon size={14} />,
         href: `/categories/${c}`,
       })),
   ], [posts, categories, tags, scheme, setScheme])

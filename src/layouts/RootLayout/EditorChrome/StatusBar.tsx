@@ -64,11 +64,12 @@ const StyledWrapper = styled.div`
     color: #a8e0a0;
     display: flex;
     align-items: center;
-    gap: 8px;
     padding: 0 10px 0 12px;
     border-right: 1px solid rgba(255, 255, 255, 0.12);
     white-space: nowrap;
     flex-shrink: 0;
+
+    > * + * { margin-left: 8px; }
 
     .dot {
       width: 6px;
@@ -92,7 +93,6 @@ const StyledWrapper = styled.div`
     display: flex;
     align-items: center;
     padding: 0 12px;
-    gap: 16px;
     min-width: 0;
     overflow: hidden;
     flex-wrap: nowrap;
@@ -100,6 +100,10 @@ const StyledWrapper = styled.div`
     > span {
       white-space: nowrap;
       flex-shrink: 0;
+    }
+
+    > span + span {
+      margin-left: 16px;
     }
 
     .last {
@@ -110,13 +114,13 @@ const StyledWrapper = styled.div`
   @media (max-width: ${({ theme }) => theme.variables.breakpoint}px) {
     .ssh-segment {
       padding: 0 8px;
-      gap: 4px;
       .ip { display: none; }
       .sep { display: none; }
+      > * + * { margin-left: 4px; }
     }
     .accent-strip {
-      gap: 8px;
       padding: 0 10px;
+      > span + span { margin-left: 8px; }
       > span:not(:first-of-type):not(:last-of-type) {
         display: none;
       }

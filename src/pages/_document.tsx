@@ -6,6 +6,9 @@ class MyDocument extends Document {
     return (
       <Html lang={CONFIG.lang}>
         <Head>
+          <meta name="color-scheme" content="dark light" />
+          <meta name="theme-color" content="#0e0f13" media="(prefers-color-scheme: dark)" />
+          <meta name="theme-color" content="#fbfaf6" media="(prefers-color-scheme: light)" />
           <link rel="icon" href="/favicon.ico" />
           <link
             rel="apple-touch-icon"

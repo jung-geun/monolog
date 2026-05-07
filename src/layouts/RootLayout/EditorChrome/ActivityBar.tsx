@@ -3,6 +3,16 @@ import Link from "next/link"
 import styled from "@emotion/styled"
 import useScheme from "src/hooks/useScheme"
 import { useRouteChrome } from "./RouteChromeContext"
+import {
+  ExplorerIcon,
+  SearchIcon,
+  GraphIcon,
+  CommandIcon,
+  DraftsIcon,
+  SunIcon,
+  MoonIcon,
+  SettingsIcon,
+} from "./ActivityIcons"
 
 const ActivityBar = () => {
   const router = useRouter()
@@ -22,7 +32,7 @@ const ActivityBar = () => {
         aria-pressed={isFileTreeOpen}
         onClick={toggleFileTree}
       >
-        ▤
+        <ExplorerIcon />
       </button>
 
       <Link
@@ -31,7 +41,7 @@ const ActivityBar = () => {
         title="search"
         aria-label="search"
       >
-        ⌕
+        <SearchIcon />
       </Link>
 
       <Link
@@ -40,7 +50,7 @@ const ActivityBar = () => {
         title="graph"
         aria-label="graph"
       >
-        ✦
+        <GraphIcon />
       </Link>
 
       <button
@@ -49,11 +59,11 @@ const ActivityBar = () => {
         aria-label="commands"
         onClick={handleCommandsClick}
       >
-        ⌘
+        <CommandIcon />
       </button>
 
       <button className="icon-btn disabled" title="drafts" aria-label="drafts">
-        ✎
+        <DraftsIcon />
       </button>
 
       <div className="spacer" />
@@ -64,11 +74,11 @@ const ActivityBar = () => {
         aria-label="Toggle theme"
         onClick={() => setScheme(scheme === "light" ? "dark" : "light")}
       >
-        {scheme === "light" ? "☀" : "☾"}
+        {scheme === "light" ? <SunIcon /> : <MoonIcon />}
       </button>
 
       <button className="icon-btn disabled" title="settings" aria-label="settings">
-        ⚙
+        <SettingsIcon />
       </button>
     </StyledWrapper>
   )
@@ -87,9 +97,9 @@ const StyledWrapper = styled.aside`
   flex-direction: column;
   align-items: center;
   padding: 12px 0;
-  gap: 8px;
   z-index: 30;
 
+  > * + * { margin-top: 8px; }
   .spacer { flex: 1; }
 
   .icon-btn {
@@ -100,8 +110,6 @@ const StyledWrapper = styled.aside`
     justify-content: center;
     color: ${({ theme }) => theme.colors.editor.fg3};
     border-left: 2px solid transparent;
-    font-size: 16px;
-    font-family: var(--font-mono, monospace);
     cursor: pointer;
     text-decoration: none;
     background: transparent;
@@ -110,6 +118,8 @@ const StyledWrapper = styled.aside`
     border-bottom: none;
     padding: 0;
     transition: color 0.15s;
+
+    svg { display: block; }
 
     &:hover:not(.disabled) {
       color: ${({ theme }) => theme.colors.editor.fg};
@@ -124,14 +134,10 @@ const StyledWrapper = styled.aside`
       opacity: 0.35;
       cursor: default;
     }
-
-    &.theme-toggle {
-      font-size: 14px;
-    }
   }
 
   @media (max-width: ${({ theme }) => theme.variables.breakpoint}px) {
     padding: 8px 0;
-    gap: 4px;
+    > * + * { margin-top: 4px; }
   }
 `

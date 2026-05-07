@@ -5,6 +5,7 @@ import { RootLayout } from "src/layouts"
 import { queryClient as sharedQueryClient, createServerQueryClient } from "src/libs/react-query"
 import GoogleAnalytics from "src/components/GoogleAnalytics"
 import { JetBrains_Mono } from "next/font/google"
+import Head from "next/head"
 import { useEffect, useState } from "react"
 import { useRouter } from "next/router"
 export const jetbrainsMono = JetBrains_Mono({
@@ -45,6 +46,12 @@ function App({ Component, pageProps }: AppPropsWithLayout) {
   return (
     <QueryClientProvider client={qClient}>
       <HydrationBoundary state={pageProps.dehydratedState}>
+        <Head>
+          <meta
+            name="viewport"
+            content="width=device-width, initial-scale=1, viewport-fit=cover"
+          />
+        </Head>
         <div className={jetbrainsMono.variable} style={{ height: "100%" }}>
           <RootLayout>{getLayout(<Component {...pageProps} />)}</RootLayout>
         </div>

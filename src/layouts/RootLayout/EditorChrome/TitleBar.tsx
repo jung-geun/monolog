@@ -25,12 +25,13 @@ const StyledWrapper = styled.div`
   display: flex;
   align-items: center;
   padding: 0 14px;
-  gap: 10px;
   flex-shrink: 0;
+
+  > * + * { margin-left: 10px; }
 
   .traffic-lights {
     display: flex;
-    gap: 6px;
+    > * + * { margin-left: 6px; }
     .dot {
       width: 10px;
       height: 10px;
