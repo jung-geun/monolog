@@ -9,14 +9,17 @@ monolog 셋업·운영 가이드. 프로젝트 개요와 차별점은 [`README.m
 ```bash
 git clone https://github.com/jung-geun/monolog.git
 cd monolog
-npm install
+yarn install        # or: npm install
 
 cp .env.example .env
 # 필수:
 #   NOTION_TOKEN=ntn_xxxxx
 #   NOTION_DATASOURCE_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+# 댓글 활성 시 추가 필수:
+#   NOTION_COMMENTS_DB_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+#   COMMENT_HASH_SALT=$(openssl rand -hex 32)
 
-npm run dev
+yarn dev            # or: npm run dev
 ```
 
 `http://localhost:3000`에서 확인합니다.
@@ -25,12 +28,29 @@ npm run dev
 
 ## Notion 셋업
 
-1. [Notion Integrations](https://www.notion.so/my-integrations)에서 Internal Integration을 만들고 토큰(`ntn_...`)을 복사합니다.
-2. CMS로 쓸 데이터베이스 페이지를 열고 `...` → `Add connections`으로 Integration을 연결합니다.
-3. 데이터베이스 URL의 UUID(하이픈 포함)가 `NOTION_DATASOURCE_ID`입니다.
+### 1. Integration 만들기
+[Notion Integrations](https://www.notion.so/my-integrations)에서 Internal Integration을 만들고 토큰(`ntn_...`)을 복사합니다.
 
-### Notion DB 권장 프로퍼티
+### 2. DB 템플릿 복제 (권장)
+[**monolog blog assets**](https://www.notion.so/pieroot/blog-assets-35a067c015d080a0bf17d3a0dffb3784) 페이지를 본인 워크스페이스로 **Duplicate** 합니다. 페이지 안에는 monolog가 사용하는 두 DB가 미리 구성되어 있습니다.
 
+| DB | 용도 | 환경변수 |
+|---|---|---|
+| `blog-table` | 글 본문 (Posts · Pages · Papers) | `NOTION_DATASOURCE_ID` |
+| `comments` | 방문자 익명 댓글 (선택) | `NOTION_COMMENTS_DB_ID` |
+
+복제한 두 DB를 각각 열어:
+1. 우상단 `...` → `Add connections` → 1단계에서 만든 Integration 추가
+2. 페이지 URL 끝의 32자 hex ID를 `8-4-4-4-12` UUID 포맷으로 변환해 환경변수에 입력
+   - 예: `35a067c015d080a0bf17d3a0dffb3784` → `35a067c0-15d0-80a0-bf17-d3a0dffb3784`
+
+> 댓글 기능을 끄려면 `site.config.js`의 `notionComments.enable: false`로 두면 됩니다 — `comments` DB는 무시됩니다.
+
+### 3. 직접 만들고 싶다면
+
+템플릿 없이 새로 만들 때 권장 스키마.
+
+#### `blog-table` (글)
 | 프로퍼티명 | 타입 | 설명 |
 |---|---|---|
 | `Title` | title | 글 제목 |
@@ -44,6 +64,19 @@ npm run dev
 | `Summary` | rich_text | 요약 (피드 카드에 표시) |
 | `Thumbnail` | files 또는 url | 썸네일 이미지 (글 목록 우측 + 본문 상단 히어로) |
 
+#### `comments` (댓글)
+| 프로퍼티명 | 타입 | 설명 |
+|---|---|---|
+| `Title` | title | 자동 요약 — `[slug] 익명#xxxx: 본문 30자` |
+| `Slug` | rich_text | 글 slug (조회 키) |
+| `PostId` | rich_text | Notion 글 page_id |
+| `Nickname` | rich_text | `익명#xxxx` (서버에서 자동 생성) |
+| `Body` | rich_text | 본문 (≤ 1000자) |
+| `Status` | select | `approved`(default) / `hidden` / `spam` |
+| `IpHash` | rich_text | `SHA-256(ip + COMMENT_HASH_SALT)` 앞 16자 |
+
+`Status`를 `hidden` 또는 `spam`으로 바꾸면 페이지에서 자동 제외됩니다 (캐시 TTL 45s 만료 후).
+
 사이트 메타(제목, 설명, 프로필, 프로젝트 카드, About 페이지의 stack 등)는 루트의 `site.config.js`에서 관리합니다.
 
 ---
@@ -55,7 +88,14 @@ npm run dev
 | 변수명 | 설명 |
 |---|---|
 | `NOTION_TOKEN` | Notion Internal Integration Token (`ntn_...`) |
-| `NOTION_DATASOURCE_ID` | Notion 데이터 소스 ID (UUID with hyphens) |
+| `NOTION_DATASOURCE_ID` | `blog-table` DB의 ID (UUID with hyphens) |
+
+### 댓글 활성 시 필수 (`site.config.js: notionComments.enable: true`)
+
+| 변수명 | 설명 |
+|---|---|
+| `NOTION_COMMENTS_DB_ID` | `comments` DB의 ID (UUID with hyphens) |
+| `COMMENT_HASH_SALT` | IP/닉네임 해싱용 salt — 생성: `openssl rand -hex 32` |
 
 ### 선택
 
@@ -64,6 +104,7 @@ npm run dev
 | `TOKEN_FOR_REVALIDATE` | — | `/api/revalidate` · `/api/init` 보호 토큰 |
 | `REVALIDATE_HOURS` | `6` | ISR 재생성 주기 (시간) |
 | `NEXT_PUBLIC_SITE_URL` | — | 절대 이미지 프록시 URL prefix |
+| `TRUSTED_PROXY_HOPS` | `0` | 앞단 프록시 hop 수 — `0`이면 XFF 무시, `1`이면 Nginx·LB 1단 신뢰 |
 | `NEXT_PUBLIC_GOOGLE_MEASUREMENT_ID` | — | Google Analytics |
 | `NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION` | — | Google Search Console |
 | `NEXT_PUBLIC_NAVER_SITE_VERIFICATION` | — | Naver Search Advisor |
@@ -81,6 +122,8 @@ npm run dev
 | `GET /api/image-proxy?id=<uuid>&kind=s3` | 없음 (allow-list) | Notion S3 이미지 프록시 (안정 URL) |
 | `GET /api/image-proxy?url=<url>` | 없음 | 레거시 image-proxy (구 ISR 캐시 호환) |
 | `GET /api/refresh-image?blockId=...` | 없음 | 단일 블록 이미지 URL 재발급 |
+| `GET /api/comments?slug=...` | 없음 | slug별 댓글 목록 (45s 서버 캐시) |
+| `POST /api/comments` | 없음 | 익명 댓글 작성 (honeypot + IP rate limit) |
 | `GET /api/debug/inspect-slug?slug=...` | 없음 | 진단 — cached / fresh / recordMap 비교 |
 | `GET /sitemap.xml` | — | SSR 사이트맵 |
 | `GET /rss.xml` | — | SSR RSS 2.0 피드 |

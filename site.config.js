@@ -72,6 +72,10 @@ const CONFIG = {
       siteVerification: process.env.NEXT_PUBLIC_NAVER_SITE_VERIFICATION || "",
     },
   },
+  notionComments: {
+    enable: true,
+    cacheTtlSec: 45,
+  },
   utterances: {
     enable: true,
     config: {

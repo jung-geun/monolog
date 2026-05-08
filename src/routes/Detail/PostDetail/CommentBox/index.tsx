@@ -14,6 +14,12 @@ const CusdisComponent = dynamic(
   },
   { ssr: false }
 )
+const NotionCommentsComponent = dynamic(
+  () => {
+    return import("./NotionComments")
+  },
+  { ssr: false }
+)
 
 type Props = {
   data: TPost
@@ -22,6 +28,9 @@ type Props = {
 const CommentBox: React.FC<Props> = ({ data }) => {
   return (
     <div>
+      {(CONFIG as any).notionComments?.enable && (
+        <NotionCommentsComponent slug={data.slug} postId={data.id} />
+      )}
       {CONFIG.utterances.enable && <UtterancesComponent issueTerm={data.id} />}
       {CONFIG.cusdis.enable && (
         <CusdisComponent id={data.id} slug={data.slug} title={data.title} />

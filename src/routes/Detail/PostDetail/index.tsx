@@ -7,6 +7,7 @@ import usePostsQuery from "src/hooks/usePostsQuery"
 import NotionRenderer from "../components/NotionRenderer"
 import Footer from "./PostFooter"
 import SeriesNav from "./SeriesNav"
+import CommentBox from "./CommentBox"
 import Frontmatter from "src/components/Frontmatter"
 import ReadingProgress from "./ReadingProgress"
 import RightRail from "./RightRail"
@@ -116,6 +117,7 @@ const PostDetail: React.FC = () => {
             </div>
 
             <SeriesNav post={data} allPosts={allPosts} />
+            <CommentBox data={data} />
             <Footer />
           </div>
           <RightRail recordMap={data.recordMap} post={data} />
