@@ -124,7 +124,6 @@ yarn dev            # or: npm run dev
 | `GET /api/refresh-image?blockId=...` | 없음 | 단일 블록 이미지 URL 재발급 |
 | `GET /api/comments?slug=...` | 없음 | slug별 댓글 목록 (45s 서버 캐시) |
 | `POST /api/comments` | 없음 | 익명 댓글 작성 (honeypot + IP rate limit) |
-| `GET /api/debug/inspect-slug?slug=...` | 없음 | 진단 — cached / fresh / recordMap 비교 |
 | `GET /sitemap.xml` | — | SSR 사이트맵 |
 | `GET /rss.xml` | — | SSR RSS 2.0 피드 |
 
@@ -234,8 +233,7 @@ src/pages/
     ├── image-proxy.ts       — Notion S3 프록시 + BLOB 캐시 + 만료 복구
     ├── revalidate.ts        — ISR 재검증
     ├── init.ts              — 컨테이너 ISR 워밍
-    ├── refresh-image.ts     — 단일 이미지 URL 재발급
-    └── debug/inspect-slug.ts
+    └── refresh-image.ts     — 단일 이미지 URL 재발급
 
 tests/                       — Jest (jsdom · node · @swc/jest)
 .github/workflows/           — docker-build · revalidate · test

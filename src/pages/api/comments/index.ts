@@ -2,11 +2,11 @@ import { NextApiRequest, NextApiResponse } from "next"
 import { cacheStore } from "src/libs/cache"
 import { listComments, createComment } from "src/apis/notion-client/comments"
 import { commentPostSchema, sanitizeBody, checkSpam } from "src/libs/utils/comments/sanitize"
-import { checkRateLimit, checkGetRateLimit } from "src/libs/utils/comments/rateLimit"
+import { inspectRateLimit, commitRateLimit, checkGetRateLimit } from "src/libs/utils/comments/rateLimit"
 import { nicknameSuffix } from "src/libs/utils/comments/hash"
 import { getIpHash } from "src/libs/utils/security"
 import { getPosts } from "src/apis/notion-client/getPosts"
-import type { TPost } from "src/types"
+import type { TPost, TPosts } from "src/types"
 import { CONFIG } from "site.config"
 
 const CACHE_TTL_MS = ((CONFIG as any).notionComments?.cacheTtlSec ?? 45) * 1000
@@ -21,12 +21,17 @@ function isAllowedOrigin(req: NextApiRequest): boolean {
   return allowed.some((base) => source.startsWith(base))
 }
 
+// posts 배열 참조가 같으면 (cacheStore 캐시 히트) Map을 재사용 — 매 요청 재구성 방지
+let memoSlugMap: { source: TPosts; map: Map<string, TPost> } | null = null
+
 async function getSlugMap(): Promise<Map<string, TPost>> {
   const posts = await getPosts()
+  if (memoSlugMap && memoSlugMap.source === posts) return memoSlugMap.map
   const map = new Map<string, TPost>()
   for (const p of posts) {
     if (p.slug) map.set(p.slug, p)
   }
+  memoSlugMap = { source: posts, map }
   return map
 }
 
@@ -43,7 +48,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     const slugMap = await getSlugMap()
-    if (!slugMap.has(slug)) {
+    if (slugMap.size > 0 && !slugMap.has(slug)) {
       return res.status(200).json({ items: [] })
     }
 
@@ -87,7 +92,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     const ipH = getIpHash(req)
-    const { ok } = checkRateLimit(ipH)
+    const { ok } = inspectRateLimit(ipH)
     if (!ok) {
       return res.status(429).json({ error: "too many requests" })
     }
@@ -103,6 +108,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         ipHash: ipH,
         nickname,
       })
+      commitRateLimit(ipH)
       await cacheStore.invalidate(`comments:${input.slug}`)
       return res.status(201).json({ comment })
     } catch {

@@ -36,7 +36,7 @@ export function checkGetRateLimit(ipHash: string): { ok: boolean } {
   return { ok: true }
 }
 
-export function checkRateLimit(ipHash: string): { ok: boolean; reason?: string } {
+export function inspectRateLimit(ipHash: string): { ok: boolean; reason?: string } {
   const now = Date.now()
   const entry = store.get(ipHash) ?? {
     lastPost: 0,
@@ -46,23 +46,34 @@ export function checkRateLimit(ipHash: string): { ok: boolean; reason?: string }
     hourStart: now,
   }
 
-  if (now - entry.lastPost < COOLDOWN_MS) {
-    return { ok: false, reason: "cooldown" }
+  if (now - entry.lastPost < COOLDOWN_MS) return { ok: false, reason: "cooldown" }
+
+  const minActive = now - entry.minStart < 60_000
+  if (minActive && entry.minCount >= BURST_PER_MIN) return { ok: false, reason: "burst" }
+
+  const hourActive = now - entry.hourStart < 3_600_000
+  if (hourActive && entry.hourCount >= HOURLY) return { ok: false, reason: "hourly" }
+
+  return { ok: true }
+}
+
+export function commitRateLimit(ipHash: string): void {
+  const now = Date.now()
+  const entry = store.get(ipHash) ?? {
+    lastPost: 0,
+    minCount: 0,
+    minStart: now,
+    hourCount: 0,
+    hourStart: now,
   }
 
   const minActive = now - entry.minStart < 60_000
   const minCount = minActive ? entry.minCount : 0
   const minStart = minActive ? entry.minStart : now
-  if (minCount >= BURST_PER_MIN) {
-    return { ok: false, reason: "burst" }
-  }
 
   const hourActive = now - entry.hourStart < 3_600_000
   const hourCount = hourActive ? entry.hourCount : 0
   const hourStart = hourActive ? entry.hourStart : now
-  if (hourCount >= HOURLY) {
-    return { ok: false, reason: "hourly" }
-  }
 
   store.set(ipHash, {
     lastPost: now,
@@ -71,6 +82,4 @@ export function checkRateLimit(ipHash: string): { ok: boolean; reason?: string }
     hourCount: hourCount + 1,
     hourStart,
   })
-
-  return { ok: true }
 }
