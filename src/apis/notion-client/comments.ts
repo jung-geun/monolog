@@ -61,20 +61,23 @@ export async function listComments(slug: string): Promise<TComment[]> {
           { property: "Status", select: { equals: "approved" }, type: "select" as const },
         ],
       },
-      sorts: [{ timestamp: "created_time", direction: "ascending" }],
+      sorts: [{ timestamp: "created_time", direction: "descending" }],
       page_size: 100,
     }),
     8000
   )
 
-  return response.results.map((page: any) => ({
-    id: page.id,
-    slug: page.properties.Slug?.rich_text?.[0]?.plain_text ?? "",
-    postId: page.properties.PostId?.rich_text?.[0]?.plain_text ?? "",
-    nickname: page.properties.Nickname?.rich_text?.[0]?.plain_text ?? "익명",
-    body: page.properties.Body?.rich_text?.[0]?.plain_text ?? "",
-    createdAt: page.created_time,
-  }))
+  return response.results
+    .slice()
+    .reverse()
+    .map((page: any) => ({
+      id: page.id,
+      slug: page.properties.Slug?.rich_text?.[0]?.plain_text ?? "",
+      postId: page.properties.PostId?.rich_text?.[0]?.plain_text ?? "",
+      nickname: page.properties.Nickname?.rich_text?.[0]?.plain_text ?? "익명",
+      body: page.properties.Body?.rich_text?.[0]?.plain_text ?? "",
+      createdAt: page.created_time,
+    }))
 }
 
 export async function createComment(input: TCommentCreateInput): Promise<TComment> {

@@ -3,24 +3,13 @@ import { cacheStore } from "src/libs/cache"
 import { listComments, createComment } from "src/apis/notion-client/comments"
 import { commentPostSchema, sanitizeBody, checkSpam } from "src/libs/utils/comments/sanitize"
 import { checkRateLimit, checkGetRateLimit } from "src/libs/utils/comments/rateLimit"
-import { ipHash as hashIp, nicknameSuffix } from "src/libs/utils/comments/hash"
+import { nicknameSuffix } from "src/libs/utils/comments/hash"
+import { getIpHash } from "src/libs/utils/security"
 import { getPosts } from "src/apis/notion-client/getPosts"
+import type { TPost } from "src/types"
 import { CONFIG } from "site.config"
 
 const CACHE_TTL_MS = ((CONFIG as any).notionComments?.cacheTtlSec ?? 45) * 1000
-
-function getIp(req: NextApiRequest): string {
-  const hops = parseInt(process.env.TRUSTED_PROXY_HOPS ?? "0", 10)
-  if (hops > 0) {
-    const forwarded = req.headers["x-forwarded-for"]
-    if (typeof forwarded === "string") {
-      const ips = forwarded.split(",").map((s) => s.trim())
-      const idx = ips.length - hops
-      if (idx >= 0) return ips[idx]
-    }
-  }
-  return req.socket?.remoteAddress ?? "unknown"
-}
 
 function isAllowedOrigin(req: NextApiRequest): boolean {
   if (process.env.NODE_ENV !== "production") return true
@@ -32,9 +21,13 @@ function isAllowedOrigin(req: NextApiRequest): boolean {
   return allowed.some((base) => source.startsWith(base))
 }
 
-async function getKnownSlugs(): Promise<Set<string>> {
+async function getSlugMap(): Promise<Map<string, TPost>> {
   const posts = await getPosts()
-  return new Set(posts.map((p) => p.slug).filter(Boolean) as string[])
+  const map = new Map<string, TPost>()
+  for (const p of posts) {
+    if (p.slug) map.set(p.slug, p)
+  }
+  return map
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -44,14 +37,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(400).json({ error: "slug required" })
     }
 
-    const ip = getIp(req)
-    const ipH = hashIp(ip)
+    const ipH = getIpHash(req)
     if (!checkGetRateLimit(ipH).ok) {
       return res.status(429).json({ error: "too many requests" })
     }
 
-    const knownSlugs = await getKnownSlugs()
-    if (!knownSlugs.has(slug)) {
+    const slugMap = await getSlugMap()
+    if (!slugMap.has(slug)) {
       return res.status(200).json({ items: [] })
     }
 
@@ -83,8 +75,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(400).json({ error: "invalid request" })
     }
 
-    const knownSlugs = await getKnownSlugs()
-    if (!knownSlugs.has(input.slug)) {
+    const slugMap = await getSlugMap()
+    const post = slugMap.get(input.slug)
+    if (!post) {
       return res.status(400).json({ error: "invalid request" })
     }
 
@@ -93,8 +86,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(400).json({ error: "2자 이상 입력해주세요" })
     }
 
-    const ip = getIp(req)
-    const ipH = hashIp(ip)
+    const ipH = getIpHash(req)
     const { ok } = checkRateLimit(ipH)
     if (!ok) {
       return res.status(429).json({ error: "too many requests" })
@@ -106,7 +98,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     try {
       const comment = await createComment({
         slug: input.slug,
-        postId: input.postId,
+        postId: post.id,
         body: cleanBody,
         ipHash: ipH,
         nickname,
