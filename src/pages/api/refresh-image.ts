@@ -1,17 +1,26 @@
 import { NextApiRequest, NextApiResponse } from 'next'
 import { getOfficialNotionClient } from 'src/apis/notion-client/notionClient'
+import { getIpHash, checkRefreshImageRateLimit } from 'src/libs/utils/security'
 
-/**
- * API to refresh expired image URLs from Notion
- * 
- * Usage: /api/refresh-image?blockId=<block-id>
- * 
- * This calls Notion API to get a fresh image URL for a block
- */
+const NOTION_TIMEOUT_MS = 8_000
+
+function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
+  return Promise.race([
+    p,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error(`Notion request timed out after ${ms}ms`)), ms)
+    ),
+  ])
+}
+
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
+  if (!checkRefreshImageRateLimit(getIpHash(req)).ok) {
+    return res.status(429).json({ error: 'too many requests' })
+  }
+
   const { blockId } = req.query
 
   if (!blockId || typeof blockId !== 'string') {
@@ -20,9 +29,11 @@ export default async function handler(
 
   try {
     const notion = getOfficialNotionClient()
-    const block = await notion.blocks.retrieve({ block_id: blockId })
+    const block = await withTimeout(
+      notion.blocks.retrieve({ block_id: blockId }),
+      NOTION_TIMEOUT_MS
+    )
 
-    // Extract image URL based on block type
     const blockType = (block as any).type
     const blockValue = (block as any)[blockType]
 
@@ -32,7 +43,6 @@ export default async function handler(
 
     let imageUrl: string | null = null
 
-    // Handle different file types
     if (blockValue.type === 'file' && blockValue.file?.url) {
       imageUrl = blockValue.file.url
     } else if (blockValue.type === 'external' && blockValue.external?.url) {
@@ -52,10 +62,7 @@ export default async function handler(
     })
   } catch (error) {
     console.error('Error refreshing image URL:', error)
-    return res.status(500).json({
-      error: 'Failed to refresh image URL',
-      details: error instanceof Error ? error.message : 'Unknown error',
-    })
+    return res.status(500).json({ error: 'Failed to refresh image URL' })
   }
 }
 

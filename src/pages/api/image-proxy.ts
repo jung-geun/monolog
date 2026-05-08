@@ -13,6 +13,27 @@ import {
 import { getOfficialNotionClient } from 'src/apis/notion-client/notionClient'
 import { imageBlobCache, getImageCacheTtl } from 'src/libs/cache/imageBlobCache'
 import { extractS3ImageId } from 'src/libs/utils/image/cache/hashUtils'
+import { getIpHash, checkImageProxyRateLimit } from 'src/libs/utils/security'
+
+const FETCH_TIMEOUT_MS = 10_000
+
+async function safeFetch(url: string): Promise<Response> {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
+  try {
+    const response = await fetch(url, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; NotionImageProxy/1.0)' },
+      redirect: 'manual',
+      signal: controller.signal,
+    })
+    if (response.status >= 300 && response.status < 400) {
+      throw new Error(`Refusing to follow redirect: ${response.status}`)
+    }
+    return response
+  } finally {
+    clearTimeout(timeout)
+  }
+}
 
 const REFRESHABLE_STATUS = new Set([401, 403, 404, 410])
 
@@ -167,6 +188,12 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
+  if (!checkImageProxyRateLimit(getIpHash(req)).ok) {
+    res.setHeader('Content-Type', 'image/svg+xml')
+    res.setHeader('Cache-Control', 'public, max-age=60, s-maxage=60')
+    return res.status(429).send(PLACEHOLDER_SVG)
+  }
+
   const kind = firstQueryValue(req.query.kind as string | string[] | undefined)
   const id = firstQueryValue(req.query.id as string | string[] | undefined)
   const metadata = parseProxyMetadata(req)
@@ -255,9 +282,7 @@ export default async function handler(
 
       for (let attempt = 1; attempt <= maxAttempts; attempt++) {
         try {
-          imageResponse = await fetch(signedUrl, {
-            headers: { 'User-Agent': 'Mozilla/5.0 (compatible; NotionImageProxy/1.0)' },
-          })
+          imageResponse = await safeFetch(signedUrl)
         } catch (err) {
           lastError = err
           imageResponse = undefined
@@ -454,11 +479,7 @@ export default async function handler(
 
     while (attempt <= maxAttempts) {
       try {
-        imageResponse = await fetch(currentUrl, {
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (compatible; NotionImageProxy/1.0)',
-          },
-        })
+        imageResponse = await safeFetch(currentUrl)
       } catch (err) {
         lastError = err
         imageResponse = undefined
