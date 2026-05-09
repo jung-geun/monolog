@@ -4,6 +4,7 @@ const DB_VERSION = "v3"
 
 export const keys = {
   posts: (dataSourceId: string) => `posts:${dataSourceId}`,
+  pageIndex: (dataSourceId: string) => `pageIndex:${dataSourceId}`,
   recordMap: (pageId: string, lastEdited: string) => `recordMap:${pageId}:${lastEdited}`,
   database: (databaseId: string, lastEdited: string) =>
     `database:${DB_VERSION}:${databaseId}:${lastEdited}`,

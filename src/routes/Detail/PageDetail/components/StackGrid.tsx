@@ -1,15 +1,15 @@
 import { CONFIG } from "site.config"
 
 const CAT_COLORS: Record<string, { border: string; label: string }> = {
-  Languages:     { border: "border-signal/30",   label: "text-signal-200" },
-  Infra:         { border: "border-cs/30",        label: "text-cs-50" },
-  "AI / ML":     { border: "border-paper/30",     label: "text-paper-50" },
-  Observability: { border: "border-research/30",  label: "text-research-50" },
-  Editors:       { border: "border-signal/20",    label: "text-signal-200" },
-  OS:            { border: "border-cs/20",        label: "text-cs-50" },
+  Languages:     { border: "border-signal/40",   label: "text-signal-900 dark:text-signal-200" },
+  Infra:         { border: "border-cs/40",        label: "text-cs-900 dark:text-cs-50" },
+  "AI / ML":     { border: "border-paper/40",     label: "text-paper-900 dark:text-paper-50" },
+  Observability: { border: "border-research/40",  label: "text-research-900 dark:text-research-50" },
+  Editors:       { border: "border-signal/30",    label: "text-signal-900 dark:text-signal-200" },
+  OS:            { border: "border-cs/30",        label: "text-cs-900 dark:text-cs-50" },
 }
 
-const DEFAULT_COLORS = { border: "border-hairline", label: "text-soft" }
+const DEFAULT_COLORS = { border: "border-hairline", label: "text-strong" }
 
 const StackGrid = () => {
   const stack = (CONFIG as any).stack as Record<string, string[]> | undefined
@@ -21,7 +21,7 @@ const StackGrid = () => {
     <div className="mb-8">
       <p className="font-mono text-[13px] mb-3">
         <span className="text-signal">{"### "}</span>
-        <span className="text-zinc-300">stack</span>
+        <span className="text-strong">stack</span>
       </p>
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         {entries.map(([cat, items]) => {

@@ -64,9 +64,9 @@ const Archive = ({ categoryName }: Props) => {
           {/* YAML frontmatter */}
           <div className="font-mono text-[13px] space-y-0.5 mb-6">
             <p className="text-mute">---</p>
-            <p><span className="text-signal-200">view</span><span className="text-mute">: </span><span className="text-zinc-300">category</span></p>
-            <p><span className="text-signal-200">filter</span><span className="text-mute">: </span><span className="text-zinc-300">{categoryName}</span></p>
-            <p><span className="text-signal-200">count</span><span className="text-mute">: </span><span className="text-zinc-300">{posts.length}</span></p>
+            <p><span className="text-signal-900 dark:text-signal-200">view</span><span className="text-mute">: </span><span className="text-strong">category</span></p>
+            <p><span className="text-signal-900 dark:text-signal-200">filter</span><span className="text-mute">: </span><span className="text-strong">{categoryName}</span></p>
+            <p><span className="text-signal-900 dark:text-signal-200">count</span><span className="text-mute">: </span><span className="text-strong">{posts.length}</span></p>
             <p className="text-mute">---</p>
           </div>
 
@@ -110,7 +110,7 @@ const Archive = ({ categoryName }: Props) => {
                           <span className="font-mono text-[10px] text-mute">{tags}</span>
                         )}
                       </div>
-                      <h3 className="text-[14px] font-medium text-zinc-50 leading-snug line-clamp-2 mb-1">
+                      <h3 className="text-[14px] font-medium text-strong leading-snug line-clamp-2 mb-1">
                         {post.title}
                       </h3>
                       {post.summary && (
@@ -120,7 +120,7 @@ const Archive = ({ categoryName }: Props) => {
                       )}
                       <div className="flex items-center justify-between">
                         <p className="font-mono text-[10px] text-mute">{dateOnly}</p>
-                        <span className="font-mono text-xs text-mute transition-colors group-hover:text-signal-200">
+                        <span className="font-mono text-xs text-mute transition-colors group-hover:text-signal dark:group-hover:text-signal-200">
                           →
                         </span>
                       </div>

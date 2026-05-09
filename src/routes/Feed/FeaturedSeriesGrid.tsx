@@ -27,7 +27,7 @@ const FeaturedSeriesGrid = () => {
     <div className="mb-8">
       <p className="font-mono text-[13px] mb-2">
         <span className="text-signal">{"### "}</span>
-        <span className="text-zinc-300">series</span>
+        <span className="text-strong">series</span>
       </p>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         {entries.map(([name, count]) => {
@@ -44,12 +44,12 @@ const FeaturedSeriesGrid = () => {
                 §
               </span>
               <div className="flex-1 min-w-0">
-                <p className="truncate font-medium text-[13px] text-zinc-100">{name}</p>
+                <p className="truncate font-medium text-[13px] text-strong">{name}</p>
                 <p className="font-mono text-[10px] text-mute">
                   {count} entries{count >= 10 ? " · ongoing" : ""}
                 </p>
               </div>
-              <span className="font-mono text-xs text-mute transition-colors group-hover:text-signal-200">
+              <span className="font-mono text-xs text-mute transition-colors group-hover:text-signal dark:group-hover:text-signal-200">
                 →
               </span>
             </Link>

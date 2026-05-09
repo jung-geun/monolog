@@ -7,6 +7,34 @@ import { debugLog } from "src/libs/utils/logger"
 
 const POSTS_TTL_MS = Math.floor((CONFIG.revalidateTime / 2) * 1000)
 
+// Page index = { [normalizedNotionId]: slug } for every public post in this
+// blog's data source. Used to rewrite inline notion.so links into internal
+// slugs without doing a full posts scan on the client. Lives in the same cache
+// store as `posts` and is rebuilt every time `getPosts()` re-fetches.
+export type TPageIndex = Record<string, string>
+
+const buildPageIndex = (posts: TPosts): TPageIndex => {
+  const idx: TPageIndex = {}
+  for (const p of posts) {
+    if (p.id && p.slug) idx[p.id.replace(/-/g, "").toLowerCase()] = p.slug
+  }
+  return idx
+}
+
+const writePageIndex = async (dataSourceId: string, posts: TPosts) => {
+  await cacheStore.set(keys.pageIndex(dataSourceId), buildPageIndex(posts), POSTS_TTL_MS)
+}
+
+export const getPageIndex = async (): Promise<TPageIndex> => {
+  const dataSourceId = process.env.NOTION_DATASOURCE_ID
+  if (!dataSourceId) return {}
+  const cached = await cacheStore.get<TPageIndex>(keys.pageIndex(dataSourceId))
+  if (cached) return cached
+  // Cold cache — derive from posts (which itself populates the index TTL).
+  const posts = await getPosts()
+  return buildPageIndex(posts)
+}
+
 export const getPosts = async (options?: { bypassCache?: boolean }): Promise<TPosts> => {
   const dataSourceId = process.env.NOTION_DATASOURCE_ID
 
@@ -22,16 +50,25 @@ export const getPosts = async (options?: { bypassCache?: boolean }): Promise<TPo
     const fresh = await fetchFromNotion(dataSourceId)
     if (fresh.length > 0) {
       await cacheStore.set(keys.posts(dataSourceId), fresh, POSTS_TTL_MS)
+      await writePageIndex(dataSourceId, fresh)
     }
     return fresh
   }
 
-  return cacheStore.getOrSet(
+  const posts = await cacheStore.getOrSet(
     keys.posts(dataSourceId),
     POSTS_TTL_MS,
     () => fetchFromNotion(dataSourceId),
     { isCacheable: (posts) => posts.length > 0 }
   )
+  // Refresh the page-index whenever the posts cache was just (re)populated.
+  // cacheStore.getOrSet doesn't expose a "did populate" signal, so we
+  // best-effort write the index too: the operation is cheap and idempotent.
+  if (posts.length > 0) {
+    const indexed = await cacheStore.get<TPageIndex>(keys.pageIndex(dataSourceId))
+    if (!indexed) await writePageIndex(dataSourceId, posts)
+  }
+  return posts
 }
 
 async function fetchFromNotion(dataSourceId: string): Promise<TPosts> {

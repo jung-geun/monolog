@@ -22,25 +22,25 @@ const ContactBlock = () => {
     <div className="mb-8">
       <p className="font-mono text-[13px] mb-2">
         <span className="text-signal">{"### "}</span>
-        <span className="text-zinc-300">contact</span>
+        <span className="text-strong">contact</span>
       </p>
       <div className="font-mono text-[13px] space-y-1 pl-4 border-l border-hairline">
         <p className="text-mute">---</p>
         {entries.map(({ key, value, href }) => (
           <p key={key}>
-            <span className="text-signal-200">{key}</span>
+            <span className="text-signal-900 dark:text-signal-200">{key}</span>
             <span className="text-mute">{": "}</span>
             {href ? (
               <a
                 href={href}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-zinc-300 underline underline-offset-2 decoration-hairline hover:text-signal transition-colors"
+                className="text-strong underline underline-offset-2 decoration-hairline hover:text-signal transition-colors"
               >
                 {value}
               </a>
             ) : (
-              <span className="text-zinc-300">{value}</span>
+              <span className="text-strong">{value}</span>
             )}
           </p>
         ))}

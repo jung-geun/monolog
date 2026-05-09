@@ -48,8 +48,8 @@ const SeriesList = () => {
           {/* YAML frontmatter */}
           <div className="font-mono text-[13px] space-y-0.5 mb-6">
             <p className="text-mute">---</p>
-            <p><span className="text-signal-200">view</span><span className="text-mute">: </span><span className="text-zinc-300">series</span></p>
-            <p><span className="text-signal-200">count</span><span className="text-mute">: </span><span className="text-zinc-300">{seriesEntries.length}</span></p>
+            <p><span className="text-signal-900 dark:text-signal-200">view</span><span className="text-mute">: </span><span className="text-strong">series</span></p>
+            <p><span className="text-signal-900 dark:text-signal-200">count</span><span className="text-mute">: </span><span className="text-strong">{seriesEntries.length}</span></p>
             <p className="text-mute">---</p>
           </div>
 
@@ -75,7 +75,7 @@ const SeriesList = () => {
                       §
                     </span>
                     <div className="flex-1 min-w-0">
-                      <p className="font-medium text-[14px] text-zinc-100 truncate mb-0.5">{name}</p>
+                      <p className="font-medium text-[14px] text-strong truncate mb-0.5">{name}</p>
                       <p className="font-mono text-[10px] text-mute">
                         {count} entries{count >= 10 ? " · ongoing" : ""}
                       </p>
@@ -85,7 +85,7 @@ const SeriesList = () => {
                         </p>
                       )}
                     </div>
-                    <span className="font-mono text-xs text-mute transition-colors group-hover:text-signal-200 shrink-0">
+                    <span className="font-mono text-xs text-mute transition-colors group-hover:text-signal dark:group-hover:text-signal-200 shrink-0">
                       →
                     </span>
                   </Link>

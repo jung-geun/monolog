@@ -2,6 +2,7 @@ import dynamic from "next/dynamic"
 import Image from "next/image"
 import Link from "next/link"
 import Script from "next/script"
+import { useRouter } from "next/router"
 import { createPortal } from "react-dom"
 import { ExtendedRecordMap, Block } from "notion-types"
 import useScheme from "src/hooks/useScheme"
@@ -10,9 +11,14 @@ import NotionDatabase from "src/components/NotionDatabase"
 import { useDatabaseQuery } from "src/hooks/useDatabasesQuery"
 import { useDatabasePortalTargets } from "./useDatabasePortalTargets"
 import { useListItemColorEffect } from "./useListItemColorEffect"
-import { useEffect } from "react"
+import { useEffect, useMemo, useCallback } from "react"
 import { customMapImageUrl } from "src/libs/utils/notion/customMapImageUrl"
 import { unwrapBlock } from "src/libs/utils/notion/unwrapBlock"
+import {
+  buildIdToSlug,
+  rewriteRecordMapInternalLinks,
+} from "src/libs/utils/notion/rewriteInternalLinks"
+import usePostsQuery from "src/hooks/usePostsQuery"
 
 // core styles shared by all of react-notion-x (required)
 import "react-notion-x/src/styles.css"
@@ -79,10 +85,6 @@ const Audio = dynamic(
   }
 )
 
-const mapPageUrl = (id: string) => {
-  return "https://www.notion.so/" + id.replace(/-/g, "")
-}
-
 const mapImageUrlWrapper = (url: string | undefined, block: Block) => {
   if (!url) return ""
   return customMapImageUrl(url, block, { source: 'recordMap' })
@@ -101,7 +103,55 @@ const DatabaseBlockRenderer: FC<{ databaseId: string; title: string }> = ({ data
 
 const NotionRenderer: FC<Props> = ({ recordMap }) => {
   const [scheme] = useScheme()
-  const portalTargets = useDatabasePortalTargets(recordMap)
+  const allPosts = usePostsQuery()
+
+  // Pre-built id → slug map of every post in this blog DB.
+  const idToSlug = useMemo(() => buildIdToSlug(allPosts), [allPosts])
+
+  // Pre-rewrite the recordMap so any inline notion.so link that points to a
+  // sibling post becomes /{slug} BEFORE react-notion-x renders it. This avoids
+  // post-render DOM mutation; the rendered <a> already has the correct href.
+  const internalRecordMap = useMemo(
+    () => rewriteRecordMapInternalLinks(recordMap, idToSlug),
+    [recordMap, idToSlug]
+  )
+  const portalTargets = useDatabasePortalTargets(internalRecordMap)
+
+  const mapPageUrl = useCallback((pageId: string) => {
+    const slug = idToSlug.get(pageId.replace(/-/g, "").toLowerCase())
+    return slug ? `/${slug}` : "https://www.notion.so/" + pageId.replace(/-/g, "")
+  }, [idToSlug])
+
+  const router = useRouter()
+
+  // The rewritten recordMap gives every internal link an `/slug` href. Some
+  // react-notion-x renderers still emit `target="_blank" rel="noopener"`, which
+  // would open the internal slug in a *browser* tab instead of the in-app
+  // EditorChrome tab. Intercept on the capture phase so we beat any default
+  // navigation, and route internal hrefs through the SPA. useRegisterChrome
+  // on the destination route then opens / activates the in-app tab.
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const container = document.querySelector('.notion-page') as HTMLElement | null
+    if (!container) return
+
+    const onClick = (e: MouseEvent) => {
+      if (e.defaultPrevented) return
+      if (e.button !== 0) return
+      if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
+      const a = (e.target as HTMLElement | null)?.closest('a') as HTMLAnchorElement | null
+      if (!a) return
+      const href = a.getAttribute('href')
+      if (!href) return
+      if (!href.startsWith('/') || href.startsWith('//')) return
+      // Internal — always SPA, regardless of target="_blank" / rel.
+      e.preventDefault()
+      e.stopPropagation()
+      router.push(href)
+    }
+    container.addEventListener('click', onClick, { capture: true })
+    return () => container.removeEventListener('click', onClick, { capture: true } as any)
+  }, [router, internalRecordMap])
 
   // Log all blocks in the current page (dev/test only)
   useEffect(() => {
@@ -522,7 +572,7 @@ const NotionRenderer: FC<Props> = ({ recordMap }) => {
       />
       <_NotionRenderer
         darkMode={scheme === "dark"}
-        recordMap={recordMap}
+        recordMap={internalRecordMap ?? recordMap}
         components={{
           Code,
           Collection,

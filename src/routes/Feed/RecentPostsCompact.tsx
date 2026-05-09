@@ -39,7 +39,7 @@ const RecentPostsCompact = () => {
     <div className="mb-8">
       <p className="font-mono text-[13px] mb-2">
         <span className="text-signal">{"### "}</span>
-        <span className="text-zinc-300">latest</span>
+        <span className="text-strong">latest</span>
         <span className="text-mute ml-2 italic text-[11px]">
           {"// sorted by date · "}{posts.length}{" entries"}
         </span>
@@ -71,7 +71,7 @@ const RecentPostsCompact = () => {
                       <span className="font-mono text-[10px] text-mute">{tags}</span>
                     )}
                   </div>
-                  <h3 className="text-[14px] font-medium text-zinc-50 leading-snug line-clamp-2 mb-1">
+                  <h3 className="text-[14px] font-medium text-strong leading-snug line-clamp-2 mb-1">
                     {post.title}
                   </h3>
                   {post.summary && (
@@ -81,7 +81,7 @@ const RecentPostsCompact = () => {
                   )}
                   <div className="flex items-center justify-between">
                     <p className="font-mono text-[10px] text-mute">{dateOnly}</p>
-                    <span className="font-mono text-xs text-mute transition-colors group-hover:text-signal-200">
+                    <span className="font-mono text-xs text-mute transition-colors group-hover:text-signal dark:group-hover:text-signal-200">
                       →
                     </span>
                   </div>
@@ -106,7 +106,7 @@ const RecentPostsCompact = () => {
         <p className="mt-3 text-center">
           <Link
             href="/search"
-            className="font-mono text-[12px] text-mute italic hover:text-zinc-200 transition-colors"
+            className="font-mono text-[12px] text-mute italic hover:text-strong transition-colors"
           >
             {"// view "}{rest}{" more entries →"}
           </Link>

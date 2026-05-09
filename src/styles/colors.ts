@@ -29,20 +29,20 @@ export interface EditorColors {
 }
 
 const editorLight: EditorColors = {
-  bg: "#fbfaf6",
-  bg2: "#f3f1ea",
-  bg3: "#e9e6dc",
+  bg: "#faf7ee",
+  bg2: "#efe9d9",
+  bg3: "#e2d9c2",
   fg: "#1c1d1a",
-  fg2: "#5a5c54",
-  fg3: "#65675f",
-  fg4: "#b8bab0",
-  line: "#e2dfd1",
-  line2: "#cfcbb8",
-  gutter: "#f0ede2",
-  accent: "#ee5a1c",
-  accentSoft: "#ffe2cf",
-  accent2: "#2d6a2c",
-  accent3: "#1f5a8a",
+  fg2: "#4a4d44",
+  fg3: "#7a7c72",
+  fg4: "#a8a89a",
+  line: "#d6cfb9",
+  line2: "#bdb499",
+  gutter: "#ece5d2",
+  accent: "#c2410c",
+  accentSoft: "#f5dab9",
+  accent2: "#0f6e57",
+  accent3: "#1e4d6e",
 }
 
 const editorDark: EditorColors = {

@@ -23,10 +23,10 @@ const ACCENT_NUM: Record<Color, string> = {
 }
 
 const ACCENT_LABEL: Record<Color, string> = {
-  signal:   "text-signal-200",
-  paper:    "text-paper-50",
-  cs:       "text-cs-50",
-  research: "text-research-50",
+  signal:   "text-signal-900 dark:text-signal-200",
+  paper:    "text-paper-900 dark:text-paper-50",
+  cs:       "text-cs-900 dark:text-cs-50",
+  research: "text-research-900 dark:text-research-50",
 }
 
 function pickColor(name: string): Color {
@@ -68,9 +68,9 @@ const SeriesArchive = ({ seriesName }: Props) => {
           {/* YAML frontmatter */}
           <div className="font-mono text-[13px] space-y-0.5 mb-6">
             <p className="text-mute">---</p>
-            <p><span className="text-signal-200">view</span><span className="text-mute">: </span><span className="text-zinc-300">series</span></p>
-            <p><span className="text-signal-200">name</span><span className="text-mute">: </span><span className="text-zinc-300">{seriesName}</span></p>
-            <p><span className="text-signal-200">count</span><span className="text-mute">: </span><span className="text-zinc-300">{posts.length}</span></p>
+            <p><span className="text-signal-900 dark:text-signal-200">view</span><span className="text-mute">: </span><span className="text-strong">series</span></p>
+            <p><span className="text-signal-900 dark:text-signal-200">name</span><span className="text-mute">: </span><span className="text-strong">{seriesName}</span></p>
+            <p><span className="text-signal-900 dark:text-signal-200">count</span><span className="text-mute">: </span><span className="text-strong">{posts.length}</span></p>
             <p className="text-mute">---</p>
           </div>
 
@@ -83,7 +83,7 @@ const SeriesArchive = ({ seriesName }: Props) => {
               <p className={`font-mono text-[10px] tracking-widest ${ACCENT_LABEL[color]}`}>
                 SERIES · {posts.length} ENTRIES
               </p>
-              <h1 className="text-2xl font-medium text-zinc-50">{seriesName}</h1>
+              <h1 className="text-2xl font-medium text-strong">{seriesName}</h1>
             </div>
           </div>
 
@@ -117,7 +117,7 @@ const SeriesArchive = ({ seriesName }: Props) => {
                     {String(i).padStart(2, "0")}
                   </span>
                   <div className="flex-1 min-w-0">
-                    <h3 className="text-[14px] font-medium text-zinc-50 leading-snug line-clamp-2 mb-1">
+                    <h3 className="text-[14px] font-medium text-strong leading-snug line-clamp-2 mb-1">
                       {post.title}
                     </h3>
                     {post.summary && (
@@ -125,7 +125,7 @@ const SeriesArchive = ({ seriesName }: Props) => {
                     )}
                     <p className="font-mono text-[10px] text-mute">{dateOnly}</p>
                   </div>
-                  <span className="font-mono text-xs text-mute transition-colors group-hover:text-signal-200 shrink-0">
+                  <span className="font-mono text-xs text-mute transition-colors group-hover:text-signal dark:group-hover:text-signal-200 shrink-0">
                     →
                   </span>
                 </Link>

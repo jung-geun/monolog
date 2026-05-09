@@ -62,7 +62,7 @@ const ActivityHeatmap = () => {
     <div className="mb-8">
       <p className="font-mono text-[13px] mb-2">
         <span className="text-signal">{"### "}</span>
-        <span className="text-zinc-300">writing.activity</span>
+        <span className="text-strong">writing.activity</span>
         <span className="text-mute ml-2 italic text-[11px]">{"// last 52 weeks"}</span>
       </p>
 
@@ -109,7 +109,7 @@ const ActivityHeatmap = () => {
         {/* tooltip */}
         {tooltip && (
           <div
-            className="pointer-events-none absolute z-10 rounded bg-elevated border border-hairline px-2 py-1 font-mono text-[10px] text-zinc-200 whitespace-nowrap shadow"
+            className="pointer-events-none absolute z-10 rounded bg-elevated border border-hairline px-2 py-1 font-mono text-[10px] text-strong whitespace-nowrap shadow"
             style={{ left: tooltip.x, top: tooltip.y }}
           >
             {tooltip.text}

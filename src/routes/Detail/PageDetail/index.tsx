@@ -36,19 +36,19 @@ const PageDetail: React.FC = () => {
                 <div className="font-mono text-[13px] space-y-0.5 mb-6">
                   <p className="text-mute">---</p>
                   <p>
-                    <span className="text-signal-200">author</span>
+                    <span className="text-signal-900 dark:text-signal-200">author</span>
                     <span className="text-mute">{": "}</span>
-                    <span className="text-zinc-300">{CONFIG.profile.name}</span>
+                    <span className="text-strong">{CONFIG.profile.name}</span>
                   </p>
                   <p>
-                    <span className="text-signal-200">role</span>
+                    <span className="text-signal-900 dark:text-signal-200">role</span>
                     <span className="text-mute">{": "}</span>
-                    <span className="text-zinc-300">{CONFIG.profile.role}</span>
+                    <span className="text-strong">{CONFIG.profile.role}</span>
                   </p>
                   <p>
-                    <span className="text-signal-200">bio</span>
+                    <span className="text-signal-900 dark:text-signal-200">bio</span>
                     <span className="text-mute">{": "}</span>
-                    <span className="text-zinc-300">{CONFIG.profile.bio}</span>
+                    <span className="text-strong">{CONFIG.profile.bio}</span>
                   </p>
                   <p className="text-mute">---</p>
                 </div>
