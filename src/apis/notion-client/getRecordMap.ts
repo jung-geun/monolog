@@ -4,6 +4,7 @@ import { getUser } from "./getUser"
 import { optimizeRecordMap } from "src/libs/utils/notion/optimizeRecordMap"
 import { unwrapBlock, getBlockById } from "src/libs/utils/notion/unwrapBlock"
 import { parseNotionDate } from "src/libs/utils/notion/parseNotionDate"
+import { getOgMetadata } from "src/libs/utils/notion/fetchOgMetadata"
 import { TPosts } from "src/types"
 import { cacheStore, keys } from "src/libs/cache"
 import { CONFIG } from "site.config"
@@ -303,6 +304,46 @@ async function populateUserMentions(recordMap: ExtendedRecordMap): Promise<void>
   const users = await Promise.all([...userIds].map((id) => getUser(id)))
   for (const u of users) {
     recordMap.notion_user[u.id] = { role: 'reader', value: u as any }
+  }
+}
+
+/**
+ * Fetch OG metadata for every bookmark block on the page (link_preview is
+ * mapped to `bookmark` upstream by typeMapping). Populates the exact fields
+ * RNX `case "bookmark":` reads — `format.bookmark_cover`, `format.bookmark_icon`,
+ * `properties.title`, `properties.description`. Dedups by URL to avoid
+ * re-fetching the same link cited by multiple bookmark blocks. SSRF +
+ * timeout + size limits live inside getOgMetadata, not here.
+ */
+async function populateBookmarkMetadata(recordMap: ExtendedRecordMap): Promise<void> {
+  const targets = new Map<string, string>() // blockId → url
+  for (const blockId of Object.keys(recordMap.block)) {
+    const v = recordMap.block[blockId]?.value as any
+    if (v?.type !== 'bookmark') continue
+    const url = v.properties?.link?.[0]?.[0]
+    if (typeof url === 'string' && url.length > 0) {
+      targets.set(blockId, url)
+    }
+  }
+  if (targets.size === 0) return
+
+  const uniqueUrls = [...new Set(targets.values())]
+  debugLog(`[og] fetching ${uniqueUrls.length} unique bookmark URL(s)`)
+  const results = await Promise.all(uniqueUrls.map((u) => getOgMetadata(u)))
+  const byUrl = new Map<string, (typeof results)[number]>()
+  uniqueUrls.forEach((u, i) => byUrl.set(u, results[i]))
+
+  for (const [blockId, url] of targets) {
+    const meta = byUrl.get(url)
+    if (!meta) continue
+    const v = recordMap.block[blockId]!.value as any
+    v.format = v.format || {}
+    if (meta.image) v.format.bookmark_cover = meta.image
+    if (meta.icon) v.format.bookmark_icon = meta.icon
+    // Only overwrite title if OG actually returned one — otherwise keep the
+    // URL-fallback emitted during processBlock so the card always has text.
+    if (meta.title) v.properties.title = [[meta.title]]
+    if (meta.description) v.properties.description = [[meta.description]]
   }
 }
 
@@ -819,6 +860,11 @@ async function fetchRecordMap(
       // RNX's `case "u":` returns null when notion_user[id] is missing, so
       // skipping this pass would make user mentions vanish entirely.
       await populateUserMentions(recordMap)
+
+      // Phase 3 — populate OG metadata for bookmark / link_preview blocks.
+      // Independent fetch graph from recordMap (own cache key, own TTL).
+      // SSRF + timeout + 1MB cap inside getOgMetadata.
+      await populateBookmarkMetadata(recordMap)
 
       // Optimize record map and flatten synced blocks
       const optimizedRecordMap = optimizeRecordMap(recordMap)
