@@ -4,8 +4,8 @@ import { ExtendedRecordMap } from "notion-types"
 const UNSUPPORTED_BLOCK_TYPES = [
   'synced_block',
   // 'audio' removed: react-notion-x and custom Audio component support audio blocks
+  // 'table_of_contents' removed: RNX renders TOC from heading_* blocks already in recordMap
   'breadcrumb',
-  'table_of_contents',
   'transclusion_container',
 ] as const
 

@@ -204,7 +204,7 @@ async function processBlock(block: any, parentId: string, notion: any, recordMap
 
           if (linkedPageId) {
             // Try to find the linked page in recordMap to get its title
-            let pageTitle = linkedType === 'database' ? 'Database' : 'Page'
+            let pageTitle = linkedType === 'database' ? '데이터베이스' : '페이지'
 
             // Search for the page in recordMap
             const linkedPageBlock = getBlockById(recordMap, linkedPageId)
@@ -218,12 +218,12 @@ async function processBlock(block: any, parentId: string, notion: any, recordMap
 
             // Find the linked post in allPosts to get its slug
             const linkedPost = allPosts?.find((post) => post.id === linkedPageId)
-            // Create link decoration - use slug if available, otherwise fallback to page ID
+            // Resolve URL: prefer in-site slug; otherwise fall back to the
+            // Notion source URL (the legacy `/database/<id>` and
+            // `/[page-id]?id=<id>` paths were dead links).
             const pageUrl = linkedPost?.slug
               ? `/${linkedPost.slug}`
-              : linkedType === 'database'
-                ? `/database/${linkedPageId}`
-                : `/[page-id]?id=${linkedPageId}`
+              : `https://www.notion.so/${linkedPageId.replace(/-/g, '')}`
             pageTitle = (linkedPost ? linkedPost.title : pageTitle) || pageTitle
 
             properties.title = [[pageTitle, [['a', pageUrl]]]]

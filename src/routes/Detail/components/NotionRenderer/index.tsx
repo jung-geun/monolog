@@ -634,13 +634,19 @@ const StyledWrapper = styled.div`
     display: block !important;
   }
   
-  /* Hide unsupported block type containers */
+  /* Hide unsupported block type containers (table_of_contents is supported) */
   .notion-breadcrumb,
-  .notion-table_of_contents,
   .notion-transclusion_container {
     display: none !important;
   }
-  
+
+  /* to_do checkboxes are read-only — clicks would not persist back to Notion.
+     Disable interaction and signal read-only intent. */
+  .notion-to-do-item .notion-property-checkbox {
+    cursor: default;
+    pointer-events: none;
+  }
+
   /* Audio block styling */
   .notion-audio {
     margin: 1rem 0;
