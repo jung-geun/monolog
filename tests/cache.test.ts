@@ -70,8 +70,11 @@ describe("cache keys", () => {
   })
 
   it("generates stable recordMap key including lastEdited", () => {
+    // RM_VERSION prefix introduced so convertRichText / processBlock shape
+    // changes invalidate stale recordMap caches. Bumped through several
+    // versions during the Notion block coverage releases; current is v6.
     const k = keys.recordMap("page-id", "2026-01-01T00:00:00.000Z")
-    expect(k).toBe("recordMap:page-id:2026-01-01T00:00:00.000Z")
+    expect(k).toBe("recordMap:v6:page-id:2026-01-01T00:00:00.000Z")
   })
 
   it("generates distinct keys for different lastEdited", () => {

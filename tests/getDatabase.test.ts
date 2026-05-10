@@ -107,7 +107,12 @@ describe("getDatabase", () => {
     expect(db!.groupBy).toBeNull()
   })
 
-  it("auto-detects board view when a select property exists", async () => {
+  it("does not auto-promote to board view when a select property exists (v1.9.2 default = table)", async () => {
+    // v1.9.2 removed the 'auto board if any groupable property' shortcut —
+    // official Notion API does not expose view_type for child_database, so
+    // the default has to be 'table' (the most common authored layout).
+    // groupBy is still detected so consumers like Board view can use it
+    // when an explicit view_type='board' is provided upstream.
     mockNotion.dataSources.query.mockResolvedValue({
       results: [
         {
@@ -121,7 +126,7 @@ describe("getDatabase", () => {
       ],
     })
     const db = await getDatabase("id")
-    expect(db!.view).toBe("board")
+    expect(db!.view).toBe("table")
     expect(db!.groupBy).toBe("Tag")
   })
 

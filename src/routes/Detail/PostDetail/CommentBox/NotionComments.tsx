@@ -87,7 +87,7 @@ const NotionComments: React.FC<Props> = ({ slug, postId }) => {
   return (
     <StyledWrapper>
       <div className="comments-header">
-        <span className="label">// comments</span>
+        <span className="label">{"// comments"}</span>
         {!loading && <span className="count">{items.length}</span>}
       </div>
 

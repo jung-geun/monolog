@@ -109,9 +109,16 @@ export const RouteChromeProvider = ({ children }: { children: ReactNode }) => {
   const [tabs, setTabs] = useState<Tab[]>([README_TAB])
   const [activeTabId, setActiveTabId] = useState<string>("readme")
   const routerRef = useRef(router)
-  routerRef.current = router
   const tabsRef = useRef(tabs)
-  tabsRef.current = tabs
+  // React 19 disallows mutating .current during render — sync inside an
+  // effect so the ref still tracks the latest value for callbacks that
+  // read it asynchronously.
+  useEffect(() => {
+    routerRef.current = router
+  }, [router])
+  useEffect(() => {
+    tabsRef.current = tabs
+  }, [tabs])
 
   // Close sidebar on mobile on mount
   useEffect(() => {
