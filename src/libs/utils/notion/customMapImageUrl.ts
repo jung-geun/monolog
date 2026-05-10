@@ -101,6 +101,19 @@ export const customMapImageUrl = (url: string, block?: Block, context?: CustomMa
     ) {
       return url
     }
+
+    // public.notion-static.com is the unsigned, never-expiring CDN path used
+    // for things like user profile photos. Wrapping it in notion.so/image/...
+    // produces a 302 → our image-proxy refuses to follow → user gets the
+    // placeholder SVG and (e.g.) user-mention avatars vanish from the page.
+    // Pass these through untouched.
+    if (
+      u.hostname.endsWith('.amazonaws.com') &&
+      u.pathname.startsWith('/public.notion-static.com/') &&
+      !u.searchParams.has('X-Amz-Signature')
+    ) {
+      return url
+    }
   } catch {
     // ignore invalid urls
   }
