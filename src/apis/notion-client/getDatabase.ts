@@ -129,6 +129,7 @@ async function fetchActiveViewType(
     const view: any = await notion.views.retrieve({ view_id: firstId })
     const t = view?.type as string | undefined
     if (t === "table" || t === "board" || t === "gallery" || t === "list") {
+      debugLog(`[views] active view type "${t}" for ${databaseId}`)
       return t
     }
     // calendar / timeline / form / chart / map / dashboard fall back to
