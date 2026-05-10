@@ -307,11 +307,53 @@ async function populateUserMentions(recordMap: ExtendedRecordMap): Promise<void>
 }
 
 /**
+ * Whitelist of hosts allowed to render as iframe-style embeds. Anything else
+ * falls back to a bookmark card so we don't mount iframes from arbitrary
+ * origins (XSS surface). Update with intent — each addition is a trust
+ * boundary expansion.
+ */
+const EMBED_ALLOWED_HOSTS: readonly string[] = [
+  "youtube.com",
+  "youtu.be",
+  "vimeo.com",
+  "loom.com",
+  "codepen.io",
+  "codesandbox.io",
+  "gist.github.com",
+  "github.com",
+  "figma.com",
+  "replit.com",
+  "excalidraw.com",
+  "twitter.com",
+  "x.com",
+  "typeform.com",
+  "docs.google.com",
+  "drive.google.com",
+  "maps.google.com",
+  "speakerdeck.com",
+  "soundcloud.com",
+  "open.spotify.com",
+]
+
+function isAllowedEmbedHost(rawUrl: string): boolean {
+  let host = ""
+  try {
+    host = new URL(rawUrl).hostname.toLowerCase()
+  } catch {
+    return false
+  }
+  return EMBED_ALLOWED_HOSTS.some((h) => host === h || host.endsWith("." + h))
+}
+
+/**
  * Process a single block and add it to recordMap
  */
 async function processBlock(block: any, parentId: string, notion: any, recordMap: ExtendedRecordMap, allPosts?: TPosts): Promise<void> {
   const properties: any = {}
   const format: any = {}
+  // forcedMappedType lets a case override the post-switch typeMapping lookup
+  // (used by `embed` when an unknown host falls back to `bookmark`).
+  let forcedMappedType: string | null = null
   // Bind recordMap/allPosts/block.id once so call sites stay tight.
   const rt = (arr: any[]) => convertRichText(arr, recordMap, allPosts, block.id)
 
@@ -421,6 +463,29 @@ async function processBlock(block: any, parentId: string, notion: any, recordMap
         }
         break
 
+      case 'embed': {
+        // Phase 2D: emit display_source for allowlisted hosts; otherwise
+        // degrade to a bookmark card. Arbitrary iframe origins are an XSS
+        // surface, so the trust boundary is explicit (EMBED_ALLOWED_HOSTS).
+        const embedUrl = blockData.url
+        if (!embedUrl) break
+        if (isAllowedEmbedHost(embedUrl)) {
+          properties.source = [[embedUrl]]
+          format.display_source = embedUrl
+          if (blockData.caption && blockData.caption.length > 0) {
+            properties.caption = rt(blockData.caption)
+          }
+        } else {
+          properties.link = [[embedUrl]]
+          properties.title =
+            blockData.caption && blockData.caption.length > 0
+              ? rt(blockData.caption)
+              : [[embedUrl]]
+          forcedMappedType = 'bookmark'
+        }
+        break
+      }
+
       case 'equation':
         if (blockData.expression) {
           properties.title = [[blockData.expression]]
@@ -432,6 +497,11 @@ async function processBlock(block: any, parentId: string, notion: any, recordMap
         break
 
       case 'callout':
+        // RNX isIconBlock() includes 'callout', and PageIcon auto-detects
+        // emoji vs URL via isUrl(icon). External/file URLs are routed through
+        // mapImageUrl (customMapImageUrl) and convertPresignedUrlsToProxy
+        // already rewrites format.page_icon for S3-signed file URLs, so all
+        // three icon variants render correctly.
         if (blockData.icon) {
           format.page_icon = blockData.icon.emoji || blockData.icon.external?.url || blockData.icon.file?.url
         }
@@ -491,6 +561,19 @@ async function processBlock(block: any, parentId: string, notion: any, recordMap
         // Use block.id as database_id (the child_database block itself)
         if (block.id) {
           format.database_id = block.id
+        }
+        break
+
+      case 'child_page':
+        // Inline child-page card: typeMapping converts this to RNX `page`
+        // (level > 0 branch renders <PageLink><PageTitle/></PageLink>).
+        // Title comes from blockData.title (plain string in the official API);
+        // the page id is block.id itself, so mapPageUrl resolves slug routing.
+        // Icon is not in the official child_page response — PageIcon falls back
+        // to defaultIcon. Fetching page metadata for an icon would add an
+        // extra users.retrieve-style API call per child_page; deferred.
+        if (typeof blockData.title === 'string' && blockData.title) {
+          properties.title = [[blockData.title]]
         }
         break
 
@@ -563,6 +646,7 @@ async function processBlock(block: any, parentId: string, notion: any, recordMap
     'embed': 'embed',
     'link_preview': 'bookmark',
     'child_database': 'collection_view_page', // Temporary: use collection_view_page for placeholder
+    'child_page': 'page', // Inline child-page card via RNX level>0 page branch
     // Additional block types
     'synced_block': 'synced_block',
     'link_to_page': 'text', // Convert link_to_page to text with link decoration
@@ -572,7 +656,7 @@ async function processBlock(block: any, parentId: string, notion: any, recordMap
     'transclusion_container': 'transclusion_container',
   }
 
-  const mappedType = typeMapping[block.type] || block.type
+  const mappedType = forcedMappedType || typeMapping[block.type] || block.type
 
   const blockValue: any = {
     id: block.id,
