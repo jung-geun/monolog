@@ -1,7 +1,9 @@
 import { ExtendedRecordMap } from "notion-types"
 import { getOfficialNotionClient } from "./notionClient"
+import { getUser } from "./getUser"
 import { optimizeRecordMap } from "src/libs/utils/notion/optimizeRecordMap"
 import { unwrapBlock, getBlockById } from "src/libs/utils/notion/unwrapBlock"
+import { parseNotionDate } from "src/libs/utils/notion/parseNotionDate"
 import { TPosts } from "src/types"
 import { cacheStore, keys } from "src/libs/cache"
 import { CONFIG } from "site.config"
@@ -136,9 +138,57 @@ async function fetchChildBlocks(blockId: string, notion: any, recordMap: Extende
 }
 
 /**
- * Convert rich text array to notion-types format with decorations
+ * Synthesize a minimum `page` block in recordMap so RNX `case "p":` (page
+ * mention) doesn't bail with `return null` when the linked page isn't part of
+ * the same fetch. Title priority: allPosts → mention plain_text → 한국어 폴백.
+ * Mirrors the lookup pattern used by `link_to_page` (Phase 1B).
  */
-function convertRichText(richTextArray: any[]): any[][] {
+function synthesizePageStub(
+  recordMap: ExtendedRecordMap,
+  pageId: string,
+  kind: 'page' | 'database',
+  allPosts: TPosts | undefined,
+  fallbackText: string
+): void {
+  if (recordMap.block[pageId]?.value) return
+  const linkedPost = allPosts?.find((p) => p.id === pageId)
+  const title =
+    linkedPost?.title ||
+    (fallbackText && fallbackText.trim()) ||
+    (kind === 'database' ? '데이터베이스' : '페이지')
+
+  recordMap.block[pageId] = {
+    role: 'reader',
+    value: {
+      id: pageId,
+      version: 1,
+      type: 'page',
+      properties: { title: [[title]] },
+      created_time: 0,
+      last_edited_time: 0,
+      parent_id: '',
+      parent_table: 'space',
+      alive: true,
+    } as any,
+  }
+}
+
+/**
+ * Convert rich text array to notion-types format with decorations.
+ * Supports text/equation/mention. mention.type ∈
+ *   - page/database → ['p', id]   + minimum page stub synthesis
+ *   - date          → ['d', FormattedDate]
+ *   - user          → ['u', id]   (notion_user populated in a later pass)
+ *   - link_mention  → ['lm', metadata]   (Notion API returns full OG meta)
+ *   - link_preview/template_mention/custom_emoji → plain_text fallback
+ *     (RNX has no case branch; see Phase 4 limits in plan doc)
+ */
+function convertRichText(
+  richTextArray: any[],
+  recordMap?: ExtendedRecordMap,
+  allPosts?: TPosts,
+  blockIdForLog?: string
+): any[][] {
   if (!richTextArray || !Array.isArray(richTextArray) || richTextArray.length === 0) return []
 
   return richTextArray.map((rt: any) => {
@@ -151,6 +201,49 @@ function convertRichText(richTextArray: any[]): any[][] {
       decorations.push(['e', text])
     } else if (rt.type === 'text') {
       text = rt.text?.content || rt.plain_text || ''
+    } else if (rt.type === 'mention') {
+      // plain_text is the visible anchor when RNX cannot render the decoration
+      // (data missing / unsupported subtype). Decoration is layered on top.
+      text = rt.plain_text || ''
+      const m = rt.mention
+      switch (m?.type) {
+        case 'page':
+        case 'database': {
+          const linkedId = m[m.type]?.id
+          if (linkedId && recordMap) {
+            synthesizePageStub(recordMap, linkedId, m.type, allPosts, text)
+            decorations.push(['p', linkedId])
+          }
+          break
+        }
+        case 'date': {
+          if (m.date) decorations.push(['d', parseNotionDate(m.date)])
+          break
+        }
+        case 'user': {
+          const userId = m.user?.id
+          // notion_user is populated by populateUserMentions() in a later pass;
+          // here we only emit the decoration. RNX will resolve once data lands.
+          if (userId) decorations.push(['u', userId])
+          break
+        }
+        case 'link_mention': {
+          if (m.link_mention) decorations.push(['lm', { ...m.link_mention }])
+          break
+        }
+        // Phase 4 — known unsupported (RNX has no case branch; tracked in
+        // /Users/pieroot/.claude/plans/notion-block-coverage.md):
+        //   link_preview  : URL only, no metadata → Phase 3 OG preview
+        //   template_mention, custom_emoji : library gap
+        default: {
+          if (process.env.NODE_ENV !== 'production' && m?.type) {
+            console.log(
+              `[mention] unsupported subtype: ${m.type} on block ${blockIdForLog ?? 'unknown'}`
+            )
+          }
+          break
+        }
+      }
     } else {
       text = rt.plain_text || ''
     }
@@ -179,18 +272,55 @@ function convertRichText(richTextArray: any[]): any[][] {
 }
 
 /**
+ * Walk the recordMap properties, collect every ['u', userId] decoration, and
+ * populate `recordMap.notion_user` via cached users.retrieve calls.
+ * Done as a final pass so processBlock() stays synchronous and dedup is global
+ * to the page (not per-block).
+ */
+async function populateUserMentions(recordMap: ExtendedRecordMap): Promise<void> {
+  const userIds = new Set<string>()
+  for (const blockId of Object.keys(recordMap.block)) {
+    const value = recordMap.block[blockId]?.value as any
+    if (!value?.properties) continue
+    for (const propVal of Object.values(value.properties)) {
+      if (!Array.isArray(propVal)) continue
+      for (const item of propVal) {
+        if (!Array.isArray(item) || item.length < 2) continue
+        const decorations = item[1]
+        if (!Array.isArray(decorations)) continue
+        for (const dec of decorations) {
+          if (Array.isArray(dec) && dec[0] === 'u' && typeof dec[1] === 'string') {
+            userIds.add(dec[1])
+          }
+        }
+      }
+    }
+  }
+
+  if (userIds.size === 0) return
+
+  debugLog(`[mention] fetching ${userIds.size} unique user(s)`)
+  const users = await Promise.all([...userIds].map((id) => getUser(id)))
+  for (const u of users) {
+    recordMap.notion_user[u.id] = { role: 'reader', value: u as any }
+  }
+}
+
+/**
  * Process a single block and add it to recordMap
  */
 async function processBlock(block: any, parentId: string, notion: any, recordMap: ExtendedRecordMap, allPosts?: TPosts): Promise<void> {
   const properties: any = {}
   const format: any = {}
+  // Bind recordMap/allPosts/block.id once so call sites stay tight.
+  const rt = (arr: any[]) => convertRichText(arr, recordMap, allPosts, block.id)
 
   if (block.type && block[block.type]) {
     const blockData = block[block.type]
 
     // Handle blocks with rich_text (paragraph, headings, lists, quotes, callouts, toggles, etc.)
     if (blockData.rich_text && Array.isArray(blockData.rich_text)) {
-      properties.title = convertRichText(blockData.rich_text)
+      properties.title = rt(blockData.rich_text)
     }
 
     // Handle specific block types
@@ -242,11 +372,11 @@ async function processBlock(block: any, parentId: string, notion: any, recordMap
 
       case 'code':
         if (blockData.rich_text && Array.isArray(blockData.rich_text)) {
-          properties.title = convertRichText(blockData.rich_text)
+          properties.title = rt(blockData.rich_text)
           properties.language = [[blockData.language || 'plain text']]
         }
         if (blockData.caption && Array.isArray(blockData.caption) && blockData.caption.length > 0) {
-          properties.caption = convertRichText(blockData.caption)
+          properties.caption = rt(blockData.caption)
         }
         break
 
@@ -259,11 +389,11 @@ async function processBlock(block: any, parentId: string, notion: any, recordMap
 
           properties.source = [[imageUrl]]
 
-          // Add format for image display  
+          // Add format for image display
           format.display_source = imageUrl
         }
         if (blockData.caption && blockData.caption.length > 0) {
-          properties.caption = convertRichText(blockData.caption)
+          properties.caption = rt(blockData.caption)
         }
         break
 
@@ -274,17 +404,19 @@ async function processBlock(block: any, parentId: string, notion: any, recordMap
         if (fileUrl) {
           properties.source = [[fileUrl]]
           if (blockData.caption && blockData.caption.length > 0) {
-            properties.caption = convertRichText(blockData.caption)
+            properties.caption = rt(blockData.caption)
           }
         }
         break
 
       case 'bookmark':
       case 'link_preview':
+        // Phase 4 limit: bookmark/link_preview surface URL + caption only.
+        // No OG metadata fetch; tracked for Phase 3 (server-side OG endpoint).
         if (blockData.url) {
           properties.link = [[blockData.url]]
           properties.title = blockData.caption && blockData.caption.length > 0
-            ? convertRichText(blockData.caption)
+            ? rt(blockData.caption)
             : [[blockData.url]]
         }
         break
@@ -313,14 +445,18 @@ async function processBlock(block: any, parentId: string, notion: any, recordMap
 
       case 'column_list':
       case 'column':
-        // These are container blocks, handled by content
+        // Phase 4 limit: official API does not expose `format.column_ratio`;
+        // columns therefore render with default equal widths regardless of
+        // how the page was authored. Permanent constraint.
         break
 
       case 'table':
         if (blockData.table_width) {
           format.table_width = blockData.table_width
 
-          // Generate table_block_column_order for react-notion-x to render columns
+          // Phase 4 limit: official API gives no `table_block_column_order`,
+          // so we synthesize `cell_0..N` based on table_width. Rows whose
+          // cell count diverges from table_width may misalign columns.
           const columnOrder: string[] = []
           for (let i = 0; i < blockData.table_width; i++) {
             columnOrder.push(`cell_${i}`)
@@ -337,10 +473,9 @@ async function processBlock(block: any, parentId: string, notion: any, recordMap
 
       case 'table_row':
         if (blockData.cells && Array.isArray(blockData.cells)) {
-          // Convert table cells
           blockData.cells.forEach((cell: any[], index: number) => {
             if (cell && cell.length > 0) {
-              properties[`cell_${index}`] = convertRichText(cell)
+              properties[`cell_${index}`] = rt(cell)
             }
           })
         }
@@ -350,7 +485,7 @@ async function processBlock(block: any, parentId: string, notion: any, recordMap
         // Database block - store metadata for placeholder rendering
         debugLog('📊 [getRecordMap] Found child_database block:', block.id)
         if (blockData.title) {
-          properties.title = convertRichText(blockData.title)
+          properties.title = rt(blockData.title)
         }
         // Store database ID for future custom rendering (Option 3)
         // Use block.id as database_id (the child_database block itself)
@@ -360,8 +495,9 @@ async function processBlock(block: any, parentId: string, notion: any, recordMap
         break
 
       case 'synced_block':
-        // Synced block - children will be fetched automatically via has_children
-        // Store synced_from reference if available (points to original block)
+        // Phase 4 limit: only locally-fetched children survive the
+        // optimizeRecordMap flatten pass. `synced_from` references on other
+        // pages are not resolved (would change fetch graph + cache key).
         debugLog('📋 [synced_block] Found:', {
           id: block.id,
           has_children: block.has_children,
@@ -382,7 +518,7 @@ async function processBlock(block: any, parentId: string, notion: any, recordMap
           debugLog('🎵 [getRecordMap] Audio block found:', block.id, audioUrl)
         }
         if (blockData.caption && blockData.caption.length > 0) {
-          properties.caption = convertRichText(blockData.caption)
+          properties.caption = rt(blockData.caption)
         }
         break
 
@@ -565,6 +701,12 @@ async function fetchRecordMap(
       for (const block of blocks.results) {
         await processBlock(block, pageId, notion, recordMap, allPosts)
       }
+
+      // Resolve `['u', userId]` decorations emitted by user mentions: fetch
+      // each unique user once (cache + dedup) and populate notion_user.
+      // RNX's `case "u":` returns null when notion_user[id] is missing, so
+      // skipping this pass would make user mentions vanish entirely.
+      await populateUserMentions(recordMap)
 
       // Optimize record map and flatten synced blocks
       const optimizedRecordMap = optimizeRecordMap(recordMap)
