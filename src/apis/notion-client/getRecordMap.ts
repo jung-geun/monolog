@@ -346,6 +346,33 @@ function isAllowedEmbedHost(rawUrl: string): boolean {
 }
 
 /**
+ * Some providers ship raw share URLs that, when used as an iframe src, force
+ * a redirect to "open in app" pages instead of rendering the embed. Rewrite
+ * the URL to the provider's documented embed path here so the iframe source
+ * is the player, not the landing page.
+ */
+function normalizeEmbedUrl(rawUrl: string): string {
+  try {
+    const u = new URL(rawUrl)
+    const host = u.hostname.toLowerCase()
+
+    // Spotify: open.spotify.com/<type>/<id> → open.spotify.com/embed/<type>/<id>
+    // The non-embed share URL hijacks navigation to the desktop app.
+    if (
+      (host === "open.spotify.com" || host.endsWith(".spotify.com")) &&
+      !u.pathname.startsWith("/embed/")
+    ) {
+      u.pathname = "/embed" + u.pathname
+      return u.toString()
+    }
+
+    return rawUrl
+  } catch {
+    return rawUrl
+  }
+}
+
+/**
  * Process a single block and add it to recordMap
  */
 async function processBlock(block: any, parentId: string, notion: any, recordMap: ExtendedRecordMap, allPosts?: TPosts): Promise<void> {
@@ -470,8 +497,9 @@ async function processBlock(block: any, parentId: string, notion: any, recordMap
         const embedUrl = blockData.url
         if (!embedUrl) break
         if (isAllowedEmbedHost(embedUrl)) {
-          properties.source = [[embedUrl]]
-          format.display_source = embedUrl
+          const src = normalizeEmbedUrl(embedUrl)
+          properties.source = [[src]]
+          format.display_source = src
           if (blockData.caption && blockData.caption.length > 0) {
             properties.caption = rt(blockData.caption)
           }
