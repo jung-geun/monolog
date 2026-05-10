@@ -41,6 +41,12 @@ const config: Config = {
           200:     'rgb(var(--c-research-200) / <alpha-value>)',
           900:     'rgb(var(--c-research-900) / <alpha-value>)',
         },
+        grass: {
+          1: 'rgb(var(--c-grass-1) / <alpha-value>)',
+          2: 'rgb(var(--c-grass-2) / <alpha-value>)',
+          3: 'rgb(var(--c-grass-3) / <alpha-value>)',
+          4: 'rgb(var(--c-grass-4) / <alpha-value>)',
+        },
       },
       fontFamily: {
         sans: ['"Pretendard Variable"', 'Pretendard', 'system-ui', 'sans-serif'],

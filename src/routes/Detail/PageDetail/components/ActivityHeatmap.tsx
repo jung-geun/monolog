@@ -5,10 +5,10 @@ type Cell = { date: string; count: number; level: number }
 
 const LEVEL_CLS = [
   "bg-elevated",
-  "bg-signal opacity-25",
-  "bg-signal opacity-50",
-  "bg-signal opacity-75",
-  "bg-signal",
+  "bg-grass-1",
+  "bg-grass-2",
+  "bg-grass-3",
+  "bg-grass-4",
 ]
 
 function buildGrid(posts: ReturnType<typeof usePostsQuery>): { weeks: Cell[][]; months: { label: string; col: number }[] } {

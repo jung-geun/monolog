@@ -33,6 +33,11 @@ const LIGHT_VARS = `
   --c-research-50: 235 213 198;
   --c-research-200: 211 130 90;
   --c-research-900: 124 56 28;
+
+  --c-grass-1: 233 168 84;
+  --c-grass-2: 211 130 90;
+  --c-grass-3: 194 65 12;
+  --c-grass-4: 124 60 22;
 `
 
 const LIGHT_PRISM = `
@@ -184,6 +189,11 @@ const DARK_VARS = `
   --c-research-50: 250 236 231;
   --c-research-200: 211 130 90;
   --c-research-900: 153 60 29;
+
+  --c-grass-1: 133 79 11;
+  --c-grass-2: 217 119 6;
+  --c-grass-3: 250 199 117;
+  --c-grass-4: 250 238 218;
 `
 
 export const Global = () => {
