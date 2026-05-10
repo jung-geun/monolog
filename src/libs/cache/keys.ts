@@ -1,6 +1,6 @@
 // Bump DB_VERSION when TNotionDatabase schema changes (e.g. new fields like groupBy/icon)
 // so previously persisted entries in `.notion-cache/` are treated as misses.
-const DB_VERSION = "v3"
+const DB_VERSION = "v4"
 // Bump RM_VERSION when convertRichText / processBlock output shape changes
 // (e.g. new mention decorations, new format fields) so existing recordMap
 // caches are invalidated and re-fetched with the new translator.

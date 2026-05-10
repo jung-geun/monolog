@@ -99,8 +99,14 @@ function detectView(blockFormat: any, groupBy: string | null): TDbView {
   if (viewType === "gallery") return "gallery"
   if (viewType === "list") return "list"
   if (viewType === "table") return "table"
-  // Auto: if there's a groupable property, default to board
-  if (groupBy) return "board"
+  // Phase 4 limit: official Notion API does not expose the database view
+  // type (table / board / gallery / list) for child_database blocks. We
+  // default to `table` because it best matches Notion's most common
+  // authored layout and preserves all column data verbatim. Auto-promoting
+  // to `board` when a status property exists (as the previous default did)
+  // hijacks pages where the author actually wanted a 5-row table view.
+  // Users who want a board must currently render the database elsewhere.
+  void groupBy
   return "table"
 }
 
