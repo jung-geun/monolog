@@ -236,25 +236,30 @@ async function fetchUncached(url: string): Promise<OgMetadata | null> {
 /**
  * Fetch OG metadata for `url` with L1/L2 cache + dedup. Successful fetches
  * are cached for 7 days; failures (null) for 1 hour so a temporary outage
- * doesn't poison the cache for a week.
+ * (or one broken bookmark URL) doesn't lock the entry out for a week.
+ *
+ * cacheStore.getOrSet is single-TTL by API. To get split TTLs we tell it to
+ * skip auto-caching for null results (`isCacheable`) and manually persist
+ * the negative entry under the short TTL inside the fetcher itself. The
+ * inflight dedup behaviour of getOrSet still applies to both cases.
  */
 export async function getOgMetadata(url: string): Promise<OgMetadata | null> {
   return cacheStore.getOrSet<OgMetadata | null>(
     keys.og(url),
     OG_TTL_HIT_MS,
-    () => fetchUncached(url),
+    async () => {
+      const result = await fetchUncached(url)
+      if (result === null) {
+        // Persist the negative entry directly with the short miss TTL.
+        // getOrSet's auto-set is suppressed by isCacheable below.
+        await cacheStore.set(keys.og(url), null, OG_TTL_MISS_MS)
+      }
+      return result
+    },
     {
-      isCacheable: (data) => {
-        // Negative cache: store with shorter TTL, but cacheStore uses one TTL
-        // per call. We lie here by returning `true` for null too, but record
-        // it under the long TTL — acceptable because hit rate is dominated by
-        // the same URLs over short windows. If this becomes a real issue,
-        // split into two cache entries with different TTLs.
-        return data !== undefined
-      },
+      // Successful fetches go through getOrSet's auto-set with OG_TTL_HIT_MS;
+      // null results were already persisted with OG_TTL_MISS_MS above.
+      isCacheable: (data) => data !== null,
     }
   )
-  // Note: when the value is null, the long TTL is used. A more rigorous
-  // negative-cache TTL would require a small wrapper on cacheStore; the
-  // OG_TTL_MISS_MS constant is reserved for that follow-up.
 }
