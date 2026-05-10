@@ -215,6 +215,36 @@ const NotionRenderer: FC<Props> = ({ recordMap }) => {
     })
   }, [recordMap])
 
+  // RNX renders user mentions as a bare <img class="notion-user"> with no
+  // accompanying text — visually it's a 1em circle most readers won't
+  // notice. Wrap each one in a pill with the @name pulled from `alt`, so
+  // mentions read inline like the Notion source. Idempotent: skips images
+  // already inside a `.notion-user-pill` parent. Observer attaches to body
+  // because `_NotionRenderer` is a `ssr: false` dynamic import — the
+  // .notion-page container is created after this useEffect first fires.
+  useEffect(() => {
+    if (!recordMap || typeof window === 'undefined') return
+    const enhance = () => {
+      const imgs = document.querySelectorAll<HTMLImageElement>('img.notion-user')
+      imgs.forEach((img) => {
+        if (img.parentElement?.classList.contains('notion-user-pill')) return
+        const name = img.getAttribute('alt') || ''
+        const pill = document.createElement('span')
+        pill.className = 'notion-user-pill'
+        const nameSpan = document.createElement('span')
+        nameSpan.className = 'notion-user-name'
+        nameSpan.textContent = name ? `@${name}` : ''
+        img.replaceWith(pill)
+        pill.appendChild(img)
+        if (name) pill.appendChild(nameSpan)
+      })
+    }
+    enhance()
+    const obs = new MutationObserver(enhance)
+    obs.observe(document.body, { childList: true, subtree: true })
+    return () => obs.disconnect()
+  }, [recordMap])
+
   // KaTeX math rendering effect - moved to top level to follow React Hooks rules
   useEffect(() => {
     // Only run on client side and when recordMap is available
@@ -904,5 +934,49 @@ const StyledWrapper = styled.div`
   /* YouTube 라이트 로딩 숨기기 */
   .notion-yt-lite {
     display: none !important;
+  }
+
+  /* Image / asset captions: Notion centers the caption under the image.
+     RNX defaults to left-align which makes blog posts look unbalanced. */
+  .notion-asset-caption {
+    text-align: center;
+    font-size: 0.875em;
+    color: rgb(var(--c-mute, 102 104 94));
+    margin-top: 0.5rem;
+  }
+
+  /* User mention: RNX renders a tiny <img class="notion-user"> with no
+     accompanying text, which the user almost cannot see. Bump it to a
+     pill that pairs the avatar with the @name (taken from the alt
+     attribute) so mentions read naturally inline. */
+  .notion-user {
+    display: inline-block;
+    width: 1em;
+    height: 1em;
+    border-radius: 50%;
+    object-fit: cover;
+    vertical-align: -0.15em;
+    margin: 0 0.15em;
+  }
+  .notion-user::after {
+    /* attr(alt) on a replaced element is unreliable across engines, so
+       text fallback is handled by enhanceUserMentions runtime helper. */
+  }
+  .notion-user-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.2em;
+    padding: 0.05em 0.35em 0.05em 0.1em;
+    border-radius: 999px;
+    background: rgb(var(--c-elevated, 215 202 168) / 0.5);
+    color: inherit;
+    line-height: 1.4;
+    vertical-align: -0.15em;
+  }
+  .notion-user-pill > img.notion-user {
+    margin: 0;
+  }
+  .notion-user-pill > .notion-user-name {
+    font-size: 0.95em;
   }
 `

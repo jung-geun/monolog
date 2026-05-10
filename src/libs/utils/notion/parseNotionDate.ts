@@ -51,3 +51,20 @@ export function parseNotionDate(d: NotionDateResponse): FormattedDate {
 
   return result
 }
+
+/**
+ * Render a `FormattedDate` as a Korean-locale string. RNX's built-in
+ * formatDate is English-only ("Nov 12, 2025"), so we precompute the visible
+ * text in the translator and emit it as plain text on the date mention.
+ */
+export function formatDateKorean(d: FormattedDate): string {
+  const formatOne = (date: string, time?: string) => {
+    const [y, m, day] = date.split("-").map((s) => Number(s))
+    if (!y || !m || !day) return date
+    return time ? `${y}년 ${m}월 ${day}일 ${time}` : `${y}년 ${m}월 ${day}일`
+  }
+  const start = formatOne(d.start_date, d.start_time)
+  if (d.type === "date" || d.type === "datetime") return start
+  const end = formatOne(d.end_date ?? "", d.end_time)
+  return `${start} → ${end}`
+}

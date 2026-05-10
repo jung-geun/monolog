@@ -207,8 +207,13 @@ export const Video: FC<VideoBlockProps> = ({ block, className = "" }) => {
         )
 
       case "external":
+        // Phase 4 limit: official Notion API does not expose video poster
+        // URLs (Notion's own UI uses an internal thumbnail service we can't
+        // call). preload="auto" gives the browser a fair shot at extracting
+        // a first-frame, but if the source video opens on a black frame the
+        // video element will still render black until the user hits play.
         return (
-          <video controls preload="metadata" style={iframeStyle}>
+          <video controls preload="auto" style={iframeStyle}>
             <source src={videoData.url} />
             브라우저가 비디오 태그를 지원하지 않습니다.
           </video>

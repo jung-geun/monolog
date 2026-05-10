@@ -4,7 +4,7 @@ const DB_VERSION = "v4"
 // Bump RM_VERSION when convertRichText / processBlock output shape changes
 // (e.g. new mention decorations, new format fields) so existing recordMap
 // caches are invalidated and re-fetched with the new translator.
-const RM_VERSION = "v5"
+const RM_VERSION = "v6"
 
 export const keys = {
   posts: (dataSourceId: string) => `posts:${dataSourceId}`,

@@ -3,7 +3,7 @@ import { getOfficialNotionClient } from "./notionClient"
 import { getUser } from "./getUser"
 import { optimizeRecordMap } from "src/libs/utils/notion/optimizeRecordMap"
 import { unwrapBlock, getBlockById } from "src/libs/utils/notion/unwrapBlock"
-import { parseNotionDate } from "src/libs/utils/notion/parseNotionDate"
+import { parseNotionDate, formatDateKorean } from "src/libs/utils/notion/parseNotionDate"
 import { getOgMetadata } from "src/libs/utils/notion/fetchOgMetadata"
 import { TPosts } from "src/types"
 import { cacheStore, keys } from "src/libs/cache"
@@ -218,7 +218,14 @@ function convertRichText(
           break
         }
         case 'date': {
-          if (m.date) decorations.push(['d', parseNotionDate(m.date)])
+          if (m.date) {
+            // RNX's `case "d":` formats dates in English ("Nov 12, 2025").
+            // Override the visible text with a Korean-formatted string and
+            // drop the decoration so RNX renders the plain Korean text.
+            // parseNotionDate is still used to normalize the API response
+            // shape (date / datetime / range variants).
+            text = formatDateKorean(parseNotionDate(m.date))
+          }
           break
         }
         case 'user': {
