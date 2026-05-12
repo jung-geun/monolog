@@ -3,14 +3,13 @@ import Image from "next/image"
 import Link from "next/link"
 import Script from "next/script"
 import { useRouter } from "next/router"
-import { createPortal } from "react-dom"
 import { ExtendedRecordMap, Block } from "notion-types"
 import useScheme from "src/hooks/useScheme"
 import DatabasePlaceholder from "src/components/DatabasePlaceholder"
 import NotionDatabase from "src/components/NotionDatabase"
 import { useDatabaseQuery } from "src/hooks/useDatabasesQuery"
-import { useDatabasePortalTargets } from "./useDatabasePortalTargets"
 import { useListItemColorEffect } from "./useListItemColorEffect"
+import { SafeBlock } from "./SafeBlock"
 import { useEffect, useMemo, useCallback } from "react"
 import { customMapImageUrl } from "src/libs/utils/notion/customMapImageUrl"
 import { unwrapBlock } from "src/libs/utils/notion/unwrapBlock"
@@ -46,15 +45,49 @@ const _NotionRenderer = dynamic(
   { ssr: false }
 )
 
-const Code = dynamic(() =>
+const RawCode = dynamic(() =>
   import("react-notion-x/build/third-party/code").then(async (m) => m.Code)
 )
 
-const Collection = dynamic(() =>
-  import("react-notion-x/build/third-party/collection").then(
-    (m) => m.Collection
+// Wrap Code with a localized error boundary so a single block crash does not
+// collapse the entire page. Falls back to a plain <pre> with the raw text.
+const Code: FC<any> = (props) => {
+  const block = props?.block
+  const title: string =
+    block?.properties?.title?.map((t: any[]) => t?.[0] ?? "").join("") ?? ""
+  return (
+    <SafeBlock
+      name="Code"
+      fallback={
+        <pre style={{
+          padding: "0.75rem 1rem",
+          borderRadius: "0.5rem",
+          background: "rgba(127,127,127,0.12)",
+          overflowX: "auto",
+          fontSize: "0.85rem",
+          lineHeight: 1.5,
+          margin: "1rem 0",
+        }}>
+          <code>{title}</code>
+        </pre>
+      }
+    >
+      <RawCode {...props} />
+    </SafeBlock>
   )
-)
+}
+
+// react-notion-x 의 components.Collection 슬롯을 우리 DB 렌더러로 교체.
+// react-notion-x 가 본인 트리 안에서 직접 렌더하므로, portal 기반 sibling 인젝션이
+// 야기하던 insertBefore/removeChild race 가 원천 차단된다.
+const Collection: FC<any> = (props) => {
+  const block = props?.block
+  if (!block?.id) return null
+  const databaseId: string = (block.format as any)?.database_id || block.id
+  const title: string =
+    block.properties?.title?.map((t: any[]) => t?.[0] ?? "").join("") || "데이터베이스"
+  return <DatabaseBlockRenderer databaseId={databaseId} title={title} />
+}
 const Equation = dynamic(() =>
   import("react-notion-x/build/third-party/equation").then((m) => m.Equation)
 )
@@ -94,6 +127,33 @@ type Props = {
   recordMap: ExtendedRecordMap | null
 }
 
+// collection_view_page 블록(non-root)을 collection_view 로 변환한다.
+// react-notion-x 는 collection_view_page 를 level > 0 에서 PageLink 로 렌더하고
+// components.Collection 을 호출하지 않는다. collection_view 로 변환하면
+// case "collection_view": 경로로 우리 Collection 컴포넌트가 직접 호출된다.
+function normalizeForCollection(rm: ExtendedRecordMap | null): ExtendedRecordMap | null {
+  if (!rm) return null
+  let changed = false
+  const newBlock: ExtendedRecordMap["block"] = {}
+
+  for (const [id, boxed] of Object.entries(rm.block)) {
+    if (!boxed) { newBlock[id] = boxed; continue }
+    const block = unwrapBlock(boxed)
+    if (block?.type === "collection_view_page") {
+      changed = true
+      const v = boxed.value as any
+      const newValue = v && "value" in v && "role" in v
+        ? { ...v, value: { ...v.value, type: "collection_view" } }
+        : { ...v, type: "collection_view" }
+      newBlock[id] = { ...boxed, value: newValue }
+    } else {
+      newBlock[id] = boxed
+    }
+  }
+
+  return changed ? { ...rm, block: newBlock } : rm
+}
+
 // Renders a single database block: fetches from React Query cache; falls back to placeholder.
 const DatabaseBlockRenderer: FC<{ databaseId: string; title: string }> = ({ databaseId, title }) => {
   const database = useDatabaseQuery(databaseId)
@@ -115,7 +175,10 @@ const NotionRenderer: FC<Props> = ({ recordMap }) => {
     () => rewriteRecordMapInternalLinks(recordMap, idToSlug),
     [recordMap, idToSlug]
   )
-  const portalTargets = useDatabasePortalTargets(internalRecordMap)
+  const renderedRecordMap = useMemo(
+    () => normalizeForCollection(internalRecordMap),
+    [internalRecordMap]
+  )
 
   const mapPageUrl = useCallback((pageId: string) => {
     const slug = idToSlug.get(pageId.replace(/-/g, "").toLowerCase())
@@ -578,18 +641,6 @@ const NotionRenderer: FC<Props> = ({ recordMap }) => {
     )
   }
 
-  // Find all database blocks
-  const databaseBlocks: Array<{ blockId: string; databaseId: string; title: string }> = []
-
-  Object.entries(recordMap.block).forEach(([blockId, blockData]) => {
-    const block = unwrapBlock(blockData)
-    if (block?.type === 'collection_view_page') {
-      const databaseId = (block.format as any)?.database_id || blockId
-      const title = block.properties?.title?.[0]?.[0] || '데이터베이스'
-      databaseBlocks.push({ blockId, databaseId, title })
-    }
-  })
-
   return (
     <StyledWrapper className={scheme === 'dark' ? 'dark' : 'light'}>
       <Script
@@ -602,7 +653,7 @@ const NotionRenderer: FC<Props> = ({ recordMap }) => {
       />
       <_NotionRenderer
         darkMode={scheme === "dark"}
-        recordMap={internalRecordMap ?? recordMap}
+        recordMap={renderedRecordMap ?? recordMap}
         components={{
           Code,
           Collection,
@@ -619,16 +670,6 @@ const NotionRenderer: FC<Props> = ({ recordMap }) => {
         mapPageUrl={mapPageUrl}
         mapImageUrl={mapImageUrlWrapper}
       />
-
-      {databaseBlocks.map(({ blockId, databaseId, title }) => {
-        const target = portalTargets.get(blockId)
-        if (!target?.isConnected) return null
-        return createPortal(
-          <DatabaseBlockRenderer databaseId={databaseId} title={title} />,
-          target,
-          `db-${blockId}`
-        )
-      })}
     </StyledWrapper>
   )
 }
@@ -645,13 +686,6 @@ const StyledWrapper = styled.div`
   }
   .notion-list {
     width: 100%;
-  }
-  
-  /* Hide default collection_view_page rendering - we use custom DatabasePlaceholder */
-  .notion-collection_view_page,
-  .notion-collection-view,
-  .notion-collection_view {
-    display: none !important;
   }
   
   /* Handle synced_block: hide the container but show children */
@@ -696,13 +730,6 @@ const StyledWrapper = styled.div`
   &.dark .notion-audio audio {
     background: #2a2a2a;
     border-radius: 4px;
-  }
-  
-  /* Database portal targets — managed by useDatabasePortalTargets */
-  .database-portal-target {
-    display: block;
-    width: 100%;
-    margin: 1rem 0;
   }
   
   /* Always show code block copy button */

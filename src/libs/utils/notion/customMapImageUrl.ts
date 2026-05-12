@@ -11,11 +11,6 @@ type CustomMapContext = Omit<ImageProxyMetadata, 'blockId' | 'pageId' | 'source'
 }
 
 export const customMapImageUrl = (url: string, block?: Block, context?: CustomMapContext): string => {
-  // 함수 호출 여부 확인 로그
-  if (process.env.NODE_ENV !== 'production') {
-    console.log('🔍 [customMapImageUrl] Called with URL:', url.substring(0, 100))
-  }
-  
   if (!url) {
     throw new Error("URL can't be empty")
   }
@@ -25,10 +20,6 @@ export const customMapImageUrl = (url: string, block?: Block, context?: CustomMa
   }
 
   const alreadyProxied = isAlreadyProxied(url)
-  if (process.env.NODE_ENV !== 'production') {
-    console.log(`[customMapImageUrl] isAlreadyProxied(${url}) = ${alreadyProxied}`)
-  }
-
   if (alreadyProxied) {
     return url
   }
@@ -54,9 +45,6 @@ export const customMapImageUrl = (url: string, block?: Block, context?: CustomMa
   // Proxy Notion's signed S3 URLs through our API to avoid expiration
   // This allows Next.js to cache the images and serve them even after the signed URL expires
   if (url.startsWith('https://prod-files-secure.s3.us-west-2.amazonaws.com')) {
-    if (process.env.NODE_ENV !== 'production') {
-      console.log('✅ [customMapImageUrl] Proxying AWS signed S3 URL')
-    }
     // Use our image proxy API to cache the image.
     // Return an absolute URL (helps avoid relative-path double-wrapping
     // when pages are rendered in different contexts).
@@ -71,9 +59,6 @@ export const customMapImageUrl = (url: string, block?: Block, context?: CustomMa
     !url.includes('/api/image-proxy') &&
     !url.includes('%2Fapi%2Fimage-proxy')
   ) {
-    if (process.env.NODE_ENV !== 'production') {
-      console.log('✅ [customMapImageUrl] Proxying S3 signed URL')
-    }
     return createProxyRequestUrl(url, metadata)
   }
 

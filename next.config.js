@@ -11,12 +11,13 @@ module.exports = {
     // 안정되면 헤더 키를 'Content-Security-Policy'로 바꿔 enforce로 전환.
     const csp = [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.googletagmanager.com https://*.google-analytics.com https://*.googlesyndication.com https://*.doubleclick.net https://*.googleadservices.com https://www.google.com https://utteranc.es",
-      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.googletagmanager.com https://*.google-analytics.com https://*.googlesyndication.com https://*.doubleclick.net https://*.googleadservices.com https://www.google.com https://utteranc.es https://cdn.jsdelivr.net",
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net",
       "img-src 'self' data: blob: https:",
-      "font-src 'self' data: https://fonts.gstatic.com",
+      "font-src 'self' data: https://fonts.gstatic.com https://cdn.jsdelivr.net",
       "connect-src 'self' https://*.google-analytics.com https://*.googletagmanager.com https://*.doubleclick.net https://*.googlesyndication.com",
-      "frame-src 'self' https://utteranc.es https://*.google.com https://*.googlesyndication.com https://*.doubleclick.net https://*.googleadservices.com https://*.googletagmanager.com",
+      "media-src 'self' blob: https://*.amazonaws.com https://prod-files-secure.s3.us-west-2.amazonaws.com",
+      "frame-src 'self' https://utteranc.es https://*.google.com https://*.googlesyndication.com https://*.doubleclick.net https://*.googleadservices.com https://*.googletagmanager.com https://www.youtube.com https://www.youtube-nocookie.com https://open.spotify.com https://gist.github.com",
       "base-uri 'self'",
       "form-action 'self'",
       "object-src 'none'",
