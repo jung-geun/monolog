@@ -27,8 +27,11 @@ function normalizeValue(prop: any): unknown {
       return prop.status?.name ?? null
     case "multi_select":
       return prop.multi_select?.map((s: any) => s.name) ?? []
-    case "date":
-      return prop.date?.start ?? null
+    case "date": {
+      const d = prop.date
+      if (!d?.start) return null
+      return d.end ? { start: d.start as string, end: d.end as string } : { start: d.start as string }
+    }
     case "url":
       return prop.url ?? null
     case "checkbox":

@@ -2,6 +2,7 @@ import React from "react"
 import Image from "next/image"
 import styled from "@emotion/styled"
 import { TDbGroupOption, TDbRow, TNotionDatabase } from "src/types"
+import { renderCell, resolveViewProperties } from "./cells"
 
 type Props = {
   database: TNotionDatabase
@@ -63,29 +64,34 @@ function buildGroupList(rows: TDbRow[], groupBy: string, schemaOptions?: TDbGrou
   return list
 }
 
-function getRowTitle(row: TDbRow, database: TNotionDatabase): string {
-  const titleProp = database.properties.find((p) => p.type === "title")
-  if (titleProp) {
-    const v = row.values[titleProp.name]
-    if (typeof v === "string" && v.length > 0) return v
-  }
-  return "제목 없음"
-}
+const Card: React.FC<{ row: TDbRow; database: TNotionDatabase }> = ({ row, database }) => {
+  const allVisible = resolveViewProperties(database.viewProperties, database.properties)
+  const titleSchema = allVisible.find((p) => p.type === "title")
+  const metaSchemas = allVisible.filter((p) => p.type !== "title" && p.type !== "files")
+  const title = titleSchema ? (row.values[titleSchema.name] as string) || "(untitled)" : "(untitled)"
 
-const Card: React.FC<{ row: TDbRow; title: string }> = ({ row, title }) => (
-  <CardItem>
-    {row.icon && (
-      <IconBox>
-        {row.icon.type === "emoji" ? (
-          <span aria-hidden>{row.icon.emoji}</span>
-        ) : (
-          <Image src={row.icon.url} alt="" width={20} height={20} unoptimized />
+  return (
+    <CardItem>
+      <CardHeader>
+        {row.icon && (
+          <IconBox>
+            {row.icon.type === "emoji" ? (
+              <span aria-hidden>{row.icon.emoji}</span>
+            ) : (
+              <Image src={row.icon.url} alt="" width={20} height={20} unoptimized />
+            )}
+          </IconBox>
         )}
-      </IconBox>
-    )}
-    <CardTitle>{title}</CardTitle>
-  </CardItem>
-)
+        <CardTitle>{title}</CardTitle>
+      </CardHeader>
+      {metaSchemas.map((s) => {
+        const node = renderCell(s, row, { compact: true })
+        if (!node) return null
+        return <CardMeta key={s.id}>{node}</CardMeta>
+      })}
+    </CardItem>
+  )
+}
 
 const Board: React.FC<Props> = ({ database }) => {
   const groupBy = database.groupBy
@@ -112,7 +118,7 @@ const Board: React.FC<Props> = ({ database }) => {
               </ColumnHeader>
               <CardList>
                 {rows.map((row) => (
-                  <Card key={row.id} row={row} title={getRowTitle(row, database)} />
+                  <Card key={row.id} row={row} database={database} />
                 ))}
               </CardList>
             </Column>
@@ -186,14 +192,20 @@ const CardList = styled.div`
 
 const CardItem = styled.div`
   display: flex;
-  align-items: center;
-  gap: 0.5rem;
+  flex-direction: column;
+  gap: 0.35rem;
   padding: 0.6rem 0.75rem;
   border-radius: 0.4rem;
   background: ${({ theme }) => theme.colors.gray2};
   border: 1px solid ${({ theme }) => theme.colors.gray5};
   color: ${({ theme }) => theme.colors.gray12};
   font-size: 0.875rem;
+`
+
+const CardHeader = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 `
 
 const IconBox = styled.span`
@@ -211,4 +223,9 @@ const CardTitle = styled.span`
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+`
+
+const CardMeta = styled.div`
+  font-size: 0.75rem;
+  color: ${({ theme }) => theme.colors.gray10};
 `

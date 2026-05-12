@@ -51,8 +51,21 @@ export function renderCell(
       )
     case "status":
       return <Tag>{String(val)}</Tag>
-    case "date":
-      return <span>{formatDate(val as string, CONFIG.lang)}</span>
+    case "date": {
+      if (typeof val === "string") {
+        return <span>{formatDate(val, CONFIG.lang)}</span>
+      }
+      if (val && typeof val === "object" && "start" in (val as object)) {
+        const v = val as { start: string; end?: string }
+        const start = formatDate(v.start, CONFIG.lang)
+        if (v.end) {
+          const end = formatDate(v.end, CONFIG.lang)
+          return <span>{`${start} → ${end}`}</span>
+        }
+        return <span>{start}</span>
+      }
+      return null
+    }
     case "url":
       return (
         <ExternalLink href={val as string} target="_blank" rel="noopener noreferrer">
