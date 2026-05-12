@@ -5,6 +5,10 @@ import { CONFIG } from "site.config"
 import { TDbPropertySchema, TDbRow, TDbViewProperty, TNotionDatabase } from "src/types"
 import styled from "@emotion/styled"
 
+// Notion datasource API returns property IDs URL-encoded (%5D%3F%5Bz) while
+// the Views API returns decoded form (]?[z). Normalize before comparison.
+const safeDecode = (s: string) => { try { return decodeURIComponent(s) } catch { return s } }
+
 /** Resolve visible, ordered property schemas from viewProperties + full schema list. */
 export function resolveViewProperties(
   viewProperties: TDbViewProperty[] | null | undefined,
@@ -12,12 +16,12 @@ export function resolveViewProperties(
 ): TDbPropertySchema[] {
   if (!viewProperties || viewProperties.length === 0) return schemas
 
-  const byId = new Map(schemas.map((s) => [s.id, s]))
+  const byId = new Map(schemas.map((s) => [safeDecode(s.id), s]))
   const byName = new Map(schemas.map((s) => [s.name, s]))
 
   return viewProperties
     .filter((vp) => vp.visible)
-    .map((vp) => byId.get(vp.propertyId) ?? byName.get(vp.name))
+    .map((vp) => byId.get(safeDecode(vp.propertyId)) ?? byName.get(vp.name))
     .filter((s): s is TDbPropertySchema => s !== undefined)
 }
 
