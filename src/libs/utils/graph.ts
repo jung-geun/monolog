@@ -14,7 +14,7 @@ export type GraphNode = {
 export type GraphEdge = {
   a: number
   b: number
-  type: "relation" | "mention" | "link"
+  type: "mention" | "link"
   weight: number
   sameCategory: boolean
 }

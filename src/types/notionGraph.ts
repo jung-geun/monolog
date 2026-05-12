@@ -1,4 +1,4 @@
-export type EdgeKind = "relation" | "mention" | "link"
+export type EdgeKind = "mention" | "link"
 
 export type RawEdge = {
   source: string
