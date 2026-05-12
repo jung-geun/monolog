@@ -98,6 +98,13 @@ export type TDbViewProperty = {
   width?: number | null
 }
 
+export type TDbViewMeta = {
+  id: string
+  type: TDbView
+  name?: string | null
+  properties: TDbViewProperty[] | null
+}
+
 export type TNotionDatabase = {
   id: string
   title: string
@@ -107,4 +114,6 @@ export type TNotionDatabase = {
   groupBy?: string | null
   groupOptions?: TDbGroupOption[] | null
   viewProperties?: TDbViewProperty[] | null
+  views?: TDbViewMeta[]
+  defaultViewId?: string
 }

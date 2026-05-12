@@ -5,6 +5,7 @@ import {
   TDbPropertyType,
   TDbRow,
   TDbView,
+  TDbViewMeta,
   TDbViewProperty,
   TNotionDatabase,
 } from "src/types"
@@ -139,8 +140,8 @@ async function fetchViewInfo(
   databaseId: string,
   notion: any,
   opts?: { fallbackDataSourceId?: string; preferredType?: TDbView | null }
-): Promise<{ type: TDbView | null; properties: TDbViewProperty[] | null }> {
-  const empty = { type: null, properties: null }
+): Promise<{ picked: { id: string; type: TDbView | null; properties: TDbViewProperty[] | null } | null; all: TDbViewMeta[] }> {
+  const empty = { picked: null, all: [] as TDbViewMeta[] }
   try {
     let viewsResp: any = await notion.views.list({
       database_id: databaseId,
@@ -157,30 +158,37 @@ async function fetchViewInfo(
     const refs: any[] = viewsResp?.results ?? []
     if (refs.length === 0) return empty
 
-    let matched: { view: any; type: TDbView | null } | null = null
-    let firstViable: { view: any; type: TDbView | null } | null = null
+    let pickedEntry: { id: string; type: TDbView | null; properties: TDbViewProperty[] | null } | null = null
+    const all: TDbViewMeta[] = []
 
     for (const ref of refs) {
-      const id = ref?.id
-      if (!id) continue
-      const v: any = await notion.views.retrieve({ view_id: id }).catch(() => null)
+      const viewId = ref?.id
+      if (!viewId) continue
+      const v: any = await notion.views.retrieve({ view_id: viewId }).catch(() => null)
       if (!v) continue
       const t = parseViewType(v?.type)
-      if (!firstViable) firstViable = { view: v, type: t }
-      if (opts?.preferredType && t === opts.preferredType) {
-        matched = { view: v, type: t }
-        break
+      if (!t) continue  // skip unsupported view types entirely
+      const properties = parseViewProperties(v)
+      const name: string | null = (v?.name as string) ?? (v?.title as string) ?? null
+      const meta: TDbViewMeta = { id: viewId, type: t, name: name || null, properties }
+      all.push(meta)
+      if (!pickedEntry && !opts?.preferredType) {
+        pickedEntry = { id: viewId, type: t, properties }
+      }
+      if (opts?.preferredType && t === opts.preferredType && !pickedEntry) {
+        pickedEntry = { id: viewId, type: t, properties }
       }
     }
 
-    const picked = matched ?? firstViable
-    if (!picked) return empty
+    if (!pickedEntry && all.length > 0) {
+      const first = all[0]
+      pickedEntry = { id: first.id, type: first.type, properties: first.properties }
+    }
 
-    const properties = parseViewProperties(picked.view)
     debugLog(
-      `[views] ${databaseId} → preferred=${opts?.preferredType ?? "-"} picked=${picked.view?.type} props=${properties?.length ?? 0}`
+      `[views] ${databaseId} → preferred=${opts?.preferredType ?? "-"} picked=${pickedEntry?.type ?? "none"} allViews=${all.length}`
     )
-    return { type: picked.type, properties }
+    return { picked: pickedEntry, all }
   } catch (e: any) {
     debugLog(`[views] fetchViewInfo failed for ${databaseId}: ${e?.message ?? e}`)
     return empty
@@ -300,8 +308,10 @@ export async function getDatabase(
           fallbackDataSourceId: opts?.fallbackDataSourceId,
           preferredType: explicitView,
         })
-        const view: TDbView = explicitView ?? viewInfo.type ?? "table"
-        const viewProperties = viewInfo.properties
+        const view: TDbView = explicitView ?? viewInfo.picked?.type ?? "table"
+        const viewProperties = viewInfo.picked?.properties ?? null
+        const views = viewInfo.all
+        const defaultViewId = viewInfo.picked?.id
 
         const database: TNotionDatabase = {
           id: databaseId,
@@ -312,12 +322,14 @@ export async function getDatabase(
           groupBy,
           groupOptions: groupOptions ?? null,
           viewProperties,
+          views,
+          defaultViewId,
         }
 
         debugLog(
           `✅ Fetched database "${title}" with ${rows.length} rows (view: ${database.view}${
             groupBy ? `, groupBy: ${groupBy}, ${groupOptions?.length ?? 0} options` : ""
-          }${viewProperties ? `, viewProps: ${viewProperties.length}` : ""})`
+          }${viewProperties ? `, viewProps: ${viewProperties.length}` : ""}${views.length > 1 ? `, views: ${views.length}` : ""})`
         )
         return database
       }
