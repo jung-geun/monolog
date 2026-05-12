@@ -55,13 +55,47 @@ describe("getDatabase", () => {
     expect(result).toBeNull()
   })
 
-  it("returns null when data_sources is empty", async () => {
+  it("renders empty shell when data_sources is empty and no fallback given", async () => {
+    // v1.11+: linked DB block path. When databases.retrieve returns empty
+    // data_sources and the caller didn't supply fallbackDataSourceId,
+    // render a visible empty shell instead of returning null so the block
+    // remains in the DOM with its title.
     mockNotion.databases.retrieve.mockResolvedValue({
       ...defaultDbMeta,
       data_sources: [],
     })
     const result = await getDatabase("no-ds-id")
-    expect(result).toBeNull()
+    expect(result).not.toBeNull()
+    expect(result!.id).toBe("no-ds-id")
+    expect(result!.title).toBe("Test DB")
+    expect(result!.rows).toHaveLength(0)
+    expect(result!.properties).toHaveLength(0)
+    expect(result!.view).toBe("table")
+  })
+
+  it("uses fallbackDataSourceId when data_sources is empty (linked block path)", async () => {
+    mockNotion.databases.retrieve.mockResolvedValue({
+      ...defaultDbMeta,
+      data_sources: [],
+    })
+    mockNotion.dataSources.query.mockResolvedValue({
+      results: [
+        {
+          id: "row-1",
+          last_edited_time: "",
+          properties: { Name: { type: "title", title: [{ plain_text: "Linked Row" }] } },
+        },
+      ],
+    })
+    const result = await getDatabase("linked-id", undefined, {
+      fallbackDataSourceId: "ds-source",
+    })
+    expect(result).not.toBeNull()
+    expect(result!.rows).toHaveLength(1)
+    expect(result!.rows[0].values["Name"]).toBe("Linked Row")
+    expect(mockNotion.dataSources.query).toHaveBeenCalledWith(
+      expect.objectContaining({ data_source_id: "ds-source" })
+    )
   })
 
   it("returns TNotionDatabase with correct shape", async () => {
