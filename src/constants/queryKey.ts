@@ -6,4 +6,5 @@ export const queryKey = {
   post: (slug: string) => ["post", slug],
   database: (id: string) => ["database", id],
   databases: () => ["databases"],
+  notionGraph: () => ["notionGraph"],
 }

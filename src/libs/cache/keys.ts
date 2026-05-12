@@ -5,6 +5,9 @@ const DB_VERSION = "v6"
 // (e.g. new mention decorations, new format fields) so existing recordMap
 // caches are invalidated and re-fetched with the new translator.
 const RM_VERSION = "v6"
+// Bump NG_VERSION when NotionGraph schema changes (e.g. new edge types, node fields)
+// so cached graphs are discarded and rebuilt with the new shape.
+const NG_VERSION = "v1"
 
 export const keys = {
   posts: (dataSourceId: string) => `posts:${dataSourceId}`,
@@ -15,4 +18,5 @@ export const keys = {
     `database:${DB_VERSION}:${databaseId}:${lastEdited}`,
   user: (userId: string) => `user:${userId}`,
   og: (url: string) => `og:${url}`,
+  notionGraph: () => `notionGraph:${NG_VERSION}`,
 }

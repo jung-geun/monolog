@@ -3,6 +3,7 @@ import { getPosts } from "../../apis"
 import { TPost } from "../../types"
 import { cacheStore } from "src/libs/cache"
 import { verifyRevalidateToken } from "src/libs/utils/auth/verifyToken"
+import { getNotionGraph } from "src/apis/notion-client/getNotionGraph"
 
 export default async function handler(
   req: NextApiRequest,
@@ -19,22 +20,25 @@ export default async function handler(
     } else {
       await cacheStore.clear()
       const posts = await getPosts({ bypassCache: true })
+      await getNotionGraph({ bypassCache: true })
       const revalidateRequests = [
         res.revalidate('/'),
+        res.revalidate('/graph'),
         ...posts.map((row: TPost) => res.revalidate(`/${row.slug}`)),
       ]
       await Promise.all(revalidateRequests)
-      // Attempt to warm the sitemap CDN cache by requesting /sitemap.xml from
-      // the current host. This ensures the sitemap is refreshed in front of
-      // any CDN/edge caches after we've revalidated pages.
+
+      const host = req.headers.host
+      const proto = (req.headers['x-forwarded-proto'] as string) || 'https'
       try {
-        const host = req.headers.host
-        const proto = (req.headers['x-forwarded-proto'] as string) || 'https'
-        const sitemapUrl = `${proto}://${host}/sitemap.xml`
-        // Use fetch to request sitemap so CDN (or reverse proxy) will update its cache
-        await fetch(sitemapUrl)
+        await fetch(`${proto}://${host}/sitemap.xml`)
       } catch (sitemapErr) {
         console.error('Failed to warm sitemap cache:', sitemapErr)
+      }
+      try {
+        await fetch(`${proto}://${host}/graphs/notion-graph.json`)
+      } catch (graphErr) {
+        console.error('Failed to warm notion-graph cache:', graphErr)
       }
     }
 

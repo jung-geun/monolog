@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react"
 import styled from "@emotion/styled"
 import Link from "next/link"
-import usePostsQuery from "src/hooks/usePostsQuery"
+import useNotionGraphQuery from "src/hooks/useNotionGraphQuery"
 import { useRegisterChrome } from "src/layouts/RootLayout/EditorChrome/RouteChromeContext"
 import { buildGraph } from "src/libs/utils/graph"
 
@@ -9,8 +9,8 @@ const W = 720
 const H = 520
 
 const Graph = () => {
-  const posts = usePostsQuery()
-  const { nodes, edges, cats, catCenters } = buildGraph(posts, W, H)
+  const graph = useNotionGraphQuery()
+  const { nodes, edges, cats, catCenters } = buildGraph(graph, W, H)
   const [selectedIdx, setSelectedIdx] = useState(0)
   const [hoverCat, setHoverCat] = useState<string | null>(null)
 
@@ -21,7 +21,7 @@ const Graph = () => {
     return {
       idx,
       node: nodes[idx],
-      via: nodes[idx].tags.filter((t) => selected?.tags.includes(t)),
+      via: e.type,
     }
   })
 
@@ -30,10 +30,16 @@ const Graph = () => {
 
   const isDimmed = (cat: string) => hoverCat !== null && hoverCat !== cat
 
-  const statusItems = useMemo(
-    () => ["graph", `${nodes.length} nodes`, `${edges.length} edges`, "deterministic layout"],
-    [nodes.length, edges.length]
-  )
+  const statusItems = useMemo(() => {
+    const typeCounts = edges.reduce<Record<string, number>>((acc, e) => {
+      acc[e.type] = (acc[e.type] ?? 0) + 1
+      return acc
+    }, {})
+    const typeStr = Object.entries(typeCounts)
+      .map(([t, n]) => `${n} ${t}`)
+      .join(" · ")
+    return ["graph", `${nodes.length} nodes`, `${edges.length} edges${typeStr ? ` (${typeStr})` : ""}`, "deterministic layout"]
+  }, [nodes.length, edges.length, edges])
   useRegisterChrome("graph.json", statusItems)
 
   return (
@@ -62,7 +68,7 @@ const Graph = () => {
                   x1={nodes[e.a].x} y1={nodes[e.a].y}
                   x2={nodes[e.b].x} y2={nodes[e.b].y}
                   stroke={stroke}
-                  strokeWidth={Math.min(e.sharedTags * 0.6, 1.5)}
+                  strokeWidth={Math.min(e.weight * 0.6, 1.5)}
                   className={`edge${e.sameCategory ? " same-cat" : ""}`}
                   opacity={dim ? 0.05 : (e.sameCategory ? 0.55 : 0.18)}
                 />
@@ -139,7 +145,7 @@ const Graph = () => {
             <span>edges: {edges.length}</span>
             <span className="sep">|</span>
             <span>○ post · size = read time</span>
-            <span>— shared tags</span>
+            <span>— mention/link/relation</span>
           </div>
         </div>
 
@@ -171,7 +177,7 @@ const Graph = () => {
                   onClick={() => setSelectedIdx(idx)}
                 >
                   <div className="connected-title">→ {node.title.slice(0, 30)}{node.title.length > 30 ? "…" : ""}</div>
-                  <div className="connected-via">via {via.map((t) => `#${t}`).join(", ")}</div>
+                  <div className="connected-via">via {via}</div>
                 </button>
               ))}
 

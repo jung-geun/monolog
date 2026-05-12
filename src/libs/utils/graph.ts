@@ -1,4 +1,4 @@
-import { TPost } from "src/types"
+import { NotionGraph } from "src/types/notionGraph"
 
 export type GraphNode = {
   slug: string
@@ -14,7 +14,8 @@ export type GraphNode = {
 export type GraphEdge = {
   a: number
   b: number
-  sharedTags: number
+  type: "relation" | "mention" | "link"
+  weight: number
   sameCategory: boolean
 }
 
@@ -39,7 +40,7 @@ export const colorForCategory = (cat: string, allCats: string[]): string => {
 }
 
 export const buildGraph = (
-  posts: TPost[],
+  graph: NotionGraph,
   width = 720,
   height = 520
 ): {
@@ -48,7 +49,7 @@ export const buildGraph = (
   cats: string[]
   catCenters: Record<string, { x: number; y: number }>
 } => {
-  const cats = Array.from(new Set(posts.map((p) => p.category?.[0] || "misc")))
+  const cats = Array.from(new Set(graph.nodes.map((n) => n.category)))
 
   // Cluster centers placed on a circle, with a tighter radius so labels stay inside.
   const clusterRadius = Math.min(width, height) * 0.32
@@ -62,16 +63,16 @@ export const buildGraph = (
   })
 
   // Tighter node spread inside each cluster so groups read as groups.
-  const nodes: GraphNode[] = posts.map((p, i) => {
-    const cat = p.category?.[0] || "misc"
+  const nodes: GraphNode[] = graph.nodes.map((n, i) => {
+    const cat = n.category
     const c = catCenters[cat] || { x: width / 2, y: height / 2 }
     const r = 12 + seed(i + 1) * 38
     const a = seed(i + 17) * Math.PI * 2
     return {
-      slug: p.slug,
-      title: p.title,
+      slug: n.slug,
+      title: n.title,
       category: cat,
-      tags: p.tags || [],
+      tags: n.tags,
       readTime: 8,
       x: c.x + Math.cos(a) * r,
       y: c.y + Math.sin(a) * r,
@@ -79,20 +80,22 @@ export const buildGraph = (
     }
   })
 
-  const edges: GraphEdge[] = []
-  for (let i = 0; i < nodes.length; i++) {
-    for (let j = i + 1; j < nodes.length; j++) {
-      const shared = nodes[i].tags.filter((t) => nodes[j].tags.includes(t)).length
-      if (shared > 0) {
-        edges.push({
-          a: i,
-          b: j,
-          sharedTags: shared,
-          sameCategory: nodes[i].category === nodes[j].category,
-        })
-      }
-    }
-  }
+  const idToIdx = new Map(graph.nodes.map((n, i) => [n.id, i]))
+
+  const edges: GraphEdge[] = graph.edges.flatMap((e) => {
+    const a = idToIdx.get(e.source)
+    const b = idToIdx.get(e.target)
+    if (a == null || b == null) return []
+    return [
+      {
+        a,
+        b,
+        type: e.type,
+        weight: e.weight,
+        sameCategory: nodes[a].category === nodes[b].category,
+      },
+    ]
+  })
 
   return { nodes, edges, cats, catCenters }
 }

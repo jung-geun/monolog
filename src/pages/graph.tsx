@@ -2,27 +2,24 @@ import { NextPageWithLayout } from "src/types"
 import MetaConfig from "src/components/MetaConfig"
 import { CONFIG } from "site.config"
 import Graph from "src/routes/Graph"
-import { getPosts } from "src/apis"
 import { createServerQueryClient } from "src/libs/react-query"
 import { queryKey } from "src/constants/queryKey"
-import { GetStaticProps } from "next"
+import { GetServerSideProps } from "next"
 import { dehydrate } from "@tanstack/react-query"
-import { filterPosts } from "src/libs/utils/notion"
+import { getNotionGraph } from "src/apis/notion-client/getNotionGraph"
 
-export const getStaticProps: GetStaticProps = async () => {
+export const getServerSideProps: GetServerSideProps = async () => {
   const queryClient = createServerQueryClient()
-  const posts = filterPosts(await getPosts(), {
-    acceptStatus: ["Public"],
-    acceptType: ["Post", "Paper"],
-  })
-  await queryClient.prefetchQuery({
-    queryKey: queryKey.posts(),
-    queryFn: () => posts,
-  })
-  return {
-    props: { dehydratedState: dehydrate(queryClient) },
-    revalidate: CONFIG.revalidateTime,
+  try {
+    const graph = await getNotionGraph()
+    await queryClient.prefetchQuery({
+      queryKey: queryKey.notionGraph(),
+      queryFn: () => graph,
+    })
+  } catch {
+    // Graph not yet available — page renders with empty graph
   }
+  return { props: { dehydratedState: dehydrate(queryClient) } }
 }
 
 const GraphPage: NextPageWithLayout = () => (
