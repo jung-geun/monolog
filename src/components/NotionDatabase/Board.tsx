@@ -91,7 +91,7 @@ const Board: React.FC<Props> = ({ database }) => {
   const groupBy = database.groupBy
   if (!groupBy) return null
 
-  const groups = buildGroupList(database.rows, groupBy, database.groupOptions)
+  const groups = buildGroupList(database.rows, groupBy, database.groupOptions ?? undefined)
 
   return (
     <Wrapper>

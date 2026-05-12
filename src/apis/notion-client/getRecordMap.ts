@@ -421,6 +421,24 @@ function normalizeEmbedUrl(rawUrl: string): string {
 }
 
 /**
+ * Returns a default pixel height for embed providers that need an explicit
+ * height to avoid collapsing to 0px in react-notion-x's iframe renderer.
+ * Returns null for providers where react-notion-x uses aspect-ratio instead.
+ */
+function embedHeight(src: string): number | null {
+  try {
+    const u = new URL(src)
+    const host = u.hostname.toLowerCase()
+    if (host === "open.spotify.com" || host.endsWith(".spotify.com")) {
+      // Embedded path is /embed/<type>/<id>; segments: ['embed', type, id]
+      const type = u.pathname.split("/").filter(Boolean)[1]
+      return type === "track" ? 152 : 352
+    }
+  } catch {}
+  return null
+}
+
+/**
  * Process a single block and add it to recordMap
  */
 async function processBlock(block: any, parentId: string, notion: any, recordMap: ExtendedRecordMap, allPosts?: TPosts): Promise<void> {
@@ -527,8 +545,7 @@ async function processBlock(block: any, parentId: string, notion: any, recordMap
         break
 
       case 'bookmark':
-      case 'link_preview':
-        // Phase 4 limit: bookmark/link_preview surface URL + caption only.
+        // Phase 4 limit: bookmark surfaces URL + caption only.
         // No OG metadata fetch; tracked for Phase 3 (server-side OG endpoint).
         if (blockData.url) {
           properties.link = [[blockData.url]]
@@ -537,6 +554,32 @@ async function processBlock(block: any, parentId: string, notion: any, recordMap
             : [[blockData.url]]
         }
         break
+
+      case 'link_preview': {
+        // Upgrade to embed when the host is allowlisted; else fall back to bookmark card.
+        // Notion pastes as link_preview (not embed) when the user doesn't explicitly
+        // convert — we recover the iframe here so allowlisted embeds always render.
+        const lpUrl = blockData.url
+        if (!lpUrl) break
+        if (isAllowedEmbedHost(lpUrl)) {
+          const src = normalizeEmbedUrl(lpUrl)
+          properties.source = [[src]]
+          format.display_source = src
+          const h = embedHeight(src)
+          if (h !== null) format.block_height = h
+          if (blockData.caption && blockData.caption.length > 0) {
+            properties.caption = rt(blockData.caption)
+          }
+          forcedMappedType = 'embed'
+        } else {
+          properties.link = [[lpUrl]]
+          properties.title = blockData.caption && blockData.caption.length > 0
+            ? rt(blockData.caption)
+            : [[lpUrl]]
+          // typeMapping already has link_preview → bookmark; no forcedMappedType needed
+        }
+        break
+      }
 
       case 'embed': {
         // Phase 2D: emit display_source for allowlisted hosts; otherwise
@@ -548,6 +591,8 @@ async function processBlock(block: any, parentId: string, notion: any, recordMap
           const src = normalizeEmbedUrl(embedUrl)
           properties.source = [[src]]
           format.display_source = src
+          const h = embedHeight(src)
+          if (h !== null) format.block_height = h
           if (blockData.caption && blockData.caption.length > 0) {
             properties.caption = rt(blockData.caption)
           }

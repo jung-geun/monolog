@@ -700,6 +700,8 @@ const StyledWrapper = styled.div`
   
   /* Database portal targets — managed by useDatabasePortalTargets */
   .database-portal-target {
+    display: block;
+    width: 100%;
     margin: 1rem 0;
   }
   

@@ -91,6 +91,13 @@ export type TDbGroupOption = {
   color: string
 }
 
+export type TDbViewProperty = {
+  propertyId: string
+  name: string
+  visible: boolean
+  width?: number | null
+}
+
 export type TNotionDatabase = {
   id: string
   title: string
@@ -98,5 +105,6 @@ export type TNotionDatabase = {
   rows: TDbRow[]
   view: TDbView
   groupBy?: string | null
-  groupOptions?: TDbGroupOption[]
+  groupOptions?: TDbGroupOption[] | null
+  viewProperties?: TDbViewProperty[] | null
 }

@@ -5,6 +5,7 @@ import {
   TDbPropertyType,
   TDbRow,
   TDbView,
+  TDbViewProperty,
   TNotionDatabase,
 } from "src/types"
 import { getOfficialNotionClient } from "./notionClient"
@@ -100,72 +101,138 @@ function detectView(blockFormat: any, groupBy: string | null): TDbView | null {
   if (viewType === "list") return "list"
   if (viewType === "table") return "table"
   void groupBy
-  // No explicit view_type — caller will fall back to fetchActiveViewType
+  // No explicit view_type — caller will fall back to fetchViewInfo
   // (Views API) and finally to 'table'.
   return null
 }
 
+function parseViewType(t: string | undefined): TDbView | null {
+  if (t === "table" || t === "board" || t === "gallery" || t === "list") return t
+  if (t) debugLog(`[views] unsupported view type "${t}"; falling back to table`)
+  return t ? "table" : null
+}
+
+function parseViewProperties(view: any): TDbViewProperty[] | null {
+  const props: any[] | undefined = view?.configuration?.properties
+  if (!props || props.length === 0) return null
+  return props.map((p: any) => ({
+    propertyId: p.property_id as string,
+    name: (p.property_name as string | undefined) ?? "",
+    visible: p.visible !== false,
+    width: typeof p.width === "number" ? p.width : null,
+  }))
+}
+
 /**
- * SDK 5.14+ Views API: fetch the first view's type as the database's active
- * view (Notion treats the first listed view as the default). Replaces the
- * v1.9.2 hard-coded 'table' fallback when blockFormat omits view_type
- * (Notion's child_database block doesn't carry it).
+ * SDK 5.14+ Views API: fetch the column configuration for the view that
+ * matches the block's explicit view type. If `preferredType` is given, finds
+ * a view of that type among all the DB's views (e.g. block renders as gallery
+ * → use the gallery view's `properties` config, not the first table view's).
  *
- * Cost: 2 extra API calls (views.list + views.retrieve) on cache miss.
- * On cache hit (database body) this is not invoked because it's wrapped
- * inside cacheStore.getOrSet.
+ * On cache miss: 1 list call + retrieve calls until match (early exit).
+ * Tries database_id first; falls back to data_source_id for linked views.
  */
-async function fetchActiveViewType(
+async function fetchViewInfo(
   databaseId: string,
-  notion: any
-): Promise<TDbView | null> {
+  notion: any,
+  opts?: { fallbackDataSourceId?: string; preferredType?: TDbView | null }
+): Promise<{ type: TDbView | null; properties: TDbViewProperty[] | null }> {
+  const empty = { type: null, properties: null }
   try {
-    const viewsResp: any = await notion.views.list({
+    let viewsResp: any = await notion.views.list({
       database_id: databaseId,
-      page_size: 1,
+      page_size: 100,
     })
-    const firstId: string | undefined = viewsResp?.results?.[0]?.id
-    if (!firstId) return null
-    const view: any = await notion.views.retrieve({ view_id: firstId })
-    const t = view?.type as string | undefined
-    if (t === "table" || t === "board" || t === "gallery" || t === "list") {
-      debugLog(`[views] active view type "${t}" for ${databaseId}`)
-      return t
+
+    if ((!viewsResp?.results?.length) && opts?.fallbackDataSourceId) {
+      debugLog(`[views] database_id query empty for ${databaseId}; retrying with data_source_id`)
+      viewsResp = await notion.views
+        .list({ data_source_id: opts.fallbackDataSourceId, page_size: 100 })
+        .catch(() => null)
     }
-    // calendar / timeline / form / chart / map / dashboard fall back to
-    // 'table' because our NotionDatabase component only renders the four
-    // basic view types. Tracked as a Phase 4 limit.
-    debugLog(`[views] unsupported view type "${t}" for ${databaseId}; falling back to table`)
-    return "table"
+
+    const refs: any[] = viewsResp?.results ?? []
+    if (refs.length === 0) return empty
+
+    let matched: { view: any; type: TDbView | null } | null = null
+    let firstViable: { view: any; type: TDbView | null } | null = null
+
+    for (const ref of refs) {
+      const id = ref?.id
+      if (!id) continue
+      const v: any = await notion.views.retrieve({ view_id: id }).catch(() => null)
+      if (!v) continue
+      const t = parseViewType(v?.type)
+      if (!firstViable) firstViable = { view: v, type: t }
+      if (opts?.preferredType && t === opts.preferredType) {
+        matched = { view: v, type: t }
+        break
+      }
+    }
+
+    const picked = matched ?? firstViable
+    if (!picked) return empty
+
+    const properties = parseViewProperties(picked.view)
+    debugLog(
+      `[views] ${databaseId} → preferred=${opts?.preferredType ?? "-"} picked=${picked.view?.type} props=${properties?.length ?? 0}`
+    )
+    return { type: picked.type, properties }
   } catch (e: any) {
-    debugLog(`[views] views.list/retrieve failed for ${databaseId}: ${e?.message ?? e}`)
-    return null
+    debugLog(`[views] fetchViewInfo failed for ${databaseId}: ${e?.message ?? e}`)
+    return empty
   }
 }
 
 export async function getDatabase(
   databaseId: string,
-  blockFormat?: any
+  blockFormat?: any,
+  opts?: { dbMeta?: any; fallbackDataSourceId?: string }
 ): Promise<TNotionDatabase | null> {
   const notion = getOfficialNotionClient()
 
-  // Step 1: databases.retrieve to get last_edited_time, title, and data_sources
-  // In Notion v5, database_id ≠ data_source_id — we need to resolve the data source.
-  let dbMeta: any
-  try {
-    dbMeta = await notion.databases.retrieve({ database_id: databaseId })
-  } catch (error: any) {
-    console.error(`❌ Cannot retrieve database ${databaseId}:`, error.message)
-    return null
+  // Step 1: databases.retrieve to get last_edited_time, title, and data_sources.
+  // Callers may pass a pre-fetched dbMeta to avoid a redundant retrieve call.
+  let dbMeta: any = opts?.dbMeta ?? null
+  if (!dbMeta) {
+    try {
+      dbMeta = await notion.databases.retrieve({ database_id: databaseId })
+    } catch (error: any) {
+      const code = error?.code ?? error?.status ?? ""
+      console.error(`❌ Cannot retrieve database ${databaseId} [${code}]:`, error.message)
+      return null
+    }
   }
 
   const lastEdited: string = dbMeta.last_edited_time ?? "unknown"
   const title: string = dbMeta.title?.[0]?.plain_text ?? "Database"
-  const dataSourceId: string | undefined = dbMeta.data_sources?.[0]?.id
+  // For linked DB views, data_sources is [] — use fallbackDataSourceId from caller.
+  const dataSourceId: string | undefined =
+    dbMeta.data_sources?.[0]?.id ?? opts?.fallbackDataSourceId
 
   if (!dataSourceId) {
-    console.warn(`⚠️ No data source found for database ${databaseId}`)
-    return null
+    // data_sources absent and no fallback: render an empty shell so the block
+    // is visible rather than a generic placeholder.
+    debugLog(
+      `[getDatabase] no data_source for ${databaseId} (title="${title}") — rendering empty shell`
+    )
+    const emptySchemas: TDbPropertySchema[] = dbMeta.properties
+      ? Object.entries(dbMeta.properties as Record<string, any>).map(([name, val]) => ({
+          id: (val as any).id ?? name,
+          name,
+          type: ((val as any).type ?? "rich_text") as TDbPropertyType,
+        }))
+      : []
+    const emptyView = detectView(blockFormat, pickGroupBy(emptySchemas)) ?? "table"
+    return {
+      id: databaseId,
+      title,
+      properties: emptySchemas,
+      rows: [],
+      view: emptyView,
+      groupBy: null,
+      groupOptions: null,
+    }
   }
 
   try {
@@ -226,8 +293,12 @@ export async function getDatabase(
         // is 'table'. The Views API call lives inside this getOrSet body
         // so it's cached together with the database content.
         const explicitView = detectView(blockFormat, groupBy)
-        const view: TDbView =
-          explicitView ?? (await fetchActiveViewType(databaseId, notion)) ?? "table"
+        const viewInfo = await fetchViewInfo(databaseId, notion, {
+          fallbackDataSourceId: opts?.fallbackDataSourceId,
+          preferredType: explicitView,
+        })
+        const view: TDbView = explicitView ?? viewInfo.type ?? "table"
+        const viewProperties = viewInfo.properties
 
         const database: TNotionDatabase = {
           id: databaseId,
@@ -236,13 +307,14 @@ export async function getDatabase(
           rows,
           view,
           groupBy,
-          groupOptions: groupOptions ?? undefined,
+          groupOptions: groupOptions ?? null,
+          viewProperties,
         }
 
         debugLog(
           `✅ Fetched database "${title}" with ${rows.length} rows (view: ${database.view}${
             groupBy ? `, groupBy: ${groupBy}, ${groupOptions?.length ?? 0} options` : ""
-          })`
+          }${viewProperties ? `, viewProps: ${viewProperties.length}` : ""})`
         )
         return database
       }

@@ -1,56 +1,14 @@
 import React from "react"
 import styled from "@emotion/styled"
-import { TDbPropertySchema, TDbRow, TNotionDatabase } from "src/types"
-import Tag from "src/components/Tag"
-import { formatDate } from "src/libs/utils"
-import { CONFIG } from "site.config"
+import { TNotionDatabase } from "src/types"
+import { renderCell, resolveViewProperties } from "./cells"
 
 type Props = {
   database: TNotionDatabase
 }
 
-function renderCell(schema: TDbPropertySchema, row: TDbRow): React.ReactNode {
-  const val = row.values[schema.name]
-  if (val === null || val === undefined || val === "") return <span style={{ opacity: 0.3 }}>—</span>
-
-  switch (schema.type) {
-    case "title":
-      return <TitleText>{String(val)}</TitleText>
-    case "select":
-      return <Tag>{String(val)}</Tag>
-    case "multi_select":
-      return (
-        <TagList>
-          {(val as string[]).map((t) => (
-            <Tag key={t}>{t}</Tag>
-          ))}
-        </TagList>
-      )
-    case "date":
-      return <span>{formatDate(val as string, CONFIG.lang)}</span>
-    case "url":
-      return (
-        <ExternalLink href={val as string} target="_blank" rel="noopener noreferrer">
-          {String(val)}
-        </ExternalLink>
-      )
-    case "checkbox":
-      return <span>{val ? "✓" : "✗"}</span>
-    case "number":
-      return <span>{String(val)}</span>
-    case "files":
-      return val ? (
-        <ExternalLink href={val as string} target="_blank" rel="noopener noreferrer">
-          파일
-        </ExternalLink>
-      ) : null
-    default:
-      return <span>{String(val)}</span>
-  }
-}
-
 const TableDatabase: React.FC<Props> = ({ database }) => {
-  const visibleProps = database.properties.filter((p) => p.type !== "people")
+  const visibleProps = resolveViewProperties(database.viewProperties, database.properties)
 
   return (
     <Wrapper>
@@ -136,21 +94,4 @@ const Td = styled.td`
   tr:hover & {
     background: ${({ theme }) => theme.colors.gray3};
   }
-`
-
-const TitleText = styled.span`
-  font-weight: 500;
-`
-
-const ExternalLink = styled.a`
-  color: ${({ theme }) => theme.colors.gray10};
-  text-decoration: underline;
-  text-underline-offset: 2px;
-  word-break: break-all;
-`
-
-const TagList = styled.div`
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.25rem;
 `
