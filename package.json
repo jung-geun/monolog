@@ -30,7 +30,7 @@
     "katex": "^0.16.25",
     "lru-cache": "^11.3.6",
     "mermaid": "^11.4.0",
-    "next": "^16.0.0",
+    "next": "^16.2.6",
     "notion-types": "^7.10.0",
     "notion-utils": "^7.10.0",
     "prismjs": "^1.30.0",
