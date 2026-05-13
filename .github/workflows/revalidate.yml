@@ -3,7 +3,7 @@ name: Revalidate site pages
 on:
   schedule:
     # Runs at minute 0 every 12th hour (UTC) -> 00:00 and 12:00 UTC daily
-    - cron: '0 1 * * 0/3'
+    - cron: "0 1 * * 0/3"
   workflow_dispatch: {}
 
 permissions:
@@ -58,7 +58,12 @@ jobs:
           echo "Sitemap response:"
           cat /tmp/sitemap.out || true
 
+          # Warm graph cache (best-effort)
+          GRAPH_URL="${BASE_URL%/}/graphs/notion-graph.json"
+          echo "Warming graph: $GRAPH_URL"
+          curl -sS -o /dev/null -w "graph warmed: HTTP %{http_code} in %{time_total}s\n" "$GRAPH_URL" || true
+
           # optional Discord notification on success
           if [ -n "${DISCORD_WEBHOOK:-}" ]; then
-            curl -sS -X POST -H 'Content-type: application/json' --data "{\"content\":\"Revalidate succeeded for $BASE_URL (sitemap warmed)\"}" "$DISCORD_WEBHOOK" || true
+            curl -sS -X POST -H 'Content-type: application/json' --data "{\"content\":\"Revalidate succeeded for $BASE_URL (sitemap + graph warmed)\"}" "$DISCORD_WEBHOOK" || true
           fi

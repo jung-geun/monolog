@@ -5,6 +5,7 @@ import { useRegisterChrome } from "src/layouts/RootLayout/EditorChrome/RouteChro
 import HomeHero from "./HomeHero"
 import FeaturedSeriesGrid from "./FeaturedSeriesGrid"
 import RecentPostsCompact from "./RecentPostsCompact"
+import TagCloud from "src/components/TagCloud"
 import usePostsQuery from "src/hooks/usePostsQuery"
 
 const Feed = () => {
@@ -27,6 +28,8 @@ const Feed = () => {
             <FeaturedSeriesGrid />
 
             <RecentPostsCompact />
+
+            <TagCloud />
           </div>
         </div>
       </div>
