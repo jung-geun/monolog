@@ -8,7 +8,8 @@ import { debugLog } from "src/libs/utils/logger"
 const OG_TTL_HIT_MS = 7 * 24 * 60 * 60 * 1000
 const OG_TTL_MISS_MS = 60 * 60 * 1000
 
-const FETCH_TIMEOUT_MS = 3_000
+const FETCH_TIMEOUT_MS = 8_000
+const MAX_REDIRECT_HOPS = 3
 const MAX_RESPONSE_BYTES = 1 * 1024 * 1024 // 1 MB
 
 export type OgMetadata = {
@@ -183,50 +184,73 @@ export function parseOgFromHtml(html: string, base: URL): Omit<OgMetadata, "url"
 }
 
 async function fetchUncached(url: string): Promise<OgMetadata | null> {
-  let parsed: URL
-  try {
-    parsed = new URL(url)
-  } catch {
-    return null
-  }
-  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return null
-  if (!(await resolvesToPublicAddress(parsed.hostname))) {
-    debugLog(`[og] refusing private/unreachable host: ${parsed.hostname}`)
-    return null
-  }
-
+  // Single AbortController/timer shared across all redirect hops so the total
+  // budget is bounded by FETCH_TIMEOUT_MS regardless of chain length.
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
+
+  let currentUrl = url
   try {
-    const res = await fetch(parsed.toString(), {
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (compatible; MonologOgPreview/1.0; +https://github.com/jung-geun/monolog)",
-        Accept: "text/html,application/xhtml+xml",
-      },
-      // Manual redirect: re-validating each hop's IP would require a custom
-      // dispatcher. Refuse instead — most legit OG sources resolve in zero hops.
-      redirect: "manual",
-      signal: controller.signal,
-    })
-    if (res.status >= 300 && res.status < 400) {
-      debugLog(`[og] redirect ${res.status} from ${url}; refusing to follow`)
-      return null
+    for (let hop = 0; hop <= MAX_REDIRECT_HOPS; hop++) {
+      let parsed: URL
+      try {
+        parsed = new URL(currentUrl)
+      } catch {
+        return null
+      }
+      if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return null
+
+      // Re-validate SSRF on every hop — the classic attack is a public host
+      // that 3xx-redirects to a private IP.
+      if (!(await resolvesToPublicAddress(parsed.hostname))) {
+        debugLog(`[og] refusing private/unreachable host at hop ${hop}: ${parsed.hostname}`)
+        return null
+      }
+
+      const res = await fetch(parsed.toString(), {
+        headers: {
+          "User-Agent":
+            "Mozilla/5.0 (compatible; MonologOgPreview/1.0; +https://github.com/jung-geun/monolog)",
+          Accept: "text/html,application/xhtml+xml",
+        },
+        redirect: "manual",
+        signal: controller.signal,
+      })
+
+      if (res.status >= 300 && res.status < 400 && res.status !== 304) {
+        const location = res.headers.get("Location")
+        if (!location) {
+          debugLog(`[og] redirect ${res.status} with no Location from ${currentUrl}`)
+          return null
+        }
+        try {
+          currentUrl = new URL(location, parsed).toString()
+        } catch {
+          debugLog(`[og] unparseable Location "${location}" from ${currentUrl}`)
+          return null
+        }
+        debugLog(`[og] following redirect ${res.status} to ${currentUrl} (hop ${hop + 1})`)
+        continue
+      }
+
+      if (!res.ok) {
+        debugLog(`[og] non-2xx ${res.status} from ${currentUrl}`)
+        return null
+      }
+      const ctype = res.headers.get("content-type") || ""
+      if (!/^text\/html|application\/xhtml\+xml/i.test(ctype)) {
+        debugLog(`[og] non-html content-type ${ctype} from ${currentUrl}`)
+        return null
+      }
+      const html = await readBoundedText(res, ctype)
+      const parsedMeta = parseOgFromHtml(html, parsed)
+      return { url: parsed.toString(), ...parsedMeta }
     }
-    if (!res.ok) {
-      debugLog(`[og] non-2xx ${res.status} from ${url}`)
-      return null
-    }
-    const ctype = res.headers.get("content-type") || ""
-    if (!/^text\/html|application\/xhtml\+xml/i.test(ctype)) {
-      debugLog(`[og] non-html content-type ${ctype} from ${url}`)
-      return null
-    }
-    const html = await readBoundedText(res, ctype)
-    const parsedMeta = parseOgFromHtml(html, parsed)
-    return { url: parsed.toString(), ...parsedMeta }
+
+    debugLog(`[og] too many redirects (>${MAX_REDIRECT_HOPS}) from ${url}`)
+    return null
   } catch (e: any) {
-    debugLog(`[og] fetch failed for ${url}: ${e?.message ?? e}`)
+    debugLog(`[og] fetch failed for ${currentUrl}: ${e?.message ?? e}`)
     return null
   } finally {
     clearTimeout(timer)

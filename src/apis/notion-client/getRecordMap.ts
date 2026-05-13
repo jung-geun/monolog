@@ -367,8 +367,9 @@ const EMBED_ALLOWED_HOSTS: readonly string[] = [
   "loom.com",
   "codepen.io",
   "codesandbox.io",
-  "gist.github.com",
-  "github.com",
+  // github.com and gist.github.com intentionally omitted:
+  // both respond with X-Frame-Options: DENY + frame-ancestors 'none',
+  // so iframes render blank. They fall back to bookmark cards via OG metadata.
   "figma.com",
   "replit.com",
   "excalidraw.com",
