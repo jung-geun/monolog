@@ -1,4 +1,4 @@
-import { NotionGraph } from "src/types/notionGraph"
+import { EdgeKind, NotionGraph } from "src/types/notionGraph"
 
 export type GraphNode = {
   slug: string
@@ -9,12 +9,18 @@ export type GraphNode = {
   x: number
   y: number
   color: string
+  // d3-force simulation fields (mutated by simulation)
+  vx?: number
+  vy?: number
+  fx?: number | null
+  fy?: number | null
+  index?: number
 }
 
 export type GraphEdge = {
   a: number
   b: number
-  type: "mention" | "link"
+  type: EdgeKind
   weight: number
   sameCategory: boolean
 }
@@ -62,20 +68,17 @@ export const buildGraph = (
     }
   })
 
-  // Tighter node spread inside each cluster so groups read as groups.
+  // Initial positions: small random spread near centre — force simulation will settle from here.
   const nodes: GraphNode[] = graph.nodes.map((n, i) => {
     const cat = n.category
-    const c = catCenters[cat] || { x: width / 2, y: height / 2 }
-    const r = 12 + seed(i + 1) * 38
-    const a = seed(i + 17) * Math.PI * 2
     return {
       slug: n.slug,
       title: n.title,
       category: cat,
       tags: n.tags,
       readTime: 8,
-      x: c.x + Math.cos(a) * r,
-      y: c.y + Math.sin(a) * r,
+      x: width / 2 + (seed(i * 2) - 0.5) * 200,
+      y: height / 2 + (seed(i * 2 + 1) - 0.5) * 200,
       color: colorForCategory(cat, cats),
     }
   })

@@ -32,6 +32,7 @@ export type TPost = {
   title: string
   status: TPostStatus[]
   createdTime: string
+  lastEditedTime?: string
   fullWidth: boolean
   thumbnail?: string
 }

@@ -191,12 +191,14 @@ const NotionRenderer: FC<Props> = ({ recordMap }) => {
   // react-notion-x renderers still emit `target="_blank" rel="noopener"`, which
   // would open the internal slug in a *browser* tab instead of the in-app
   // EditorChrome tab. Intercept on the capture phase so we beat any default
-  // navigation, and route internal hrefs through the SPA. useRegisterChrome
-  // on the destination route then opens / activates the in-app tab.
+  // navigation, and route internal hrefs through the SPA.
+  //
+  // Listener is attached to `document` (not `.notion-page`) because the inner
+  // renderer is `dynamic({ ssr: false })` — at the first effect run the
+  // `.notion-page` container has not mounted yet, so a scoped listener races
+  // with hydration and misses clicks until the next recordMap change.
   useEffect(() => {
     if (typeof window === 'undefined') return
-    const container = document.querySelector('.notion-page') as HTMLElement | null
-    if (!container) return
 
     const onClick = (e: MouseEvent) => {
       if (e.defaultPrevented) return
@@ -204,17 +206,17 @@ const NotionRenderer: FC<Props> = ({ recordMap }) => {
       if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
       const a = (e.target as HTMLElement | null)?.closest('a') as HTMLAnchorElement | null
       if (!a) return
+      if (!a.closest('.notion-page')) return
       const href = a.getAttribute('href')
       if (!href) return
       if (!href.startsWith('/') || href.startsWith('//')) return
-      // Internal — always SPA, regardless of target="_blank" / rel.
       e.preventDefault()
       e.stopPropagation()
       router.push(href)
     }
-    container.addEventListener('click', onClick, { capture: true })
-    return () => container.removeEventListener('click', onClick, { capture: true } as any)
-  }, [router, internalRecordMap])
+    document.addEventListener('click', onClick, { capture: true })
+    return () => document.removeEventListener('click', onClick, { capture: true } as any)
+  }, [router])
 
   // Log all blocks in the current page (dev/test only)
   useEffect(() => {

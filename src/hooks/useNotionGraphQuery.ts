@@ -12,11 +12,18 @@ const EMPTY_GRAPH: NotionGraph = {
 const useNotionGraphQuery = (): NotionGraph => {
   const { data } = useQuery<NotionGraph>({
     queryKey: queryKey.notionGraph(),
-    queryFn: () => EMPTY_GRAPH,
+    queryFn: async () => {
+      try {
+        const res = await fetch("/graphs/notion-graph.json")
+        if (!res.ok) return EMPTY_GRAPH
+        return (await res.json()) as NotionGraph
+      } catch {
+        return EMPTY_GRAPH
+      }
+    },
     staleTime: 60 * 60 * 1000,
     gcTime: 60 * 60 * 1000,
     refetchOnWindowFocus: false,
-    enabled: false,
   })
 
   return data ?? EMPTY_GRAPH

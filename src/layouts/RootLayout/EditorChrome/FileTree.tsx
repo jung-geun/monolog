@@ -115,7 +115,7 @@ const PostTreeItem = ({ post, isActive, href }: TreeItemProps) => {
 
   return (
     <>
-      <a
+      <Link
         ref={ref}
         href={href}
         className={`file-item${isActive ? " active" : ""}`}
@@ -125,7 +125,7 @@ const PostTreeItem = ({ post, isActive, href }: TreeItemProps) => {
       >
         <span className="file-icon">◧</span>
         <span className="file-name">{post.slug.slice(0, 22)}.md</span>
-      </a>
+      </Link>
       {showPreview && <HoverPreview post={post} anchorRef={ref} />}
     </>
   )

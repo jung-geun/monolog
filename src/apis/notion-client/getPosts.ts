@@ -73,145 +73,158 @@ export const getPosts = async (options?: { bypassCache?: boolean }): Promise<TPo
 
 async function fetchFromNotion(dataSourceId: string): Promise<TPosts> {
   const notion = getOfficialNotionClient()
-
-  let retryCount = 0
   const maxRetries = 3
 
-  while (retryCount < maxRetries) {
-    try {
-      debugLog(`[fetchFromNotion] fetching DataSource: ${dataSourceId}`)
+  const allResults: any[] = []
+  let cursor: string | undefined = undefined
 
-      const response = await notion.dataSources.query({
-        data_source_id: dataSourceId,
-        page_size: 100,
-      })
+  do {
+    let retryCount = 0
+    let pageSuccess = false
 
-      debugLog(`[fetchFromNotion] ${response.results.length} results`)
+    while (retryCount < maxRetries) {
+      try {
+        debugLog(`[fetchFromNotion] fetching DataSource: ${dataSourceId}${cursor ? " (next page)" : ""}`)
 
-      const posts: TPosts = response.results.map((page: any) => {
-        const post: any = { id: page.id }
+        const response = await notion.dataSources.query({
+          data_source_id: dataSourceId,
+          page_size: 100,
+          ...(cursor ? { start_cursor: cursor } : {}),
+        })
 
-        if (page.properties) {
-          for (const [key, value] of Object.entries(page.properties)) {
-            const prop = value as any
-            switch (prop.type) {
-              case "title":
-                if (prop.title?.length > 0) {
-                  post.title = prop.title[0].plain_text
-                }
-                break
-              case "rich_text":
-                if (prop.rich_text?.length > 0) {
-                  if (key === "Summary" || key === "summary") {
-                    post.summary = prop.rich_text[0].plain_text
-                  } else {
-                    post[key.toLowerCase()] = prop.rich_text[0].plain_text
-                  }
-                }
-                break
-              case "select":
-                if (prop.select) {
-                  if (key === "Status" || key === "status") {
-                    post.status = [prop.select.name]
-                  } else if (key === "Type" || key === "type") {
-                    const typeValue = prop.select.name
-                    const normalizedType =
-                      typeValue.charAt(0).toUpperCase() + typeValue.slice(1).toLowerCase()
-                    post.type = [normalizedType]
-                  } else if (key === "Category" || key === "category") {
-                    post.category = [prop.select.name]
-                  } else if (key === "Series" || key === "series") {
-                    post.series = [prop.select.name]
-                  }
-                }
-                break
-              case "multi_select":
-                if (prop.multi_select?.length > 0) {
-                  if (key === "Tags" || key === "tags") {
-                    post.tags = prop.multi_select.map((tag: any) => tag.name)
-                  }
-                }
-                break
-              case "date":
-                if (prop.date) {
-                  if (key === "Date" || key === "date") {
-                    post.date = { start_date: prop.date.start }
-                    if (prop.date.end) post.date.end_date = prop.date.end
-                  }
-                }
-                break
-              case "url":
-                if (prop.url) {
-                  if (key === "Slug" || key === "slug") {
-                    post.slug = prop.url
-                  } else if (key === "Thumbnail" || key === "thumbnail") {
-                    post.thumbnail = createProxyRequestUrl(prop.url, {
-                      pageId: page.id,
-                      property: key,
-                      propertyType: "url",
-                      source: "postThumbnail",
-                    })
-                  }
-                }
-                break
-              case "files":
-                if (prop.files?.length > 0) {
-                  if (key === "Thumbnail" || key === "thumbnail") {
-                    const originalUrl =
-                      prop.files[0].file?.url || prop.files[0].external?.url
-                    post.thumbnail = createProxyRequestUrl(originalUrl, {
-                      pageId: page.id,
-                      property: key,
-                      propertyType: "files",
-                      source: "postThumbnail",
-                    })
-                  }
-                }
-                break
-            }
-          }
+        allResults.push(...response.results)
+        cursor = response.has_more ? (response.next_cursor ?? undefined) : undefined
+        pageSuccess = true
+        break
+      } catch (error: any) {
+        retryCount++
+        console.error(`❌ Notion API attempt ${retryCount}/${maxRetries} failed:`, error.message)
+
+        if (error.code === "object_not_found") {
+          console.error("❌ DataSource not found.")
+          return []
         }
 
-        post.createdTime = page.created_time
-        post.fullWidth = false
+        if (retryCount === maxRetries) {
+          console.error("❌ Failed to fetch posts after all retries")
+          return []
+        }
 
-        return post as TPost
-      })
-
-      const publicPosts = posts.filter((post) => {
-        const status = post.status?.[0]
-        const isPublic = status === "Public" || status === "PublicOnDetail"
-        const isPrivate = status === "Private"
-        const isDev = process.env.NODE_ENV === "development"
-        return isPublic || (isDev && isPrivate)
-      })
-
-      publicPosts.sort((a, b) => {
-        const dateA = new Date(a.date?.start_date || a.createdTime || 0)
-        const dateB = new Date(b.date?.start_date || b.createdTime || 0)
-        return dateB.getTime() - dateA.getTime()
-      })
-
-      debugLog(`[fetchFromNotion] ${publicPosts.length} public posts`)
-      return publicPosts
-    } catch (error: any) {
-      retryCount++
-      console.error(`❌ Notion API attempt ${retryCount}/${maxRetries} failed:`, error.message)
-
-      if (error.code === "object_not_found") {
-        console.error("❌ DataSource not found.")
-        return []
+        const waitTime = Math.pow(2, retryCount) * 2000
+        await new Promise((resolve) => setTimeout(resolve, waitTime))
       }
-
-      if (retryCount === maxRetries) {
-        console.error("❌ Failed to fetch posts after all retries")
-        return []
-      }
-
-      const waitTime = Math.pow(2, retryCount) * 2000
-      await new Promise((resolve) => setTimeout(resolve, waitTime))
     }
-  }
 
-  return []
+    if (!pageSuccess) return []
+  } while (cursor)
+
+  debugLog(`[fetchFromNotion] ${allResults.length} total results`)
+
+  const posts: TPosts = allResults.map((page: any) => {
+    const post: any = { id: page.id }
+
+    if (page.properties) {
+      for (const [key, value] of Object.entries(page.properties)) {
+        const prop = value as any
+        switch (prop.type) {
+          case "title":
+            if (prop.title?.length > 0) {
+              post.title = prop.title[0].plain_text
+            }
+            break
+          case "rich_text":
+            if (prop.rich_text?.length > 0) {
+              if (key === "Summary" || key === "summary") {
+                post.summary = prop.rich_text[0].plain_text
+              } else {
+                post[key.toLowerCase()] = prop.rich_text[0].plain_text
+              }
+            }
+            break
+          case "select":
+            if (prop.select) {
+              if (key === "Status" || key === "status") {
+                post.status = [prop.select.name]
+              } else if (key === "Type" || key === "type") {
+                const typeValue = prop.select.name
+                const normalizedType =
+                  typeValue.charAt(0).toUpperCase() + typeValue.slice(1).toLowerCase()
+                post.type = [normalizedType]
+              } else if (key === "Category" || key === "category") {
+                post.category = [prop.select.name]
+              } else if (key === "Series" || key === "series") {
+                post.series = [prop.select.name]
+              }
+            }
+            break
+          case "multi_select":
+            if (prop.multi_select?.length > 0) {
+              if (key === "Tags" || key === "tags") {
+                post.tags = prop.multi_select.map((tag: any) => tag.name)
+              }
+            }
+            break
+          case "date":
+            if (prop.date) {
+              if (key === "Date" || key === "date") {
+                post.date = { start_date: prop.date.start }
+                if (prop.date.end) post.date.end_date = prop.date.end
+              }
+            }
+            break
+          case "url":
+            if (prop.url) {
+              if (key === "Slug" || key === "slug") {
+                post.slug = prop.url
+              } else if (key === "Thumbnail" || key === "thumbnail") {
+                post.thumbnail = createProxyRequestUrl(prop.url, {
+                  pageId: page.id,
+                  property: key,
+                  propertyType: "url",
+                  source: "postThumbnail",
+                })
+              }
+            }
+            break
+          case "files":
+            if (prop.files?.length > 0) {
+              if (key === "Thumbnail" || key === "thumbnail") {
+                const originalUrl =
+                  prop.files[0].file?.url || prop.files[0].external?.url
+                post.thumbnail = createProxyRequestUrl(originalUrl, {
+                  pageId: page.id,
+                  property: key,
+                  propertyType: "files",
+                  source: "postThumbnail",
+                })
+              }
+            }
+            break
+        }
+      }
+    }
+
+    post.createdTime = page.created_time
+    post.lastEditedTime = page.last_edited_time
+    post.fullWidth = false
+
+    return post as TPost
+  })
+
+  const publicPosts = posts.filter((post) => {
+    const status = post.status?.[0]
+    const isPublic = status === "Public" || status === "PublicOnDetail"
+    const isPrivate = status === "Private"
+    const isDev = process.env.NODE_ENV === "development"
+    return isPublic || (isDev && isPrivate)
+  })
+
+  publicPosts.sort((a, b) => {
+    const dateA = new Date(a.date?.start_date || a.createdTime || 0)
+    const dateB = new Date(b.date?.start_date || b.createdTime || 0)
+    return dateB.getTime() - dateA.getTime()
+  })
+
+  debugLog(`[fetchFromNotion] ${publicPosts.length} public posts`)
+  return publicPosts
 }

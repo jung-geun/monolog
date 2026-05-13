@@ -1,4 +1,4 @@
-export type EdgeKind = "mention" | "link"
+export type EdgeKind = "mention" | "link" | "link_to_page" | "shared-tag" | "shared-series" | "series-next"
 
 export type RawEdge = {
   source: string
@@ -30,4 +30,5 @@ export type NotionGraph = {
   generatedAt: string
   nodes: NotionGraphNode[]
   edges: NotionGraphEdge[]
+  partial?: boolean
 }

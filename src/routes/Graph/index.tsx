@@ -1,29 +1,64 @@
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect, useRef } from "react"
 import styled from "@emotion/styled"
 import Link from "next/link"
+import {
+  forceSimulation,
+  forceLink,
+  forceManyBody,
+  forceCenter,
+  forceCollide,
+  forceX,
+  forceY,
+  type Simulation,
+  type ForceManyBody,
+  SimulationNodeDatum,
+  SimulationLinkDatum,
+} from "d3-force"
+import type { ForceX as ForceXType, ForceY as ForceYType } from "d3-force"
+import { drag, type D3DragEvent } from "d3-drag"
+import { select } from "d3-selection"
+import { zoom, zoomIdentity, type ZoomBehavior } from "d3-zoom"
 import useNotionGraphQuery from "src/hooks/useNotionGraphQuery"
 import { useRegisterChrome } from "src/layouts/RootLayout/EditorChrome/RouteChromeContext"
-import { buildGraph } from "src/libs/utils/graph"
+import { buildGraph, GraphNode } from "src/libs/utils/graph"
 
 const W = 720
 const H = 520
 
+type SimLink = SimulationLinkDatum<GraphNode & SimulationNodeDatum> & { weight: number }
+
 const Graph = () => {
   const graph = useNotionGraphQuery()
-  const { nodes, edges, cats, catCenters } = buildGraph(graph, W, H)
+
+  const { nodes, edges, cats } = useMemo(
+    () => buildGraph(graph, W, H),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [graph.generatedAt]
+  )
+
   const [selectedIdx, setSelectedIdx] = useState(0)
   const [hoverCat, setHoverCat] = useState<string | null>(null)
+  const [repulsion, setRepulsion] = useState(30)
+  const [centering, setCentering] = useState(0.04)
 
   const selected = nodes[selectedIdx]
-  const connectedEdges = edges.filter((e) => e.a === selectedIdx || e.b === selectedIdx)
-  const connectedNodes = connectedEdges.map((e) => {
-    const idx = e.a === selectedIdx ? e.b : e.a
-    return {
+
+  // CONNECTED dedupe: 같은 페어가 여러 엣지 타입으로 연결된 경우 1줄로 머지
+  const connectedNodes = useMemo(() => {
+    const byIdx = new Map<number, string[]>()
+    for (const e of edges) {
+      if (e.a !== selectedIdx && e.b !== selectedIdx) continue
+      const idx = e.a === selectedIdx ? e.b : e.a
+      const prev = byIdx.get(idx) ?? []
+      if (!prev.includes(e.type)) prev.push(e.type)
+      byIdx.set(idx, prev)
+    }
+    return [...byIdx.entries()].map(([idx, vias]) => ({
       idx,
       node: nodes[idx],
-      via: e.type,
-    }
-  })
+      via: vias.join(" · "),
+    }))
+  }, [edges, nodes, selectedIdx])
 
   const catColors: Record<string, string> = {}
   nodes.forEach((n) => { catColors[n.category] = n.color })
@@ -38,9 +73,172 @@ const Graph = () => {
     const typeStr = Object.entries(typeCounts)
       .map(([t, n]) => `${n} ${t}`)
       .join(" · ")
-    return ["graph", `${nodes.length} nodes`, `${edges.length} edges${typeStr ? ` (${typeStr})` : ""}`, "deterministic layout"]
-  }, [nodes.length, edges.length, edges])
+    return ["graph", `${nodes.length} nodes`, `${edges.length} edges${typeStr ? ` (${typeStr})` : ""}`, "force simulation"]
+  }, [nodes.length, edges])
   useRegisterChrome("graph.json", statusItems)
+
+  // DOM refs for direct coordinate updates during simulation tick
+  const circleRefs = useRef<(SVGCircleElement | null)[]>([])
+  const ringRefs = useRef<(SVGCircleElement | null)[]>([])
+  const labelRefs = useRef<(SVGTextElement | null)[]>([])
+  const lineRefs = useRef<(SVGLineElement | null)[]>([])
+  const catLabelRefs = useRef<Record<string, SVGTextElement | null>>({})
+  const nodesLayerRef = useRef<SVGGElement | null>(null)
+
+  // Force instance refs for mutation without simulation restart
+  type N = GraphNode & SimulationNodeDatum
+  const simRef = useRef<Simulation<N, undefined> | null>(null)
+  const chargeRef = useRef<ForceManyBody<N> | null>(null)
+  const xForceRef = useRef<ForceXType<N> | null>(null)
+  const yForceRef = useRef<ForceYType<N> | null>(null)
+
+  // Zoom refs
+  const svgRef = useRef<SVGSVGElement | null>(null)
+  const zoomRootRef = useRef<SVGGElement | null>(null)
+  const zoomBehaviorRef = useRef<ZoomBehavior<SVGSVGElement, unknown> | null>(null)
+
+  // Force-directed simulation
+  useEffect(() => {
+    if (!nodes.length) return
+
+    const links: SimLink[] = edges.map((e) => ({
+      source: e.a,
+      target: e.b,
+      weight: e.weight,
+    }))
+
+    const chargeF = forceManyBody().strength(-repulsion)
+    const xF = forceX<GraphNode & SimulationNodeDatum>(W / 2).strength(centering)
+    const yF = forceY<GraphNode & SimulationNodeDatum>(H / 2).strength(centering)
+
+    const sim = forceSimulation<GraphNode & SimulationNodeDatum>(nodes as (GraphNode & SimulationNodeDatum)[])
+      .force(
+        "link",
+        forceLink<GraphNode & SimulationNodeDatum, SimLink>(links)
+          .id((_, i) => i)
+          .distance((d) => 40 / Math.max(1, Math.sqrt(d.weight)))
+          .strength((d) => Math.min(0.8, 0.2 + 0.15 * d.weight))
+      )
+      .force("charge", chargeF)
+      .force("center", forceCenter(W / 2, H / 2))
+      .force("x", xF)
+      .force("y", yF)
+      .force("collide", forceCollide(11))
+      .alpha(1)
+      .alphaDecay(0.03)
+      .on("tick", () => {
+        nodes.forEach((n, i) => {
+          const sz = 5 + Math.min(n.readTime / 5, 8)
+          circleRefs.current[i]?.setAttribute("cx", String(n.x))
+          circleRefs.current[i]?.setAttribute("cy", String(n.y))
+          ringRefs.current[i]?.setAttribute("cx", String(n.x))
+          ringRefs.current[i]?.setAttribute("cy", String(n.y))
+          const lbl = labelRefs.current[i]
+          if (lbl) {
+            lbl.setAttribute("x", String(n.x + sz + 4))
+            lbl.setAttribute("y", String(n.y + 3))
+          }
+        })
+        edges.forEach((e, i) => {
+          const src = nodes[e.a], tgt = nodes[e.b]
+          const l = lineRefs.current[i]
+          if (l) {
+            l.setAttribute("x1", String(src.x))
+            l.setAttribute("y1", String(src.y))
+            l.setAttribute("x2", String(tgt.x))
+            l.setAttribute("y2", String(tgt.y))
+          }
+        })
+        cats.forEach((c) => {
+          const catNodes = nodes.filter((n) => n.category === c)
+          if (!catNodes.length) return
+          const cx = catNodes.reduce((s, n) => s + (n.x ?? 0), 0) / catNodes.length
+          const cy = catNodes.reduce((s, n) => s + (n.y ?? 0), 0) / catNodes.length
+          const el = catLabelRefs.current[c]
+          if (el) {
+            el.setAttribute("x", String(cx))
+            el.setAttribute("y", String(cy - 20))
+          }
+        })
+      })
+
+    simRef.current = sim
+    chargeRef.current = chargeF
+    xForceRef.current = xF
+    yForceRef.current = yF
+
+    if (nodesLayerRef.current) {
+      type DragEv = D3DragEvent<SVGGElement, GraphNode, GraphNode>
+      const dragBehavior = drag<SVGGElement, GraphNode>()
+        .clickDistance(4)
+        .on("start", (event: DragEv, d) => {
+          if (!event.active) sim.alphaTarget(0.3).restart()
+          d.fx = d.x
+          d.fy = d.y
+        })
+        .on("drag", (event: DragEv, d) => {
+          d.fx = event.x
+          d.fy = event.y
+        })
+        .on("end", (event: DragEv, d) => {
+          if (!event.active) sim.alphaTarget(0)
+          d.fx = null
+          d.fy = null
+        })
+
+      select(nodesLayerRef.current)
+        .selectAll<SVGGElement, GraphNode>("g.node")
+        .data(nodes, (_, i) => String(i))
+        .call(dragBehavior)
+    }
+
+    return () => { sim.stop() }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [graph.generatedAt])
+
+  // Force parameter mutation when sliders change — no simulation restart
+  useEffect(() => {
+    if (!simRef.current || !chargeRef.current) return
+    chargeRef.current.strength(-repulsion)
+    xForceRef.current?.strength(centering)
+    yForceRef.current?.strength(centering)
+    simRef.current.alpha(0.5).restart()
+  }, [repulsion, centering])
+
+  // Zoom/pan behavior — mounted once, cleaned up on unmount
+  useEffect(() => {
+    const svgEl = svgRef.current
+    if (!svgEl) return
+    const z = zoom<SVGSVGElement, unknown>()
+      .scaleExtent([0.3, 4])
+      .filter((event) => {
+        if (event.type === "wheel") return true
+        const target = event.target as SVGElement | null
+        if (target?.closest("g.node")) return false
+        return !event.ctrlKey && event.button === 0
+      })
+      .on("zoom", (event) => {
+        zoomRootRef.current?.setAttribute("transform", event.transform.toString())
+      })
+
+    select(svgEl).call(z)
+    zoomBehaviorRef.current = z
+
+    return () => { select(svgEl).on(".zoom", null) }
+  }, [])
+
+  const handleResetView = () => {
+    if (!svgRef.current || !zoomBehaviorRef.current) return
+    select(svgRef.current)
+      .transition()
+      .duration(300)
+      .call(zoomBehaviorRef.current.transform, zoomIdentity)
+  }
+
+  const handleResetForce = () => {
+    setRepulsion(30)
+    setCentering(0.04)
+  }
 
   return (
     <StyledWrapper>
@@ -48,6 +246,7 @@ const Graph = () => {
         {/* SVG canvas */}
         <div className="canvas-area">
           <svg
+            ref={svgRef}
             viewBox={`0 0 ${W} ${H}`}
             preserveAspectRatio="xMidYMid meet"
             className="graph-svg"
@@ -57,87 +256,90 @@ const Graph = () => {
                 <path d="M 32 0 L 0 0 0 32" fill="none" stroke="currentColor" strokeWidth="1" />
               </pattern>
             </defs>
-            <rect width="100%" height="100%" fill="url(#grid)" className="grid-bg" />
 
-            {edges.map((e, i) => {
-              const dim = isDimmed(nodes[e.a].category) && isDimmed(nodes[e.b].category)
-              const stroke = e.sameCategory ? nodes[e.a].color : "currentColor"
-              return (
-                <line
-                  key={i}
-                  x1={nodes[e.a].x} y1={nodes[e.a].y}
-                  x2={nodes[e.b].x} y2={nodes[e.b].y}
-                  stroke={stroke}
-                  strokeWidth={Math.min(e.weight * 0.6, 1.5)}
-                  className={`edge${e.sameCategory ? " same-cat" : ""}`}
-                  opacity={dim ? 0.05 : (e.sameCategory ? 0.55 : 0.18)}
-                />
-              )
-            })}
+            <g ref={zoomRootRef} className="zoom-root">
+              <rect width={W} height={H} fill="url(#grid)" className="grid-bg" />
 
-            {cats.map((c) => {
-              const cl = catCenters[c]
-              return (
-                <g
-                  key={c}
-                  className="cluster"
-                  opacity={isDimmed(c) ? 0.25 : 1}
-                >
-                  <circle
-                    cx={cl.x} cy={cl.y} r={70}
-                    fill={catColors[c]}
-                    opacity={hoverCat === c ? 0.08 : 0.04}
+              {edges.map((e, i) => {
+                const dim = isDimmed(nodes[e.a].category) && isDimmed(nodes[e.b].category)
+                const stroke = e.sameCategory ? nodes[e.a].color : "currentColor"
+                return (
+                  <line
+                    key={i}
+                    ref={(el) => { lineRefs.current[i] = el }}
+                    x1={nodes[e.a].x} y1={nodes[e.a].y}
+                    x2={nodes[e.b].x} y2={nodes[e.b].y}
+                    stroke={stroke}
+                    strokeWidth={Math.min(e.weight * 0.6, 1.5)}
+                    className={`edge${e.sameCategory ? " same-cat" : ""}`}
+                    opacity={dim ? 0.05 : (e.sameCategory ? 0.55 : 0.18)}
                   />
+                )
+              })}
+
+              {cats.map((c) => {
+                const initX = nodes.filter((n) => n.category === c).reduce((s, n) => s + n.x, 0) / Math.max(1, nodes.filter((n) => n.category === c).length)
+                const initY = nodes.filter((n) => n.category === c).reduce((s, n) => s + n.y, 0) / Math.max(1, nodes.filter((n) => n.category === c).length)
+                return (
                   <text
-                    x={cl.x}
-                    y={cl.y - 78}
+                    key={c}
+                    ref={(el) => { catLabelRefs.current[c] = el }}
+                    x={initX}
+                    y={initY - 20}
                     className="cluster-label"
                     fill={catColors[c]}
                     textAnchor="middle"
+                    opacity={isDimmed(c) ? 0.25 : 1}
                   >
                     #{c}
                   </text>
-                </g>
-              )
-            })}
+                )
+              })}
 
-            {nodes.map((n, i) => {
-              const sz = 5 + Math.min(n.readTime / 5, 8)
-              const isSelected = i === selectedIdx
-              const dim = isDimmed(n.category)
-              return (
-                <g
-                  key={n.slug}
-                  onClick={() => setSelectedIdx(i)}
-                  style={{ cursor: "pointer" }}
-                  opacity={dim ? 0.15 : 1}
-                >
-                  {isSelected && (
-                    <circle
-                      cx={n.x} cy={n.y} r={sz + 5}
-                      fill="none"
-                      stroke={n.color}
-                      strokeWidth={1.5}
-                      opacity={0.55}
-                    />
-                  )}
-                  <circle
-                    cx={n.x} cy={n.y} r={sz}
-                    fill={n.color}
-                    opacity={isSelected ? 1 : 0.85}
-                  />
-                  {(isSelected || hoverCat === n.category) && (
-                    <text
-                      x={n.x + sz + 4} y={n.y + 3}
-                      className="node-label"
-                      fill={n.color}
+              <g ref={nodesLayerRef} className="nodes-layer">
+                {nodes.map((n, i) => {
+                  const sz = 5 + Math.min(n.readTime / 5, 8)
+                  const isSelected = i === selectedIdx
+                  const dim = isDimmed(n.category)
+                  return (
+                    <g
+                      key={n.slug}
+                      className="node"
+                      onClick={() => setSelectedIdx(i)}
+                      style={{ cursor: "pointer" }}
+                      opacity={dim ? 0.15 : 1}
                     >
-                      {n.title.length > 26 ? n.title.slice(0, 26) + "…" : n.title}
-                    </text>
-                  )}
-                </g>
-              )
-            })}
+                      {isSelected && (
+                        <circle
+                          ref={(el) => { ringRefs.current[i] = el }}
+                          cx={n.x} cy={n.y} r={sz + 5}
+                          fill="none"
+                          stroke={n.color}
+                          strokeWidth={1.5}
+                          opacity={0.55}
+                        />
+                      )}
+                      <circle
+                        ref={(el) => { circleRefs.current[i] = el }}
+                        cx={n.x} cy={n.y} r={sz}
+                        fill={n.color}
+                        opacity={isSelected ? 1 : 0.85}
+                      />
+                      {(isSelected || hoverCat === n.category) && (
+                        <text
+                          ref={(el) => { labelRefs.current[i] = el }}
+                          x={n.x + sz + 4} y={n.y + 3}
+                          className="node-label"
+                          fill={n.color}
+                        >
+                          {n.title.length > 26 ? n.title.slice(0, 26) + "…" : n.title}
+                        </text>
+                      )}
+                    </g>
+                  )
+                })}
+              </g>
+            </g>
           </svg>
 
           <div className="legend">
@@ -199,6 +401,38 @@ const Graph = () => {
                   </span>
                 ))}
               </div>
+
+              <div className="panel-label" style={{ marginTop: 20 }}>controls</div>
+              <div className="control-row">
+                <label>
+                  repulsion
+                  <span className="control-val">{repulsion}</span>
+                </label>
+                <input
+                  type="range" min={0} max={100} step={1}
+                  value={repulsion}
+                  onChange={(e) => setRepulsion(Number(e.target.value))}
+                />
+              </div>
+              <div className="control-row">
+                <label>
+                  centering
+                  <span className="control-val">{centering.toFixed(2)}</span>
+                </label>
+                <input
+                  type="range" min={0} max={0.2} step={0.01}
+                  value={centering}
+                  onChange={(e) => setCentering(Number(e.target.value))}
+                />
+              </div>
+              <div className="control-buttons">
+                <button type="button" className="control-btn" onClick={handleResetView}>
+                  reset view
+                </button>
+                <button type="button" className="control-btn" onClick={handleResetForce}>
+                  reset force
+                </button>
+              </div>
             </>
           )}
         </div>
@@ -254,6 +488,7 @@ const StyledWrapper = styled.div`
       fill: ${({ theme }) => theme.colors.editor.fg3};
       text-transform: uppercase;
       letter-spacing: 1.5px;
+      pointer-events: none;
     }
 
     .node {
@@ -408,6 +643,53 @@ const StyledWrapper = styled.div`
         border-radius: 50%;
         flex-shrink: 0;
       }
+    }
+  }
+
+  .control-row {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-bottom: 8px;
+
+    label {
+      font-size: 11px;
+      color: ${({ theme }) => theme.colors.editor.fg2};
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .control-val {
+      color: ${({ theme }) => theme.colors.editor.accent3};
+      font-variant-numeric: tabular-nums;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      accent-color: ${({ theme }) => theme.colors.editor.accent};
+    }
+  }
+
+  .control-buttons {
+    display: flex;
+    gap: 6px;
+    margin-top: 4px;
+  }
+
+  .control-btn {
+    flex: 1;
+    padding: 4px 8px;
+    background: ${({ theme }) => theme.colors.editor.bg};
+    border: 1px solid ${({ theme }) => theme.colors.editor.line};
+    color: ${({ theme }) => theme.colors.editor.fg2};
+    font-family: inherit;
+    font-size: 10px;
+    cursor: pointer;
+    transition: border-color 0.12s, color 0.12s;
+
+    &:hover {
+      border-color: ${({ theme }) => theme.colors.editor.accent};
+      color: ${({ theme }) => theme.colors.editor.accent};
     }
   }
 `

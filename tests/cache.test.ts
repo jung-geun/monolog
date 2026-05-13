@@ -66,7 +66,7 @@ describe("cache keys", () => {
   const { keys } = require("src/libs/cache/keys")
 
   it("generates stable posts key", () => {
-    expect(keys.posts("abc123")).toBe("posts:abc123")
+    expect(keys.posts("abc123")).toBe("posts:v2:abc123")
   })
 
   it("generates stable recordMap key including lastEdited", () => {
