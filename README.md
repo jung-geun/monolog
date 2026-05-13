@@ -2,7 +2,7 @@
 
 > Notion을 CMS로 쓰는 IDE 스타일 기술 노트북.
 
-**[blog.pieroot.xyz](https://blog.pieroot.xyz)** · `v1.13.1` · 셋업 가이드 → [`docs/USAGE.md`](docs/USAGE.md) · 기능 상세 → [`docs/FEATURES.md`](docs/FEATURES.md)
+**[blog.pieroot.xyz](https://blog.pieroot.xyz)** · `v1.14.0` · 셋업 가이드 → [`docs/USAGE.md`](docs/USAGE.md) · 기능 상세 → [`docs/FEATURES.md`](docs/FEATURES.md)
 
 [morethan-log](https://github.com/morethanmin/morethan-log)에서 출발했지만 UI · 라우트 · 데이터 계층을 거의 새로 짠 별개의 작업입니다. 화면 전체가 VS Code 에디터처럼 동작하고, 모든 페이지 이동은 SPA 전환으로 탭이 유지됩니다.
 
