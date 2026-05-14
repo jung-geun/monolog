@@ -1,6 +1,6 @@
 import { getOfficialNotionClient } from "./notionClient"
 import { getPosts } from "./getPosts"
-import { NotionGraph, NotionGraphEdge, NotionGraphNode, RawEdge } from "src/types/notionGraph"
+import { NotionGraph, NotionGraphEdge, NotionGraphNode, PostNode, RawEdge, SeriesNode, TagNode } from "src/types/notionGraph"
 import { TPost } from "src/types"
 import { CONFIG } from "site.config"
 import { debugLog, warnLog } from "src/libs/utils/logger"
@@ -171,36 +171,36 @@ async function walkBlocks(
   } while (cursor)
 }
 
-const SHARED_TAG_MAX_PAGES = 8
+export function normalizeHubId(prefix: string, name: string): string {
+  return `${prefix}:${name.trim().toLowerCase()}`
+}
 
-function buildPropertyEdges(posts: TPost[]): NotionGraphEdge[] {
+export function buildPropertyEdges(posts: TPost[]): {
+  hubNodes: (TagNode | SeriesNode)[]
+  propertyEdges: NotionGraphEdge[]
+} {
+  const hubNodes: (TagNode | SeriesNode)[] = []
   const propertyEdges: NotionGraphEdge[] = []
 
-  // shared-tag: 같은 태그를 공유하는 페이지 쌍
-  const byTag = new Map<string, string[]>()
+  // tag hub 노드 + has-tag 엣지
+  const tagMap = new Map<string, string>() // normalized id → display name
   for (const p of posts) {
     for (const t of p.tags ?? []) {
-      if (!byTag.has(t)) byTag.set(t, [])
-      byTag.get(t)!.push(p.id)
+      const id = normalizeHubId("tag", t)
+      if (!tagMap.has(id)) tagMap.set(id, t)
     }
   }
-  const sharedTagWeight = new Map<string, number>()
-  for (const ids of byTag.values()) {
-    if (ids.length > SHARED_TAG_MAX_PAGES) continue
-    for (let i = 0; i < ids.length; i++) {
-      for (let j = i + 1; j < ids.length; j++) {
-        const [a, b] = [ids[i], ids[j]].sort()
-        const pairKey = `${a}|${b}`
-        sharedTagWeight.set(pairKey, (sharedTagWeight.get(pairKey) ?? 0) + 1)
-      }
-    }
+  for (const [id, title] of tagMap) {
+    hubNodes.push({ kind: "tag", id, title })
   }
-  for (const [pairKey, w] of sharedTagWeight) {
-    const [source, target] = pairKey.split("|")
-    propertyEdges.push({ source, target, type: "shared-tag", weight: w })
+  for (const p of posts) {
+    for (const t of p.tags ?? []) {
+      const tagId = normalizeHubId("tag", t)
+      propertyEdges.push({ source: p.id, target: tagId, type: "has-tag", weight: 1 })
+    }
   }
 
-  // shared-series + series-next: 같은 시리즈 내 페이지
+  // series hub 노드 + in-series 엣지 + series-next (시간순 인접)
   const bySeries = new Map<string, TPost[]>()
   for (const p of posts) {
     const s = p.series?.[0]
@@ -208,13 +208,11 @@ function buildPropertyEdges(posts: TPost[]): NotionGraphEdge[] {
     if (!bySeries.has(s)) bySeries.set(s, [])
     bySeries.get(s)!.push(p)
   }
-  for (const list of bySeries.values()) {
-    if (list.length < 2) continue
-    for (let i = 0; i < list.length; i++) {
-      for (let j = i + 1; j < list.length; j++) {
-        const [a, b] = [list[i].id, list[j].id].sort()
-        propertyEdges.push({ source: a, target: b, type: "shared-series", weight: 1 })
-      }
+  for (const [seriesName, list] of bySeries) {
+    const seriesId = normalizeHubId("series", seriesName)
+    hubNodes.push({ kind: "series", id: seriesId, title: seriesName })
+    for (const p of list) {
+      propertyEdges.push({ source: p.id, target: seriesId, type: "in-series", weight: 1 })
     }
     const sorted = [...list].sort((a, b) => {
       const da = a.date?.start_date ?? a.createdTime ?? ""
@@ -226,7 +224,7 @@ function buildPropertyEdges(posts: TPost[]): NotionGraphEdge[] {
     }
   }
 
-  return propertyEdges
+  return { hubNodes, propertyEdges }
 }
 
 function dedupeAndWeight(rawEdges: RawEdge[]): NotionGraphEdge[] {
@@ -308,7 +306,8 @@ export async function buildNotionGraph(): Promise<NotionGraph> {
     )
   }
 
-  const nodes: NotionGraphNode[] = posts.map((p) => ({
+  const postNodes: NotionGraphNode[] = posts.map((p) => ({
+    kind: "post",
     id: p.id,
     slug: p.slug,
     title: p.title,
@@ -318,14 +317,17 @@ export async function buildNotionGraph(): Promise<NotionGraph> {
     url: `${CONFIG.link}/${p.slug}`,
   }))
 
+  const { hubNodes, propertyEdges } = buildPropertyEdges(posts)
+  const nodes: NotionGraphNode[] = [...postNodes, ...hubNodes]
+
   const edges = [
     ...dedupeAndWeight(rawEdges),
-    ...buildPropertyEdges(posts),
+    ...propertyEdges,
   ]
   debugLog(`[buildNotionGraph] done: ${nodes.length} nodes, ${edges.length} edges`)
 
   return {
-    version: "v1",
+    version: "v2",
     generatedAt: new Date().toISOString(),
     nodes,
     edges,

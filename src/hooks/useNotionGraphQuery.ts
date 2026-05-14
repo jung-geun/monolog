@@ -14,7 +14,7 @@ const useNotionGraphQuery = (): NotionGraph => {
     queryKey: queryKey.notionGraph(),
     queryFn: async () => {
       try {
-        const res = await fetch("/graphs/notion-graph.json")
+        const res = await fetch("/graphs/notion-graph.json", { cache: "no-store" })
         if (!res.ok) return EMPTY_GRAPH
         return (await res.json()) as NotionGraph
       } catch {

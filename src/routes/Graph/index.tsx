@@ -20,7 +20,7 @@ import { select } from "d3-selection"
 import { zoom, zoomIdentity, type ZoomBehavior } from "d3-zoom"
 import useNotionGraphQuery from "src/hooks/useNotionGraphQuery"
 import { useRegisterChrome } from "src/layouts/RootLayout/EditorChrome/RouteChromeContext"
-import { buildGraph, GraphNode } from "src/libs/utils/graph"
+import { buildGraph, GraphNode, SERIES_COLOR, TAG_COLOR } from "src/libs/utils/graph"
 
 const W = 720
 const H = 520
@@ -60,8 +60,10 @@ const Graph = () => {
     }))
   }, [edges, nodes, selectedIdx])
 
+  const selectedKind = selected?.kind ?? "post"
+
   const catColors: Record<string, string> = {}
-  nodes.forEach((n) => { catColors[n.category] = n.color })
+  nodes.forEach((n) => { if (n.category) catColors[n.category] = n.color })
 
   const isDimmed = (cat: string) => hoverCat !== null && hoverCat !== cat
 
@@ -128,7 +130,9 @@ const Graph = () => {
       .alphaDecay(0.03)
       .on("tick", () => {
         nodes.forEach((n, i) => {
-          const sz = 4 + Math.sqrt(Math.max(n.readTime, 1)) * 2
+          const sz = n.kind === "post"
+            ? 4 + Math.sqrt(Math.max(n.readTime ?? 1, 1)) * 2
+            : 4 + Math.sqrt(Math.max(n.degree, 1)) * 1.8
           circleRefs.current[i]?.setAttribute("cx", String(n.x))
           circleRefs.current[i]?.setAttribute("cy", String(n.y))
           ringRefs.current[i]?.setAttribute("cx", String(n.x))
@@ -261,18 +265,37 @@ const Graph = () => {
               <rect width={W} height={H} fill="url(#grid)" className="grid-bg" />
 
               {edges.map((e, i) => {
-                const dim = isDimmed(nodes[e.a].category) && isDimmed(nodes[e.b].category)
-                const stroke = e.sameCategory ? nodes[e.a].color : "currentColor"
+                const na = nodes[e.a], nb = nodes[e.b]
+                const dimA = isDimmed(na.category ?? "")
+                const dimB = isDimmed(nb.category ?? "")
+                const dim = dimA && dimB
+
+                let stroke = "currentColor"
+                let opacity = 0.18
+                if (e.type === "has-tag") {
+                  stroke = TAG_COLOR
+                  opacity = dim ? 0.03 : 0.3
+                } else if (e.type === "in-series") {
+                  stroke = SERIES_COLOR
+                  opacity = dim ? 0.03 : 0.3
+                } else if (e.type === "series-next") {
+                  stroke = na.kind === "post" ? na.color : "currentColor"
+                  opacity = dim ? 0.04 : 0.6
+                } else if (e.sameCategory) {
+                  stroke = na.color
+                  opacity = dim ? 0.05 : 0.55
+                }
+
                 return (
                   <line
                     key={i}
                     ref={(el) => { lineRefs.current[i] = el }}
-                    x1={nodes[e.a].x} y1={nodes[e.a].y}
-                    x2={nodes[e.b].x} y2={nodes[e.b].y}
+                    x1={na.x} y1={na.y}
+                    x2={nb.x} y2={nb.y}
                     stroke={stroke}
                     strokeWidth={Math.min(e.weight * 0.6, 1.5)}
                     className={`edge${e.sameCategory ? " same-cat" : ""}`}
-                    opacity={dim ? 0.05 : (e.sameCategory ? 0.55 : 0.18)}
+                    opacity={opacity}
                   />
                 )
               })}
@@ -298,12 +321,16 @@ const Graph = () => {
 
               <g ref={nodesLayerRef} className="nodes-layer">
                 {nodes.map((n, i) => {
-                  const sz = 4 + Math.sqrt(Math.max(n.readTime, 1)) * 2
+                  const sz = n.kind === "post"
+                    ? 4 + Math.sqrt(Math.max(n.readTime ?? 1, 1)) * 2
+                    : 4 + Math.sqrt(Math.max(n.degree, 1)) * 1.8
                   const isSelected = i === selectedIdx
-                  const dim = isDimmed(n.category)
+                  const dim = isDimmed(n.category ?? "")
+                  const showLabel =
+                    n.kind !== "post" || isSelected || hoverCat === n.category
                   return (
                     <g
-                      key={n.slug}
+                      key={n.id}
                       className="node"
                       onClick={() => setSelectedIdx(i)}
                       style={{ cursor: "pointer" }}
@@ -325,14 +352,16 @@ const Graph = () => {
                         fill={n.color}
                         opacity={isSelected ? 1 : 0.85}
                       />
-                      {(isSelected || hoverCat === n.category) && (
+                      {showLabel && (
                         <text
                           ref={(el) => { labelRefs.current[i] = el }}
                           x={n.x + sz + 4} y={n.y + 3}
                           className="node-label"
                           fill={n.color}
                         >
-                          {n.title.length > 26 ? n.title.slice(0, 26) + "…" : n.title}
+                          {n.kind !== "post"
+                            ? `#${n.title}`
+                            : n.title.length > 26 ? n.title.slice(0, 26) + "…" : n.title}
                         </text>
                       )}
                     </g>
@@ -346,8 +375,7 @@ const Graph = () => {
             <span>nodes: {nodes.length}</span>
             <span>edges: {edges.length}</span>
             <span className="sep">|</span>
-            <span>○ post · size = read time</span>
-            <span>— mention/link/relation</span>
+            <span>○ post · ◆ tag · ◇ series</span>
           </div>
         </div>
 
@@ -355,18 +383,24 @@ const Graph = () => {
         <div className="detail-panel">
           {selected && (
             <>
-              <div className="panel-label">selected</div>
-              <div className="selected-title">{selected.title}</div>
-              <div className="selected-meta">{selected.category}</div>
-              <div className="selected-tags">
-                {selected.tags.map((t) => (
-                  <span key={t} className="tag">#{t}</span>
-                ))}
+              <div className="panel-label">
+                {selectedKind === "post" ? "selected" : selectedKind}
               </div>
+              <div className="selected-title">{selected.title}</div>
 
-              <Link href={`/${selected.slug}`} className="open-link">
-                → open post
-              </Link>
+              {selectedKind === "post" && (
+                <>
+                  <div className="selected-meta">{selected.category}</div>
+                  <div className="selected-tags">
+                    {(selected.tags ?? []).map((t) => (
+                      <span key={t} className="tag">#{t}</span>
+                    ))}
+                  </div>
+                  <Link href={`/${selected.slug}`} className="open-link">
+                    → open post
+                  </Link>
+                </>
+              )}
 
               <div className="panel-label" style={{ marginTop: 20 }}>
                 connected ({connectedNodes.length})

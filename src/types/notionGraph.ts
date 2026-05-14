@@ -1,4 +1,10 @@
-export type EdgeKind = "mention" | "link" | "link_to_page" | "shared-tag" | "shared-series" | "series-next"
+export type EdgeKind =
+  | "mention"
+  | "link"
+  | "link_to_page"
+  | "has-tag"
+  | "in-series"
+  | "series-next"
 
 export type RawEdge = {
   source: string
@@ -7,7 +13,8 @@ export type RawEdge = {
   context?: string
 }
 
-export type NotionGraphNode = {
+export type PostNode = {
+  kind: "post"
   id: string
   slug: string
   title: string
@@ -17,6 +24,20 @@ export type NotionGraphNode = {
   icon?: string
   url?: string
 }
+
+export type TagNode = {
+  kind: "tag"
+  id: string
+  title: string
+}
+
+export type SeriesNode = {
+  kind: "series"
+  id: string
+  title: string
+}
+
+export type NotionGraphNode = PostNode | TagNode | SeriesNode
 
 export type NotionGraphEdge = {
   source: string
