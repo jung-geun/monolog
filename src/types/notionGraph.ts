@@ -13,6 +13,7 @@ export type NotionGraphNode = {
   title: string
   category: string
   tags: string[]
+  readTime: number
   icon?: string
   url?: string
 }

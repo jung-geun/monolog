@@ -128,7 +128,7 @@ const Graph = () => {
       .alphaDecay(0.03)
       .on("tick", () => {
         nodes.forEach((n, i) => {
-          const sz = 5 + Math.min(n.readTime / 5, 8)
+          const sz = 4 + Math.sqrt(Math.max(n.readTime, 1)) * 2
           circleRefs.current[i]?.setAttribute("cx", String(n.x))
           circleRefs.current[i]?.setAttribute("cy", String(n.y))
           ringRefs.current[i]?.setAttribute("cx", String(n.x))
@@ -298,7 +298,7 @@ const Graph = () => {
 
               <g ref={nodesLayerRef} className="nodes-layer">
                 {nodes.map((n, i) => {
-                  const sz = 5 + Math.min(n.readTime / 5, 8)
+                  const sz = 4 + Math.sqrt(Math.max(n.readTime, 1)) * 2
                   const isSelected = i === selectedIdx
                   const dim = isDimmed(n.category)
                   return (

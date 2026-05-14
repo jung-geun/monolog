@@ -76,7 +76,7 @@ export const buildGraph = (
       title: n.title,
       category: cat,
       tags: n.tags,
-      readTime: 8,
+      readTime: n.readTime,
       x: width / 2 + (seed(i * 2) - 0.5) * 200,
       y: height / 2 + (seed(i * 2 + 1) - 0.5) * 200,
       color: colorForCategory(cat, cats),

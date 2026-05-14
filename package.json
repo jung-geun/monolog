@@ -1,6 +1,6 @@
 {
   "name": "monolog",
-  "version": "1.16.0",
+  "version": "1.17.0",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -32,6 +32,7 @@
     "d3-selection": "^3.0.0",
     "d3-zoom": "^3.0.0",
     "dotenv": "^17.2.3",
+    "ioredis": "^5.4.0",
     "katex": "^0.16.25",
     "lru-cache": "^11.3.6",
     "mermaid": "^11.15.0",

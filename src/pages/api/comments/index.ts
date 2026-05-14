@@ -1,5 +1,5 @@
 import { NextApiRequest, NextApiResponse } from "next"
-import { cacheStore } from "src/libs/cache"
+import { cacheStore, keys } from "src/libs/cache"
 import { listComments, createComment } from "src/apis/notion-client/comments"
 import { commentPostSchema, sanitizeBody, checkSpam } from "src/libs/utils/comments/sanitize"
 import { inspectRateLimit, commitRateLimit, checkGetRateLimit } from "src/libs/utils/comments/rateLimit"
@@ -54,7 +54,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     try {
       const items = await cacheStore.getOrSet(
-        `comments:${slug}`,
+        keys.comments(slug),
         CACHE_TTL_MS,
         () => listComments(slug)
       )
@@ -109,7 +109,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         nickname,
       })
       commitRateLimit(ipH)
-      await cacheStore.invalidate(`comments:${input.slug}`)
+      await cacheStore.invalidate(keys.comments(input.slug))
       return res.status(201).json({ comment })
     } catch {
       return res.status(500).json({ error: "failed to create comment" })

@@ -1,12 +1,33 @@
 import { CacheBackend } from "./types"
 import { MemoryBackend } from "./MemoryBackend"
-import { FsBackend } from "./FsBackend"
+import { RedisBackend } from "./RedisBackend"
 import { debugLog } from "src/libs/utils/logger"
+
+class NoopBackend implements CacheBackend {
+  async get<T>(_key: string): Promise<T | null> { return null }
+  async set<T>(_key: string, _data: T, _ttlMs: number): Promise<void> {}
+  async delete(_key: string): Promise<void> {}
+  async clear(_prefix?: string): Promise<void> {}
+}
+
+function createL2Backend(): CacheBackend {
+  const url = process.env.REDIS_URL
+  if (!url) {
+    debugLog("[cache] L2 disabled (REDIS_URL not set)")
+    return new NoopBackend()
+  }
+  const ns = `${process.env.CACHE_NAMESPACE ?? "monolog"}:`
+  return new RedisBackend(url, ns)
+}
 
 class CacheStore {
   private l1: CacheBackend = new MemoryBackend()
-  private l2: CacheBackend = new FsBackend()
-  // Deduplicates concurrent requests for the same cache key (thundering herd prevention)
+  private l2: CacheBackend = createL2Backend()
+  // `inflight` lives in this process only. In serverless (Vercel, Lambda),
+  // concurrent invocations land on different instances, so cross-instance
+  // thundering-herd is NOT prevented — only within-instance dedup. Redis
+  // itself is the cross-instance coordination layer; concurrent first-fill
+  // writes are idempotent (last write wins, same data).
   private inflight = new Map<string, Promise<any>>()
 
   async getOrSet<T>(

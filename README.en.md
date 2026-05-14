@@ -92,10 +92,11 @@ You can run it locally using Docker. Docker Compose is recommended for easier ma
 | Variable Name | Required | Description |
 |---------------|----------|-------------|
 | `NOTION_TOKEN` | Required | Notion integration token |
-| `NOTION_DATASOURCE_ID` | Required | Notion database ID |
+| `NOTION_DATASOURCE_ID` | Required | Notion data_source ID |
 | `NEXT_PUBLIC_GOOGLE_MEASUREMENT_ID` | Optional | For Google Analytics plugin |
 | `REVALIDATE_HOURS` | Optional | Revalidation interval in hours (default: 1) |
 | `TOKEN_FOR_REVALIDATE` | Optional | Random string for revalidation API security |
+| `REDIS_URL` | Optional | Redis connection URL for L2 cache (e.g. `redis://localhost:6379`) |
 
 ### Create Environment Variable File
 
@@ -107,6 +108,7 @@ NOTION_DATASOURCE_ID=your_notion_datasource_id
 NEXT_PUBLIC_GOOGLE_MEASUREMENT_ID=your_measurement_id  # Optional
 REVALIDATE_HOURS=1
 TOKEN_FOR_REVALIDATE=your_random_string  # Generate a secure random string
+REDIS_URL=redis://localhost:6379         # Optional — Redis connection for L2 cache
 ```
 
 ### Using docker-compose (Recommended)
@@ -171,7 +173,7 @@ After running, you can check the blog at http://localhost:3000.
 
    **Q5: The Docker container won't run.**
 
-   A5: Make sure `NOTION_TOKEN` and `NOTION_DATASOURCE_ID` are correctly set in the `.env` file. Also check Docker logs to identify specific error messages: `docker logs <container_id>` or `docker-compose logs -f`
+   A5: Make sure `NOTION_TOKEN` and `NOTION_DATASOURCE_ID` are correctly set in the `.env` file. For comments, use `NOTION_COMMENTS_DATASOURCE_ID` (the data_source ID, not the database ID). Also check Docker logs: `docker logs <container_id>` or `docker-compose logs -f`
 
    If you encounter other issues, feel free to register them in GitHub Issues. It helps other users too!
 

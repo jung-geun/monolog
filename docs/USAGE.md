@@ -16,7 +16,7 @@ cp .env.example .env
 #   NOTION_TOKEN=ntn_xxxxx
 #   NOTION_DATASOURCE_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 # 댓글 활성 시 추가 필수:
-#   NOTION_COMMENTS_DB_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+#   NOTION_COMMENTS_DATASOURCE_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 #   COMMENT_HASH_SALT=$(openssl rand -hex 32)
 
 yarn dev            # or: npm run dev
@@ -37,12 +37,12 @@ yarn dev            # or: npm run dev
 | DB | 용도 | 환경변수 |
 |---|---|---|
 | `blog-table` | 글 본문 (Posts · Pages · Papers) | `NOTION_DATASOURCE_ID` |
-| `comments` | 방문자 익명 댓글 (선택) | `NOTION_COMMENTS_DB_ID` |
+| `comments` | 방문자 익명 댓글 (선택) | `NOTION_COMMENTS_DATASOURCE_ID` |
 
 복제한 두 DB를 각각 열어:
 1. 우상단 `...` → `Add connections` → 1단계에서 만든 Integration 추가
-2. 페이지 URL 끝의 32자 hex ID를 `8-4-4-4-12` UUID 포맷으로 변환해 환경변수에 입력
-   - 예: `35a067c015d080a0bf17d3a0dffb3784` → `35a067c0-15d0-80a0-bf17-d3a0dffb3784`
+2. **data_source ID 확인**: Notion DB 페이지 URL의 32자 hex ID를 `8-4-4-4-12` UUID 포맷으로 변환 후 `curl -H "Authorization: Bearer $NOTION_TOKEN" https://api.notion.com/v1/databases/{database_id}`를 호출해 `data_sources[0].id` 값을 복사합니다. 이 값을 환경변수에 입력합니다.
+   - 예: `curl` 응답의 `"data_sources":[{"id":"xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"}]` 에서 id 복사
 
 > 댓글 기능을 끄려면 `site.config.js`의 `notionComments.enable: false`로 두면 됩니다 — `comments` DB는 무시됩니다.
 
@@ -94,13 +94,15 @@ yarn dev            # or: npm run dev
 
 | 변수명 | 설명 |
 |---|---|
-| `NOTION_COMMENTS_DB_ID` | `comments` DB의 ID (UUID with hyphens) |
+| `NOTION_COMMENTS_DATASOURCE_ID` | `comments` DB의 **data_source ID** (UUID with hyphens) |
 | `COMMENT_HASH_SALT` | IP/닉네임 해싱용 salt — 생성: `openssl rand -hex 32` |
 
 ### 선택
 
 | 변수명 | 기본값 | 설명 |
 |---|---|---|
+| `REDIS_URL` | — | Redis 연결 URL. 설정 시 L2 캐시 활성 (cold start 성능 향상). 예: `redis://localhost:6379`, `rediss://user:pass@host:6380` |
+| `CACHE_NAMESPACE` | `monolog` | Redis 키 prefix. 동일 Redis를 staging·preview 등 여러 배포가 공유할 때 충돌 방지 |
 | `TOKEN_FOR_REVALIDATE` | — | `/api/revalidate` · `/api/init` 보호 토큰 |
 | `REVALIDATE_HOURS` | `6` | ISR 재생성 주기 (시간) |
 | `NEXT_PUBLIC_SITE_URL` | — | 절대 이미지 프록시 URL prefix |
@@ -157,16 +159,40 @@ docker compose logs -f
 docker run -d -p 3000:3000 --env-file .env ghcr.io/jung-geun/monolog:latest
 ```
 
+### Redis 캐시 (선택)
+
+Notion API cold-start 성능 향상을 위해 외부 Redis를 연결할 수 있습니다.
+
+```yaml
+# docker-compose.yml 예시 — Redis 서비스 함께 실행
+services:
+  blog:
+    environment:
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - redis
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redis-data:/data
+
+volumes:
+  redis-data:
+  image-cache:
+```
+
+Redis 미설정 시 in-process 메모리 캐시(L1)만 사용합니다 — 서버 재시작마다 초기화됩니다.
+
 ### 볼륨 (`docker-compose.yml`)
 
 ```yaml
 services:
   blog:
     volumes:
-      - notion-cache:/app/.notion-cache   # Notion API 응답 캐시
       - image-cache:/app/.image-cache     # 이미지 BLOB 캐시
 volumes:
-  notion-cache:
   image-cache:
 ```
 
@@ -203,7 +229,7 @@ src/
 ├── layouts/RootLayout/
 │   └── EditorChrome/        — TitleBar · ActivityBar · FileTree · TabBar · StatusBar · LineNumberGutter
 ├── libs/
-│   ├── cache/               — L1 Memory + L2 FS 포스트 캐시 / BlobFsBackend 이미지 캐시
+│   ├── cache/               — L1 Memory + L2 Redis 포스트 캐시 / BlobFsBackend 이미지 캐시
 │   ├── react-query/         — 싱글톤 QueryClient
 │   └── utils/
 │       ├── graph.ts         — 결정론적 노드 레이아웃

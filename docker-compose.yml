@@ -18,6 +18,10 @@ services:
       - NEXT_PUBLIC_GOOGLE_MEASUREMENT_ID=COPY_YOUR_GOOGLE_MEASUREMENT_ID_HERE
       - REVALIDATE_HOURS=1
       - TOKEN_FOR_REVALIDATE=GENERATE_RANDOM_STRING_AND_PUT_HERE
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      redis:
+        condition: service_healthy
     restart: unless-stopped
     volumes:
       - logs-data:/app/logs
@@ -29,6 +33,19 @@ services:
       retries: 3
       start_period: 40s
 
+  redis:
+    image: redis:7-alpine
+    container_name: blog-redis
+    restart: unless-stopped
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
 volumes:
   logs-data:
   image-cache:
+  redis-data:

@@ -7,7 +7,7 @@ const DB_VERSION = "v6"
 const RM_VERSION = "v7"
 // Bump NG_VERSION when NotionGraph schema changes (e.g. new edge types, node fields)
 // so cached graphs are discarded and rebuilt with the new shape.
-const NG_VERSION = "v2"
+const NG_VERSION = "v3"
 const OG_VERSION = "v2"
 // Bump POSTS_VERSION when TPost shape changes (e.g. new fields like lastEditedTime)
 // so FS-cached posts without the new field are discarded immediately.
@@ -23,4 +23,5 @@ export const keys = {
   user: (userId: string) => `user:${userId}`,
   og: (url: string) => `og:${OG_VERSION}:${url}`,
   notionGraph: (hash: string) => `notionGraph:${NG_VERSION}:${hash}`,
+  comments: (slug: string) => `comments:${slug}`,
 }

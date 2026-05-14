@@ -4,6 +4,7 @@ import { NotionGraph, NotionGraphEdge, NotionGraphNode, RawEdge } from "src/type
 import { TPost } from "src/types"
 import { CONFIG } from "site.config"
 import { debugLog, warnLog } from "src/libs/utils/logger"
+import { computeReadTime, readTimeTypeWeight } from "src/libs/utils/readTime"
 
 const MAX_DEPTH = 2
 const MAX_RETRIES = 5
@@ -74,6 +75,47 @@ function getRichTextFromBlock(block: any): any[] {
   return block[type]?.rich_text || []
 }
 
+type ReadTimeAccumulator = {
+  text: string
+  imageCount: number
+  codeLines: number
+  otherSec: number
+}
+
+const TEXT_BLOCK_TYPES = new Set([
+  "paragraph", "heading_1", "heading_2", "heading_3",
+  "bulleted_list_item", "numbered_list_item", "to_do",
+  "toggle", "quote", "callout",
+])
+
+function accumulateBlock(block: any, acc: ReadTimeAccumulator): void {
+  const type = block.type as string
+
+  if (TEXT_BLOCK_TYPES.has(type)) {
+    for (const rt of (block[type]?.rich_text || []) as any[]) {
+      acc.text += rt.plain_text ?? ""
+    }
+  } else if (type === "code") {
+    const codeText = ((block.code?.rich_text || []) as any[])
+      .map((rt: any) => rt.plain_text ?? "")
+      .join("")
+    acc.codeLines += (codeText.match(/\n/g)?.length ?? 0) + 1
+  } else if (type === "image") {
+    acc.imageCount += 1
+    for (const rt of (block.image?.caption || []) as any[]) {
+      acc.text += rt.plain_text ?? ""
+    }
+  } else if (type === "video" || type === "file" || type === "pdf" || type === "embed") {
+    acc.otherSec += 30
+  } else if (type === "bookmark" || type === "link_preview") {
+    acc.otherSec += 5
+  } else if (type === "equation") {
+    acc.otherSec += 10
+  } else if (type === "table_row") {
+    acc.otherSec += ((block.table_row?.cells || []) as any[][]).length * 1.5
+  }
+}
+
 async function walkBlocks(
   notion: ReturnType<typeof getOfficialNotionClient>,
   rootPageId: string,
@@ -82,7 +124,8 @@ async function walkBlocks(
   visited: Set<string>,
   rawEdges: RawEdge[],
   knownIds: Set<string>,
-  knownNormalizedIds: Map<string, string>
+  knownNormalizedIds: Map<string, string>,
+  acc: ReadTimeAccumulator
 ): Promise<void> {
   if (depth > MAX_DEPTH || visited.has(currentId)) return
   visited.add(currentId)
@@ -100,6 +143,7 @@ async function walkBlocks(
     for (const block of res.results as any[]) {
       const rt = getRichTextFromBlock(block)
       extractRichTextEdges(rootPageId, rt, knownIds, knownNormalizedIds, rawEdges)
+      accumulateBlock(block, acc)
 
       if (block.type === "link_to_page") {
         const lt = block.link_to_page
@@ -117,7 +161,8 @@ async function walkBlocks(
           visited,
           rawEdges,
           knownIds,
-          knownNormalizedIds
+          knownNormalizedIds,
+          acc
         )
       }
     }
@@ -217,16 +262,8 @@ export async function buildNotionGraph(): Promise<NotionGraph> {
     posts.map((p) => [p.id.replace(/-/g, ""), p.id])
   )
 
-  const nodes: NotionGraphNode[] = posts.map((p) => ({
-    id: p.id,
-    slug: p.slug,
-    title: p.title,
-    category: p.category?.[0] ?? "misc",
-    tags: p.tags ?? [],
-    url: `${CONFIG.link}/${p.slug}`,
-  }))
-
   const rawEdges: RawEdge[] = []
+  const readTimes = new Map<string, number>()
   const buildStart = Date.now()
   let timedOut = false
 
@@ -247,6 +284,7 @@ export async function buildNotionGraph(): Promise<NotionGraph> {
         if (Date.now() - buildStart >= GRAPH_BUILD_TIMEOUT_MS) return
         debugLog(`[buildNotionGraph] walking blocks for "${post.slug}"`)
         const visited = new Set<string>()
+        const acc: ReadTimeAccumulator = { text: "", imageCount: 0, codeLines: 0, otherSec: 0 }
         try {
           await walkBlocks(
             notion,
@@ -256,14 +294,29 @@ export async function buildNotionGraph(): Promise<NotionGraph> {
             visited,
             rawEdges,
             knownIds,
-            knownNormalizedIds
+            knownNormalizedIds,
+            acc
           )
         } catch (err) {
           warnLog(`[buildNotionGraph] skipping "${post.slug}" due to error:`, err)
         }
+        readTimes.set(
+          post.id,
+          computeReadTime({ ...acc, typeWeight: readTimeTypeWeight(post.type) })
+        )
       })
     )
   }
+
+  const nodes: NotionGraphNode[] = posts.map((p) => ({
+    id: p.id,
+    slug: p.slug,
+    title: p.title,
+    category: p.category?.[0] ?? "misc",
+    tags: p.tags ?? [],
+    readTime: readTimes.get(p.id) ?? 1,
+    url: `${CONFIG.link}/${p.slug}`,
+  }))
 
   const edges = [
     ...dedupeAndWeight(rawEdges),

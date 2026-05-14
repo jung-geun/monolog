@@ -1,9 +1,16 @@
 import { getOfficialNotionClient } from "./notionClient"
 import type { TComment, TCommentCreateInput } from "src/types/comment"
 
-function dbId(): string {
-  const id = process.env.NOTION_COMMENTS_DB_ID
-  if (!id) throw new Error("NOTION_COMMENTS_DB_ID is required")
+function dataSourceId(): string {
+  const id = process.env.NOTION_COMMENTS_DATASOURCE_ID
+  if (!id) {
+    if (process.env.NOTION_COMMENTS_DB_ID) {
+      throw new Error(
+        "NOTION_COMMENTS_DB_ID is deprecated. Use NOTION_COMMENTS_DATASOURCE_ID (the data_source ID). See docs/USAGE.md."
+      )
+    }
+    throw new Error("NOTION_COMMENTS_DATASOURCE_ID is required")
+  }
   return id
 }
 
@@ -20,38 +27,9 @@ function rt(content: string) {
   return [{ type: "text" as const, text: { content } }]
 }
 
-// Notion API v5: database_id ≠ data_source_id for recently created DBs.
-// Resolve once via databases.retrieve and cache for the process lifetime.
-let resolvedDataSourceId: string | null = null
-let resolveInflight: Promise<string> | null = null
-
-async function getDataSourceId(): Promise<string> {
-  if (resolvedDataSourceId) return resolvedDataSourceId
-  if (resolveInflight) return resolveInflight
-
-  const notion = getOfficialNotionClient()
-  resolveInflight = (async () => {
-    const meta: any = await withTimeout(
-      notion.databases.retrieve({ database_id: dbId() }),
-      8000
-    )
-    const dsId: string | undefined = meta.data_sources?.[0]?.id
-    if (!dsId) throw new Error(`No data source found for database ${dbId()}`)
-    resolvedDataSourceId = dsId
-    return dsId
-  })()
-
-  try {
-    return await resolveInflight
-  } catch (err) {
-    resolveInflight = null
-    throw err
-  }
-}
-
 export async function listComments(slug: string): Promise<TComment[]> {
   const notion = getOfficialNotionClient()
-  const dsId = await getDataSourceId()
+  const dsId = dataSourceId()
   const response = await withTimeout(
     notion.dataSources.query({
       data_source_id: dsId,
@@ -82,7 +60,7 @@ export async function listComments(slug: string): Promise<TComment[]> {
 
 export async function createComment(input: TCommentCreateInput): Promise<TComment> {
   const notion = getOfficialNotionClient()
-  const dsId = await getDataSourceId()
+  const dsId = dataSourceId()
   const excerpt = input.body.slice(0, 30).replace(/\n/g, " ")
   const title = `[${input.slug}] ${input.nickname}: ${excerpt}`
 
