@@ -41,7 +41,7 @@ describe("buildPropertyEdges", () => {
     expect(tagEdges).toHaveLength(4)
   })
 
-  it("시리즈 3개 글 → series 노드 1개, in-series 엣지 3개, series-next 엣지 2개 (시간순)", () => {
+  it("시리즈 3개 글 → series 노드 1개, in-series 엣지 3개 (series-next 직접 연결 없음)", () => {
     const posts = [
       makePost({ id: "p1", series: ["k8s-guide"], date: { start_date: "2024-01-01" } }),
       makePost({ id: "p2", series: ["k8s-guide"], date: { start_date: "2024-01-03" } }),
@@ -55,11 +55,12 @@ describe("buildPropertyEdges", () => {
     const inSeriesEdges = propertyEdges.filter((e) => e.type === "in-series")
     expect(inSeriesEdges).toHaveLength(3)
 
-    const nextEdges = propertyEdges.filter((e) => e.type === "series-next")
-    expect(nextEdges).toHaveLength(2)
-    // 시간순: p1(01-01) → p3(01-02) → p2(01-03)
-    expect(nextEdges[0]).toMatchObject({ source: "p1", target: "p3" })
-    expect(nextEdges[1]).toMatchObject({ source: "p3", target: "p2" })
+    // series hub가 이미 같은 시리즈를 묶으므로 post 간 직접 연결 없음
+    const postToPostEdges = propertyEdges.filter((e) => {
+      const allPostIds = posts.map((p) => p.id)
+      return allPostIds.includes(e.source) && allPostIds.includes(e.target)
+    })
+    expect(postToPostEdges).toHaveLength(0)
   })
 
   it("ID 정규화: 'GPU'와 'gpu' 태그는 같은 노드로 머지", () => {
