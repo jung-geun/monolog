@@ -531,7 +531,7 @@ const Graph = () => {
               </div>
               {connectedNodes.slice(0, 5).map(({ idx, node, via }) => (
                 <button
-                  key={node.slug}
+                  key={`${idx}-${node.id}`}
                   type="button"
                   className="connected-item"
                   onClick={() => setSelectedIdx(idx)}
