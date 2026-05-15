@@ -1,22 +1,23 @@
 import { useQuery } from "@tanstack/react-query"
 import { queryKey } from "src/constants/queryKey"
-import { NotionGraph } from "src/types/notionGraph"
+import type { BuiltGraph } from "src/apis/notion-client/getBuiltGraph"
 
-const EMPTY_GRAPH: NotionGraph = {
-  version: "v1",
-  generatedAt: "",
+const EMPTY_GRAPH: BuiltGraph = {
   nodes: [],
   edges: [],
+  cats: [],
+  catCenters: {},
+  generatedAt: "",
 }
 
-const useNotionGraphQuery = (): NotionGraph => {
-  const { data } = useQuery<NotionGraph>({
+const useNotionGraphQuery = (): BuiltGraph => {
+  const { data } = useQuery<BuiltGraph>({
     queryKey: queryKey.notionGraph(),
     queryFn: async () => {
       try {
         const res = await fetch("/graphs/notion-graph.json", { cache: "no-store" })
         if (!res.ok) return EMPTY_GRAPH
-        return (await res.json()) as NotionGraph
+        return (await res.json()) as BuiltGraph
       } catch {
         return EMPTY_GRAPH
       }
