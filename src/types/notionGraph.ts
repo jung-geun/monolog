@@ -23,6 +23,7 @@ export type PostNode = {
   readTime: number
   icon?: string
   url?: string
+  createdAt?: string
 }
 
 export type TagNode = {
