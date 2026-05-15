@@ -410,8 +410,10 @@ const Graph = () => {
                     stroke={stroke}
                     strokeWidth={Math.min(e.weight * 0.6, 1.5)}
                     className={`edge${e.sameCategory ? " same-cat" : ""}`}
-                    opacity={finalOpacity}
-                    style={{ transition: isRevealed && animRevealCount !== null ? "opacity 0.25s" : undefined }}
+                    style={{
+                      opacity: finalOpacity,
+                      transition: animRevealCount !== null ? "opacity 0.25s" : undefined,
+                    }}
                   />
                 )
               })}
@@ -452,9 +454,11 @@ const Graph = () => {
                       onClick={() => { if (isNodeRevealed) setSelectedIdx(i) }}
                       style={{
                         cursor: isNodeRevealed ? "pointer" : "default",
-                        transition: isNodeRevealed && animRevealCount !== null ? "opacity 0.3s" : undefined,
+                        // CSS class .node{opacity:0.78} 를 inline style로 덮어씌워야 함
+                        opacity: !isNodeRevealed ? 0 : dim ? 0.15 : undefined,
+                        pointerEvents: isNodeRevealed ? undefined : "none",
+                        transition: animRevealCount !== null ? "opacity 0.3s" : undefined,
                       }}
-                      opacity={isNodeRevealed ? (dim ? 0.15 : 1) : 0}
                     >
                       {isSelected && (
                         <circle
