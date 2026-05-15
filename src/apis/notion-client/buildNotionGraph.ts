@@ -315,6 +315,7 @@ export async function buildNotionGraph(): Promise<NotionGraph> {
     tags: p.tags ?? [],
     readTime: readTimes.get(p.id) ?? 1,
     url: `${CONFIG.link}/${p.slug}`,
+    createdAt: p.createdTime,
   }))
 
   const { hubNodes, propertyEdges } = buildPropertyEdges(posts)

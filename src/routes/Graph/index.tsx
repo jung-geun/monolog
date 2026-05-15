@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef } from "react"
+import { useState, useMemo, useEffect, useRef, useCallback } from "react"
 import styled from "@emotion/styled"
 import Link from "next/link"
 import {
@@ -11,6 +11,7 @@ import {
   forceY,
   type Simulation,
   type ForceManyBody,
+  type ForceLink as ForceLinkType,
   SimulationNodeDatum,
   SimulationLinkDatum,
 } from "d3-force"
@@ -40,6 +41,13 @@ const Graph = () => {
   const [hoverCat, setHoverCat] = useState<string | null>(null)
   const [repulsion, setRepulsion] = useState(30)
   const [centering, setCentering] = useState(0.04)
+  const [linkDistance, setLinkDistance] = useState(40)
+  const [linkStrength, setLinkStrength] = useState(1.0)
+
+  // Animation state
+  const [isPlaying, setIsPlaying] = useState(false)
+  const [animSpeed, setAnimSpeed] = useState(20)
+  const [animRevealCount, setAnimRevealCount] = useState<number | null>(null)
 
   const selected = nodes[selectedIdx]
 
@@ -64,6 +72,27 @@ const Graph = () => {
 
   const catColors: Record<string, string> = {}
   nodes.forEach((n) => { if (n.category) catColors[n.category] = n.color })
+
+  // Edges sorted by post createdAt — oldest first — for timeline animation
+  const edgeSortedIndices = useMemo(() => {
+    return edges
+      .map((e, i) => {
+        const na = nodes[e.a], nb = nodes[e.b]
+        const dateA = na.kind === "post" ? (na.createdAt ?? "") : ""
+        const dateB = nb.kind === "post" ? (nb.createdAt ?? "") : ""
+        const date = dateA || dateB
+        return { i, date }
+      })
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .map((x) => x.i)
+  }, [edges, nodes])
+
+  // Reverse mapping: original edge index → animation reveal rank
+  const edgeSortedRank = useMemo(() => {
+    const rank = new Array(edges.length).fill(0)
+    edgeSortedIndices.forEach((origIdx, r) => { rank[origIdx] = r })
+    return rank
+  }, [edgeSortedIndices, edges.length])
 
   const isDimmed = (cat: string) => hoverCat !== null && hoverCat !== cat
 
@@ -93,6 +122,10 @@ const Graph = () => {
   const chargeRef = useRef<ForceManyBody<N> | null>(null)
   const xForceRef = useRef<ForceXType<N> | null>(null)
   const yForceRef = useRef<ForceYType<N> | null>(null)
+  const linkForceRef = useRef<ForceLinkType<N, SimLink> | null>(null)
+
+  // Animation refs
+  const animIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   // Zoom refs
   const svgRef = useRef<SVGSVGElement | null>(null)
@@ -112,15 +145,13 @@ const Graph = () => {
     const chargeF = forceManyBody().strength(-repulsion)
     const xF = forceX<GraphNode & SimulationNodeDatum>(W / 2).strength(centering)
     const yF = forceY<GraphNode & SimulationNodeDatum>(H / 2).strength(centering)
+    const linkF = forceLink<GraphNode & SimulationNodeDatum, SimLink>(links)
+      .id((_, i) => i)
+      .distance((d) => linkDistance / Math.max(1, Math.sqrt(d.weight)))
+      .strength((d) => Math.min(1, linkStrength * (0.2 + 0.15 * d.weight)))
 
     const sim = forceSimulation<GraphNode & SimulationNodeDatum>(nodes as (GraphNode & SimulationNodeDatum)[])
-      .force(
-        "link",
-        forceLink<GraphNode & SimulationNodeDatum, SimLink>(links)
-          .id((_, i) => i)
-          .distance((d) => 40 / Math.max(1, Math.sqrt(d.weight)))
-          .strength((d) => Math.min(0.8, 0.2 + 0.15 * d.weight))
-      )
+      .force("link", linkF)
       .force("charge", chargeF)
       .force("center", forceCenter(W / 2, H / 2))
       .force("x", xF)
@@ -170,6 +201,7 @@ const Graph = () => {
     chargeRef.current = chargeF
     xForceRef.current = xF
     yForceRef.current = yF
+    linkForceRef.current = linkF
 
     if (nodesLayerRef.current) {
       type DragEv = D3DragEvent<SVGGElement, GraphNode, GraphNode>
@@ -206,8 +238,50 @@ const Graph = () => {
     chargeRef.current.strength(-repulsion)
     xForceRef.current?.strength(centering)
     yForceRef.current?.strength(centering)
+    if (linkForceRef.current) {
+      linkForceRef.current
+        .distance((d: SimLink) => linkDistance / Math.max(1, Math.sqrt(d.weight)))
+        .strength((d: SimLink) => Math.min(1, linkStrength * (0.2 + 0.15 * d.weight)))
+    }
     simRef.current.alpha(0.5).restart()
-  }, [repulsion, centering])
+  }, [repulsion, centering, linkDistance, linkStrength])
+
+  // Animation: reveal edges in createdAt order
+  useEffect(() => {
+    if (!isPlaying) {
+      if (animIntervalRef.current) {
+        clearInterval(animIntervalRef.current)
+        animIntervalRef.current = null
+      }
+      return
+    }
+
+    setAnimRevealCount(0)
+    let revealed = 0
+    const total = edges.length
+    const revealPerTick = Math.max(1, Math.round(animSpeed / 30))
+    const intervalMs = Math.max(16, Math.round(1000 * revealPerTick / animSpeed))
+
+    animIntervalRef.current = setInterval(() => {
+      revealed += revealPerTick
+      if (revealed >= total) {
+        clearInterval(animIntervalRef.current!)
+        animIntervalRef.current = null
+        setAnimRevealCount(null)
+        setIsPlaying(false)
+      } else {
+        setAnimRevealCount(revealed)
+      }
+    }, intervalMs)
+
+    return () => {
+      if (animIntervalRef.current) {
+        clearInterval(animIntervalRef.current)
+        animIntervalRef.current = null
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isPlaying, animSpeed, edges.length])
 
   // Zoom/pan behavior — mounted once, cleaned up on unmount
   useEffect(() => {
@@ -242,7 +316,23 @@ const Graph = () => {
   const handleResetForce = () => {
     setRepulsion(30)
     setCentering(0.04)
+    setLinkDistance(40)
+    setLinkStrength(1.0)
   }
+
+  const handlePlayAnim = useCallback(() => {
+    if (isPlaying) {
+      setIsPlaying(false)
+    } else {
+      // restart from beginning if already finished or not started
+      setIsPlaying(true)
+    }
+  }, [isPlaying])
+
+  const handleResetAnim = useCallback(() => {
+    setIsPlaying(false)
+    setAnimRevealCount(null)
+  }, [])
 
   return (
     <StyledWrapper>
@@ -286,6 +376,10 @@ const Graph = () => {
                   opacity = dim ? 0.05 : 0.55
                 }
 
+                // During animation, hide edges not yet revealed
+                const isRevealed = animRevealCount === null || edgeSortedRank[i] < animRevealCount
+                const finalOpacity = isRevealed ? opacity : 0
+
                 return (
                   <line
                     key={i}
@@ -295,7 +389,8 @@ const Graph = () => {
                     stroke={stroke}
                     strokeWidth={Math.min(e.weight * 0.6, 1.5)}
                     className={`edge${e.sameCategory ? " same-cat" : ""}`}
-                    opacity={opacity}
+                    opacity={finalOpacity}
+                    style={{ transition: isRevealed && animRevealCount !== null ? "opacity 0.3s" : undefined }}
                   />
                 )
               })}
@@ -459,12 +554,74 @@ const Graph = () => {
                   onChange={(e) => setCentering(Number(e.target.value))}
                 />
               </div>
+              <div className="control-row">
+                <label>
+                  link-dist
+                  <span className="control-val">{linkDistance}</span>
+                </label>
+                <input
+                  type="range" min={10} max={200} step={5}
+                  value={linkDistance}
+                  onChange={(e) => setLinkDistance(Number(e.target.value))}
+                />
+              </div>
+              <div className="control-row">
+                <label>
+                  tension
+                  <span className="control-val">{linkStrength.toFixed(1)}</span>
+                </label>
+                <input
+                  type="range" min={0} max={3} step={0.1}
+                  value={linkStrength}
+                  onChange={(e) => setLinkStrength(Number(e.target.value))}
+                />
+              </div>
               <div className="control-buttons">
                 <button type="button" className="control-btn" onClick={handleResetView}>
                   reset view
                 </button>
                 <button type="button" className="control-btn" onClick={handleResetForce}>
                   reset force
+                </button>
+              </div>
+
+              <div className="panel-label" style={{ marginTop: 20 }}>timeline</div>
+              <div className="anim-progress">
+                <div
+                  className="anim-bar"
+                  style={{
+                    width: animRevealCount === null
+                      ? "100%"
+                      : `${(animRevealCount / Math.max(edges.length, 1)) * 100}%`,
+                  }}
+                />
+                <span className="anim-label">
+                  {animRevealCount === null
+                    ? `${edges.length} / ${edges.length}`
+                    : `${animRevealCount} / ${edges.length}`}
+                </span>
+              </div>
+              <div className="control-row" style={{ marginTop: 6 }}>
+                <label>
+                  speed
+                  <span className="control-val">{animSpeed}/s</span>
+                </label>
+                <input
+                  type="range" min={1} max={100} step={1}
+                  value={animSpeed}
+                  onChange={(e) => setAnimSpeed(Number(e.target.value))}
+                />
+              </div>
+              <div className="control-buttons">
+                <button
+                  type="button"
+                  className={`control-btn${isPlaying ? " active" : ""}`}
+                  onClick={handlePlayAnim}
+                >
+                  {isPlaying ? "⏸ pause" : "▶ play"}
+                </button>
+                <button type="button" className="control-btn" onClick={handleResetAnim}>
+                  ■ reset
                 </button>
               </div>
             </>
@@ -724,6 +881,38 @@ const StyledWrapper = styled.div`
     &:hover {
       border-color: ${({ theme }) => theme.colors.editor.accent};
       color: ${({ theme }) => theme.colors.editor.accent};
+    }
+
+    &.active {
+      border-color: ${({ theme }) => theme.colors.editor.accent};
+      color: ${({ theme }) => theme.colors.editor.accent};
+      background: ${({ theme }) => theme.colors.editor.accentSoft};
+    }
+  }
+
+  .anim-progress {
+    position: relative;
+    height: 18px;
+    background: ${({ theme }) => theme.colors.editor.bg};
+    border: 1px solid ${({ theme }) => theme.colors.editor.line};
+    overflow: hidden;
+
+    .anim-bar {
+      position: absolute;
+      inset: 0;
+      height: 100%;
+      background: ${({ theme }) => theme.colors.editor.accentSoft};
+      transition: width 0.1s linear;
+    }
+
+    .anim-label {
+      position: relative;
+      z-index: 1;
+      font-size: 9px;
+      color: ${({ theme }) => theme.colors.editor.fg3};
+      padding: 0 6px;
+      line-height: 18px;
+      display: block;
     }
   }
 `

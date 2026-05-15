@@ -10,6 +10,7 @@ export type GraphNode = {
   tags?: string[]
   readTime?: number
   url?: string
+  createdAt?: string
   // computed
   degree: number
   x: number
@@ -110,6 +111,7 @@ export const buildGraph = (
         tags: n.tags,
         readTime: n.readTime,
         url: n.url,
+        createdAt: n.createdAt,
       }
     }
     return base
