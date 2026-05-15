@@ -46,7 +46,7 @@ const Graph = () => {
 
   // Animation state
   const [isPlaying, setIsPlaying] = useState(false)
-  const [animSpeed, setAnimSpeed] = useState(20)
+  const [animSpeed, setAnimSpeed] = useState(5)
   const [animRevealCount, setAnimRevealCount] = useState<number | null>(null)
 
   const selected = nodes[selectedIdx]
@@ -73,26 +73,41 @@ const Graph = () => {
   const catColors: Record<string, string> = {}
   nodes.forEach((n) => { if (n.category) catColors[n.category] = n.color })
 
-  // Edges sorted by post createdAt — oldest first — for timeline animation
-  const edgeSortedIndices = useMemo(() => {
-    return edges
-      .map((e, i) => {
-        const na = nodes[e.a], nb = nodes[e.b]
-        const dateA = na.kind === "post" ? (na.createdAt ?? "") : ""
-        const dateB = nb.kind === "post" ? (nb.createdAt ?? "") : ""
-        const date = dateA || dateB
-        return { i, date }
-      })
-      .sort((a, b) => a.date.localeCompare(b.date))
-      .map((x) => x.i)
-  }, [edges, nodes])
+  // Node appearance rank for timeline animation (post-unit, createdAt order)
+  const { nodeAppearRank, postCount } = useMemo(() => {
+    const rank = new Array(nodes.length).fill(Infinity)
 
-  // Reverse mapping: original edge index → animation reveal rank
-  const edgeSortedRank = useMemo(() => {
-    const rank = new Array(edges.length).fill(0)
-    edgeSortedIndices.forEach((origIdx, r) => { rank[origIdx] = r })
-    return rank
-  }, [edgeSortedIndices, edges.length])
+    // (1) post 노드: createdAt 오름차순으로 rank 부여
+    const postsByDate = nodes
+      .map((n, i) => ({ i, date: n.kind === "post" ? (n.createdAt ?? "") : "" }))
+      .filter((p) => p.date !== "" && nodes[p.i].kind === "post")
+      .sort((a, b) => a.date.localeCompare(b.date))
+    postsByDate.forEach(({ i }, r) => { rank[i] = r })
+
+    // (2) createdAt 없는 post는 dated posts 뒤로
+    let next = postsByDate.length
+    nodes.forEach((n, i) => {
+      if (n.kind === "post" && rank[i] === Infinity) rank[i] = next++
+    })
+    const total = next
+
+    // (3) hub 노드: 연결된 post 중 가장 빠른 rank에 함께 등장
+    for (const e of edges) {
+      const na = nodes[e.a], nb = nodes[e.b]
+      if (na.kind === "post" && nb.kind !== "post") {
+        rank[e.b] = Math.min(rank[e.b], rank[e.a])
+      } else if (nb.kind === "post" && na.kind !== "post") {
+        rank[e.a] = Math.min(rank[e.a], rank[e.b])
+      }
+    }
+
+    // (4) isolated hub(연결된 post 없음)는 맨 마지막
+    nodes.forEach((n, i) => {
+      if (n.kind !== "post" && rank[i] === Infinity) rank[i] = total
+    })
+
+    return { nodeAppearRank: rank, postCount: total }
+  }, [nodes, edges])
 
   const isDimmed = (cat: string) => hoverCat !== null && hoverCat !== cat
 
@@ -126,6 +141,7 @@ const Graph = () => {
 
   // Animation refs
   const animIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const animRevealRef = useRef(0)
 
   // Zoom refs
   const svgRef = useRef<SVGSVGElement | null>(null)
@@ -246,7 +262,10 @@ const Graph = () => {
     simRef.current.alpha(0.5).restart()
   }, [repulsion, centering, linkDistance, linkStrength])
 
-  // Animation: reveal edges in createdAt order
+  // Keep animRevealRef in sync (stale closure 방지)
+  useEffect(() => { animRevealRef.current = animRevealCount ?? 0 }, [animRevealCount])
+
+  // Animation: reveal nodes (+ hub + edges) in post createdAt order
   useEffect(() => {
     if (!isPlaying) {
       if (animIntervalRef.current) {
@@ -256,18 +275,15 @@ const Graph = () => {
       return
     }
 
-    setAnimRevealCount(0)
-    let revealed = 0
-    const total = edges.length
-    const revealPerTick = Math.max(1, Math.round(animSpeed / 30))
-    const intervalMs = Math.max(16, Math.round(1000 * revealPerTick / animSpeed))
+    let revealed = animRevealRef.current
+    const intervalMs = Math.max(50, Math.round(1000 / animSpeed))
 
     animIntervalRef.current = setInterval(() => {
-      revealed += revealPerTick
-      if (revealed >= total) {
+      revealed += 1
+      if (revealed >= postCount) {
         clearInterval(animIntervalRef.current!)
         animIntervalRef.current = null
-        setAnimRevealCount(null)
+        setAnimRevealCount(postCount)
         setIsPlaying(false)
       } else {
         setAnimRevealCount(revealed)
@@ -281,7 +297,7 @@ const Graph = () => {
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isPlaying, animSpeed, edges.length])
+  }, [isPlaying, animSpeed, postCount])
 
   // Zoom/pan behavior — mounted once, cleaned up on unmount
   useEffect(() => {
@@ -323,15 +339,18 @@ const Graph = () => {
   const handlePlayAnim = useCallback(() => {
     if (isPlaying) {
       setIsPlaying(false)
-    } else {
-      // restart from beginning if already finished or not started
-      setIsPlaying(true)
+      return
     }
-  }, [isPlaying])
+    // 재생 완료 상태(postCount) 또는 첫 진입(null)이면 0부터 시작
+    if (animRevealCount === null || animRevealCount >= postCount) {
+      setAnimRevealCount(0)
+    }
+    setIsPlaying(true)
+  }, [isPlaying, animRevealCount, postCount])
 
   const handleResetAnim = useCallback(() => {
     setIsPlaying(false)
-    setAnimRevealCount(null)
+    setAnimRevealCount(0)  // 빈 캔버스로
   }, [])
 
   return (
@@ -376,8 +395,10 @@ const Graph = () => {
                   opacity = dim ? 0.05 : 0.55
                 }
 
-                // During animation, hide edges not yet revealed
-                const isRevealed = animRevealCount === null || edgeSortedRank[i] < animRevealCount
+                // During animation, hide edges until both endpoint nodes are revealed
+                const edgeRank = nodeAppearRank[e.a] > nodeAppearRank[e.b]
+                  ? nodeAppearRank[e.a] : nodeAppearRank[e.b]
+                const isRevealed = animRevealCount === null || edgeRank < animRevealCount
                 const finalOpacity = isRevealed ? opacity : 0
 
                 return (
@@ -390,7 +411,7 @@ const Graph = () => {
                     strokeWidth={Math.min(e.weight * 0.6, 1.5)}
                     className={`edge${e.sameCategory ? " same-cat" : ""}`}
                     opacity={finalOpacity}
-                    style={{ transition: isRevealed && animRevealCount !== null ? "opacity 0.3s" : undefined }}
+                    style={{ transition: isRevealed && animRevealCount !== null ? "opacity 0.25s" : undefined }}
                   />
                 )
               })}
@@ -423,13 +444,17 @@ const Graph = () => {
                   const dim = isDimmed(n.category ?? "")
                   const showLabel =
                     n.kind !== "post" || isSelected || hoverCat === n.category
+                  const isNodeRevealed = animRevealCount === null || nodeAppearRank[i] < animRevealCount
                   return (
                     <g
                       key={n.id}
                       className="node"
-                      onClick={() => setSelectedIdx(i)}
-                      style={{ cursor: "pointer" }}
-                      opacity={dim ? 0.15 : 1}
+                      onClick={() => { if (isNodeRevealed) setSelectedIdx(i) }}
+                      style={{
+                        cursor: isNodeRevealed ? "pointer" : "default",
+                        transition: isNodeRevealed && animRevealCount !== null ? "opacity 0.3s" : undefined,
+                      }}
+                      opacity={isNodeRevealed ? (dim ? 0.15 : 1) : 0}
                     >
                       {isSelected && (
                         <circle
@@ -592,22 +617,22 @@ const Graph = () => {
                   style={{
                     width: animRevealCount === null
                       ? "100%"
-                      : `${(animRevealCount / Math.max(edges.length, 1)) * 100}%`,
+                      : `${(animRevealCount / Math.max(postCount, 1)) * 100}%`,
                   }}
                 />
                 <span className="anim-label">
                   {animRevealCount === null
-                    ? `${edges.length} / ${edges.length}`
-                    : `${animRevealCount} / ${edges.length}`}
+                    ? `${postCount} / ${postCount} posts`
+                    : `${animRevealCount} / ${postCount} posts`}
                 </span>
               </div>
               <div className="control-row" style={{ marginTop: 6 }}>
                 <label>
                   speed
-                  <span className="control-val">{animSpeed}/s</span>
+                  <span className="control-val">{animSpeed} posts/s</span>
                 </label>
                 <input
-                  type="range" min={1} max={100} step={1}
+                  type="range" min={1} max={50} step={1}
                   value={animSpeed}
                   onChange={(e) => setAnimSpeed(Number(e.target.value))}
                 />
