@@ -4,7 +4,6 @@ export type EdgeKind =
   | "link_to_page"
   | "has-tag"
   | "in-series"
-  | "series-next"
 
 export type RawEdge = {
   source: string

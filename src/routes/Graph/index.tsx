@@ -38,7 +38,7 @@ const Graph = () => {
     [graph.generatedAt]
   )
 
-  const [selectedIdx, setSelectedIdx] = useState(0)
+  const [selectedIdx, setSelectedIdx] = useState(-1)
   const [hoverCat, setHoverCat] = useState<string | null>(null)
   const [repulsion, setRepulsion] = useState(30)
   const [centering, setCentering] = useState(0.04)
@@ -110,7 +110,31 @@ const Graph = () => {
     return { nodeAppearRank: rank, postCount: total }
   }, [nodes, edges])
 
-  const isDimmed = (cat: string) => hoverCat !== null && hoverCat !== cat
+  // 클릭한 노드와 직접 연결된 노드 인덱스 Set (없으면 null)
+  const focusNeighbors = useMemo(() => {
+    if (selectedIdx < 0 || selectedIdx >= nodes.length) return null
+    const set = new Set<number>([selectedIdx])
+    for (const e of edges) {
+      if (e.a === selectedIdx) set.add(e.b)
+      else if (e.b === selectedIdx) set.add(e.a)
+    }
+    return set
+  }, [selectedIdx, edges, nodes.length])
+
+  const isNodeDimmed = (i: number, cat: string | undefined) => {
+    if (focusNeighbors && !focusNeighbors.has(i)) return true
+    return hoverCat !== null && hoverCat !== (cat ?? "")
+  }
+  const isEdgeDimmed = (e: { a: number; b: number }, naCat?: string, nbCat?: string) => {
+    if (focusNeighbors && !(focusNeighbors.has(e.a) && focusNeighbors.has(e.b))) return true
+    const dimA = hoverCat !== null && hoverCat !== (naCat ?? "")
+    const dimB = hoverCat !== null && hoverCat !== (nbCat ?? "")
+    return dimA && dimB
+  }
+  const labelOpacity = (cat: string) => {
+    if (focusNeighbors) return 0.35
+    return hoverCat !== null && hoverCat !== cat ? 0.25 : 1
+  }
 
   const statusItems = useMemo(() => {
     const typeCounts = edges.reduce<Record<string, number>>((acc, e) => {
@@ -372,13 +396,14 @@ const Graph = () => {
             </defs>
 
             <g ref={zoomRootRef} className="zoom-root">
-              <rect width={W} height={H} fill="url(#grid)" className="grid-bg" />
+              <rect
+                width={W} height={H} fill="url(#grid)" className="grid-bg"
+                onClick={() => setSelectedIdx(-1)}
+              />
 
               {edges.map((e, i) => {
                 const na = nodes[e.a], nb = nodes[e.b]
-                const dimA = isDimmed(na.category ?? "")
-                const dimB = isDimmed(nb.category ?? "")
-                const dim = dimA && dimB
+                const dim = isEdgeDimmed(e, na.category, nb.category)
 
                 let stroke = "currentColor"
                 let opacity = 0.18
@@ -388,9 +413,6 @@ const Graph = () => {
                 } else if (e.type === "in-series") {
                   stroke = SERIES_COLOR
                   opacity = dim ? 0.03 : 0.3
-                } else if (e.type === "series-next") {
-                  stroke = na.kind === "post" ? na.color : "currentColor"
-                  opacity = dim ? 0.04 : 0.6
                 } else if (e.sameCategory) {
                   stroke = na.color
                   opacity = dim ? 0.05 : 0.55
@@ -431,7 +453,7 @@ const Graph = () => {
                     className="cluster-label"
                     fill={catColors[c]}
                     textAnchor="middle"
-                    opacity={isDimmed(c) ? 0.25 : 1}
+                    opacity={labelOpacity(c)}
                   >
                     #{c}
                   </text>
@@ -444,7 +466,7 @@ const Graph = () => {
                     ? 4 + Math.sqrt(Math.max(n.readTime ?? 1, 1)) * 2
                     : 4 + Math.sqrt(Math.max(n.degree, 1)) * 1.8
                   const isSelected = i === selectedIdx
-                  const dim = isDimmed(n.category ?? "")
+                  const dim = isNodeDimmed(i, n.category)
                   const showLabel =
                     n.kind !== "post" || isSelected || hoverCat === n.category
                   const isNodeRevealed = animRevealCount === null || nodeAppearRank[i] < animRevealCount
@@ -452,7 +474,11 @@ const Graph = () => {
                     <g
                       key={n.id}
                       className="node"
-                      onClick={() => { if (isNodeRevealed) setSelectedIdx(i) }}
+                      onClick={(ev) => {
+                        ev.stopPropagation()
+                        if (!isNodeRevealed) return
+                        setSelectedIdx((prev) => (prev === i ? -1 : i))
+                      }}
                       style={{
                         cursor: isNodeRevealed ? "pointer" : "default",
                         // CSS class .node{opacity:0.78} 를 inline style로 덮어씌워야 함
@@ -506,6 +532,9 @@ const Graph = () => {
 
         {/* Detail panel */}
         <div className="detail-panel">
+          {!selected && (
+            <div className="panel-empty">노드를 클릭하면 정보가 표시됩니다</div>
+          )}
           {selected && (
             <>
               <div className="panel-label">
@@ -768,6 +797,13 @@ const StyledWrapper = styled.div`
     @media (max-width: ${({ theme }) => theme.variables.breakpoint}px) {
       display: none;
     }
+  }
+
+  .panel-empty {
+    font-size: 12px;
+    color: ${({ theme }) => theme.colors.editor.fg3};
+    padding: 16px 0;
+    opacity: 0.6;
   }
 
   .panel-label {

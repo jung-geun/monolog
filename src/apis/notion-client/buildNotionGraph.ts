@@ -214,14 +214,6 @@ export function buildPropertyEdges(posts: TPost[]): {
     for (const p of list) {
       propertyEdges.push({ source: p.id, target: seriesId, type: "in-series", weight: 1 })
     }
-    const sorted = [...list].sort((a, b) => {
-      const da = a.date?.start_date ?? a.createdTime ?? ""
-      const db = b.date?.start_date ?? b.createdTime ?? ""
-      return da.localeCompare(db)
-    })
-    for (let i = 0; i + 1 < sorted.length; i++) {
-      propertyEdges.push({ source: sorted[i].id, target: sorted[i + 1].id, type: "series-next", weight: 1 })
-    }
   }
 
   return { hubNodes, propertyEdges }
