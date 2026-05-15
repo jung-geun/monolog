@@ -21,7 +21,7 @@ import { select } from "d3-selection"
 import { zoom, zoomIdentity, type ZoomBehavior } from "d3-zoom"
 import useNotionGraphQuery from "src/hooks/useNotionGraphQuery"
 import { useRegisterChrome } from "src/layouts/RootLayout/EditorChrome/RouteChromeContext"
-import { buildGraph, GraphNode, SERIES_COLOR, TAG_COLOR } from "src/libs/utils/graph"
+import { GraphNode, SERIES_COLOR, TAG_COLOR } from "src/libs/utils/graph"
 
 const W = 720
 const H = 520
@@ -31,8 +31,9 @@ type SimLink = SimulationLinkDatum<GraphNode & SimulationNodeDatum> & { weight: 
 const Graph = () => {
   const graph = useNotionGraphQuery()
 
+  // nodes/edges/cats are pre-computed server-side; wrap in useMemo to stabilize references.
   const { nodes, edges, cats } = useMemo(
-    () => buildGraph(graph, W, H),
+    () => ({ nodes: graph.nodes, edges: graph.edges, cats: graph.cats }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [graph.generatedAt]
   )

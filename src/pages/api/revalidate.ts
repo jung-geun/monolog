@@ -4,6 +4,7 @@ import { TPost } from "../../types"
 import { cacheStore } from "src/libs/cache"
 import { verifyRevalidateToken } from "src/libs/utils/auth/verifyToken"
 import { getNotionGraph } from "src/apis/notion-client/getNotionGraph"
+import { getBuiltGraph } from "src/apis/notion-client/getBuiltGraph"
 
 export default async function handler(
   req: NextApiRequest,
@@ -21,6 +22,7 @@ export default async function handler(
       await cacheStore.clear()
       const posts = await getPosts({ bypassCache: true })
       await getNotionGraph({ bypassCache: true })
+      await getBuiltGraph({ bypassCache: true })
       const revalidateRequests = [
         res.revalidate('/'),
         res.revalidate('/graph'),
