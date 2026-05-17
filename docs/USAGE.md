@@ -103,7 +103,7 @@ yarn dev            # or: npm run dev
 |---|---|---|
 | `REDIS_URL` | — | Redis 연결 URL. 설정 시 L2 캐시 활성 (cold start 성능 향상). 예: `redis://localhost:6379`, `rediss://user:pass@host:6380` |
 | `CACHE_NAMESPACE` | `monolog` | Redis 키 prefix. 동일 Redis를 staging·preview 등 여러 배포가 공유할 때 충돌 방지 |
-| `TOKEN_FOR_REVALIDATE` | — | `/api/revalidate` · `/api/init` 보호 토큰 |
+| `TOKEN_FOR_REVALIDATE` | — | `/api/revalidate` · `/api/init` · `/api/cron/graph` 보호 토큰. GitHub Actions 워크플로우를 사용한다면 `REVALIDATE_SECRET` secret과 **동일 값**이어야 함 |
 | `REVALIDATE_HOURS` | `6` | ISR 재생성 주기 (시간) |
 | `NEXT_PUBLIC_SITE_URL` | — | 절대 이미지 프록시 URL prefix |
 | `TRUSTED_PROXY_HOPS` | `0` | 앞단 프록시 hop 수 — `0`이면 XFF 무시, `1`이면 Nginx·LB 1단 신뢰 |
@@ -113,13 +113,24 @@ yarn dev            # or: npm run dev
 | `NEXT_PUBLIC_UTTERANCES_REPO` | — | Utterances 댓글 (`user/repo`) |
 | `SLACK_WEBHOOK` | — | image-proxy 실패 Slack 알림 |
 
+### GitHub Actions Secrets (워크플로우 전용)
+
+[`revalidate.yml`](../.github/workflows/revalidate.yml) 워크플로우가 사용하는 GitHub Repository Secrets.
+등록: 저장소 → **Settings → Secrets and variables → Actions → New repository secret**
+
+| Secret | 필수 | 설명 |
+|---|---|---|
+| `REVALIDATE_URL` | 필수 | 운영 사이트 base URL (예: `https://your-site.com`, 끝 `/` 없음) |
+| `REVALIDATE_SECRET` | 필수 | 컨테이너의 `TOKEN_FOR_REVALIDATE`와 **동일 값** |
+| `DISCORD_WEBHOOK` | 선택 | 성공/실패 Discord 알림 webhook URL |
+
 ---
 
 ## API 엔드포인트
 
 | Path | 인증 | 용도 |
 |---|---|---|
-| `GET /api/revalidate?secret=...&path=...` | `TOKEN_FOR_REVALIDATE` | ISR 재검증 + 캐시 wipe |
+| `GET /api/revalidate?secret=...&path=...` | `TOKEN_FOR_REVALIDATE` | ISR 재검증 + 캐시 wipe. `path` 생략 시 전체 페이지를 background 처리하고 즉시 `{"revalidated":true,"status":"processing"}` 반환 |
 | `GET /api/init?secret=...` | `TOKEN_FOR_REVALIDATE` | 컨테이너 시작 시 ISR 워밍 |
 | `GET /api/image-proxy?id=<uuid>&kind=s3` | 없음 (allow-list) | Notion S3 이미지 프록시 (안정 URL) |
 | `GET /api/image-proxy?url=<url>` | 없음 | 레거시 image-proxy (구 ISR 캐시 호환) |
