@@ -103,7 +103,7 @@ yarn dev            # or: npm run dev
 |---|---|---|
 | `REDIS_URL` | — | Redis 연결 URL. 설정 시 L2 캐시 활성 (cold start 성능 향상). 예: `redis://localhost:6379`, `rediss://user:pass@host:6380` |
 | `CACHE_NAMESPACE` | `monolog` | Redis 키 prefix. 동일 Redis를 staging·preview 등 여러 배포가 공유할 때 충돌 방지 |
-| `TOKEN_FOR_REVALIDATE` | — | `/api/revalidate` · `/api/init` · `/api/cron/graph` 보호 토큰. GitHub Actions 워크플로우를 사용한다면 `REVALIDATE_SECRET` secret과 **동일 값**이어야 함 |
+| `REVALIDATE_SECRET` | — | `/api/revalidate` · `/api/init` · `/api/cron/graph` 보호 토큰. GitHub Actions의 `REVALIDATE_SECRET` secret과 **동일 이름·동일 값**. (구 이름 `TOKEN_FOR_REVALIDATE`도 deprecated alias로 호환) |
 | `REVALIDATE_HOURS` | `6` | ISR 재생성 주기 (시간) |
 | `NEXT_PUBLIC_SITE_URL` | — | 절대 이미지 프록시 URL prefix |
 | `TRUSTED_PROXY_HOPS` | `0` | 앞단 프록시 hop 수 — `0`이면 XFF 무시, `1`이면 Nginx·LB 1단 신뢰 |
@@ -121,7 +121,7 @@ yarn dev            # or: npm run dev
 | Secret | 필수 | 설명 |
 |---|---|---|
 | `REVALIDATE_URL` | 필수 | 운영 사이트 base URL (예: `https://your-site.com`, 끝 `/` 없음) |
-| `REVALIDATE_SECRET` | 필수 | 컨테이너의 `TOKEN_FOR_REVALIDATE`와 **동일 값** |
+| `REVALIDATE_SECRET` | 필수 | 컨테이너의 `REVALIDATE_SECRET` 환경변수와 동일 값 |
 | `DISCORD_WEBHOOK` | 선택 | 성공/실패 Discord 알림 webhook URL |
 
 ---
@@ -130,8 +130,8 @@ yarn dev            # or: npm run dev
 
 | Path | 인증 | 용도 |
 |---|---|---|
-| `GET /api/revalidate?secret=...&path=...` | `TOKEN_FOR_REVALIDATE` | ISR 재검증 + 캐시 wipe. `path` 생략 시 전체 페이지를 background 처리하고 즉시 `{"revalidated":true,"status":"processing"}` 반환 |
-| `GET /api/init?secret=...` | `TOKEN_FOR_REVALIDATE` | 컨테이너 시작 시 ISR 워밍 |
+| `GET /api/revalidate?secret=...&path=...` | `REVALIDATE_SECRET` | ISR 재검증 + 캐시 wipe. `path` 생략 시 전체 페이지를 background 처리하고 즉시 `{"revalidated":true,"status":"processing"}` 반환 |
+| `GET /api/init?secret=...` | `REVALIDATE_SECRET` | 컨테이너 시작 시 ISR 워밍 |
 | `GET /api/image-proxy?id=<uuid>&kind=s3` | 없음 (allow-list) | Notion S3 이미지 프록시 (안정 URL) |
 | `GET /api/image-proxy?url=<url>` | 없음 | 레거시 image-proxy (구 ISR 캐시 호환) |
 | `GET /api/refresh-image?blockId=...` | 없음 | 단일 블록 이미지 URL 재발급 |
@@ -142,7 +142,7 @@ yarn dev            # or: npm run dev
 
 ```bash
 # 수동 전체 ISR 갱신
-curl "https://your-site.com/api/revalidate?secret=$TOKEN_FOR_REVALIDATE"
+curl "https://your-site.com/api/revalidate?secret=$REVALIDATE_SECRET"
 ```
 
 ---

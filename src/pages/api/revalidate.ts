@@ -25,6 +25,8 @@ export default async function handler(
     res.json({ revalidated: true, status: 'processing' })
 
     setImmediate(async () => {
+      const startedAt = Date.now()
+      console.info('[revalidate] background started')
       try {
         await cacheStore.clear()
         const posts = await getPosts({ bypassCache: true })
@@ -42,15 +44,16 @@ export default async function handler(
         try {
           await fetch(`${proto}://${host}/sitemap.xml`)
         } catch (sitemapErr) {
-          console.error('Failed to warm sitemap cache:', sitemapErr)
+          console.error('[revalidate] failed to warm sitemap cache:', sitemapErr)
         }
         try {
           await fetch(`${proto}://${host}/graphs/notion-graph.json`)
         } catch (graphErr) {
-          console.error('Failed to warm notion-graph cache:', graphErr)
+          console.error('[revalidate] failed to warm notion-graph cache:', graphErr)
         }
+        console.info('[revalidate] background completed', { posts: posts.length, durationMs: Date.now() - startedAt })
       } catch (err) {
-        console.error('Background revalidate failed:', err)
+        console.error('[revalidate] background failed:', err)
       }
     })
   } catch (err) {

@@ -26,7 +26,7 @@ jobs:
           if [ -z "${REVALIDATE_URL:-}" ] || [ -z "${REVALIDATE_SECRET:-}" ]; then
             echo "ERROR: secrets REVALIDATE_URL and REVALIDATE_SECRET are required"
             echo "  REVALIDATE_URL  — site base URL, e.g. https://your-site.com"
-            echo "  REVALIDATE_SECRET — must match TOKEN_FOR_REVALIDATE in the container"
+            echo "  REVALIDATE_SECRET — must match REVALIDATE_SECRET env var in the container"
             exit 1
           fi
 

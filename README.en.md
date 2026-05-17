@@ -95,7 +95,7 @@ You can run it locally using Docker. Docker Compose is recommended for easier ma
 | `NOTION_DATASOURCE_ID` | Required | Notion data_source ID |
 | `NEXT_PUBLIC_GOOGLE_MEASUREMENT_ID` | Optional | For Google Analytics plugin |
 | `REVALIDATE_HOURS` | Optional | Revalidation interval in hours (default: 1) |
-| `TOKEN_FOR_REVALIDATE` | Optional | Random string for revalidation API security |
+| `REVALIDATE_SECRET` | Optional | Token for revalidation API security — must match the `REVALIDATE_SECRET` GitHub Actions secret |
 | `REDIS_URL` | Optional | Redis connection URL for L2 cache (e.g. `redis://localhost:6379`) |
 
 ### Create Environment Variable File
@@ -107,7 +107,7 @@ NOTION_TOKEN=your_notion_token
 NOTION_DATASOURCE_ID=your_notion_datasource_id
 NEXT_PUBLIC_GOOGLE_MEASUREMENT_ID=your_measurement_id  # Optional
 REVALIDATE_HOURS=1
-TOKEN_FOR_REVALIDATE=your_random_string  # Generate a secure random string
+REVALIDATE_SECRET=your_random_string     # Generate a secure random string
 REDIS_URL=redis://localhost:6379         # Optional — Redis connection for L2 cache
 ```
 

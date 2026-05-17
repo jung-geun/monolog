@@ -17,7 +17,9 @@ services:
       - NOTION_DATASOURCE_ID=COPY_YOUR_NOTION_DATASOURCE_ID_HERE
       - NEXT_PUBLIC_GOOGLE_MEASUREMENT_ID=COPY_YOUR_GOOGLE_MEASUREMENT_ID_HERE
       - REVALIDATE_HOURS=1
-      - TOKEN_FOR_REVALIDATE=GENERATE_RANDOM_STRING_AND_PUT_HERE
+      # Must match the REVALIDATE_SECRET GitHub Actions secret
+      - REVALIDATE_SECRET=GENERATE_RANDOM_STRING_AND_PUT_HERE
+      # Legacy alias (deprecated — will be removed in a future release): TOKEN_FOR_REVALIDATE
       - REDIS_URL=redis://redis:6379
     depends_on:
       redis:
