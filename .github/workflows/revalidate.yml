@@ -2,7 +2,7 @@ name: Revalidate site pages
 
 on:
   schedule:
-    # Runs at minute 0 every 12th hour (UTC) -> 00:00 and 12:00 UTC daily
+    # Runs at 01:00 UTC every 3rd day of the week (Sun/Wed/Sat)
     - cron: "0 1 * * 0/3"
   workflow_dispatch: {}
 
