@@ -101,6 +101,10 @@ You can run it locally using Docker. Docker Compose is recommended for easier ma
 ### Create Environment Variable File
 
 First, create a `.env` file:
+| `ANTHROPIC_API_KEY` | Optional | Enables ontology entity/relation extraction for `/ontology`, graph semantic overlay, and RightRail `ai · similar` |
+| `OPENAI_API_KEY` | Optional | Enables `text-embedding-3-small` embeddings stored in Qdrant for vector search |
+| `QDRANT_URL` | Optional | Recommended for persisted graph snapshots; also used by ontology/vector search. `docker-compose.yml` sets `http://qdrant:6333` for the Compose `blog` service. If missing or unreachable, graph reads fall back to rebuild/cache without persisted snapshots. |
+| `QDRANT_API_KEY` | Optional | API key for authenticated remote Qdrant; leave empty for local/self-hosted Qdrant |
 
 ```bash
 NOTION_TOKEN=your_notion_token
@@ -114,29 +118,42 @@ REDIS_URL=redis://localhost:6379         # Optional — Redis connection for L2 
 ### Using docker-compose (Recommended)
 
 Docker Compose provides an easy way to manage the container with automatic restart, health checks, and log persistence.
+Optional ontology/vector search variables:
 
 ```bash
-# Run in background
-docker-compose up -d
+# Enables /ontology, Graph semantic overlay, RightRail ai · similar,
+# and persisted graph snapshots in Qdrant
+ANTHROPIC_API_KEY=your_anthropic_api_key
+OPENAI_API_KEY=your_openai_api_key
+QDRANT_URL=http://localhost:6333
+QDRANT_API_KEY=
+```
+
+```bash
+# Normal blog stack: blog + redis + qdrant
+docker compose up -d
 
 # View logs
-docker-compose logs -f
+docker compose logs -f
 
 # Stop
-docker-compose down
+docker compose down
 
-# Rebuild and restart (after configuration changes)
-docker-compose up -d --build
+# Rebuild and restart the stack
+docker compose up -d --build
 ```
 
 The docker-compose configuration includes:
 - Automatic restart unless manually stopped
-- Health check every 30 seconds
+- Health checks for blog, Redis, and Qdrant
 - Log persistence via volume (`logs-data`)
 - Port mapping to 3000
 
 ### Running Docker Directly
 
+- Image cache persistence via volume (`image-cache`)
+- Redis L2 cache persistence via volume (`redis-data`)
+- Qdrant storage via volume (`qdrant-storage`), powering persisted graph snapshots plus `/ontology`, graph semantic overlay, and RightRail `ai · similar`
 ```bash
 # Run latest version
 docker run -d -p 3000:3000 --env-file .env --restart unless-stopped ghcr.io/jung-geun/monolog:latest

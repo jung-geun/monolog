@@ -1,10 +1,17 @@
 import type { GetServerSideProps } from "next"
-import { getBuiltGraph } from "src/apis/notion-client/getBuiltGraph"
+import { getPosts } from "src/apis/notion-client/getPosts"
+import {
+  readGraphSnapshotFromQdrant,
+  refreshGraphSnapshotInQdrant,
+} from "src/apis/notion-client/graphSnapshot"
 
 const S_MAX = 86400 // 1 day
 
 export const getServerSideProps: GetServerSideProps = async ({ res }) => {
-  const graph = await getBuiltGraph()
+  const posts = await getPosts()
+  const graph =
+    (await readGraphSnapshotFromQdrant(posts)) ??
+    (await refreshGraphSnapshotInQdrant({ posts })).builtGraph
 
   res.setHeader("Content-Type", "application/json; charset=utf-8")
   res.setHeader(

@@ -12,7 +12,7 @@ monolog의 주요 기능 상세. 프로젝트 개요와 핵심 차별점은 [`..
 | **TitleBar** | macOS traffic-light + `pieroot.log — {filename}` + git 브랜치 |
 | **ActivityBar** | explorer / search / graph / commands / theme toggle (44px) |
 | **FileTree** | `posts/` · `categories/` · `series/` · `projects/` · `drafts/` · `public/` 트리 (240px, 토글 슬라이드). 항목 hover 시 글 메타(제목 · 카테고리 · 날짜 · summary) 프리뷰 카드 |
-| **TabBar** | 라우트별 탭 (`README.md`, `categories/<name>.md`, `series/<name>.md`, `graph.json`, …). 프리뷰 탭, `⌘+Shift+W` 닫기 |
+| **TabBar** | 라우트별 탭 (`README.md`, `categories/<name>.md`, `series/<name>.md`, `graph.md`, …). 프리뷰 탭, `⌘+Shift+W` 닫기 |
 | **StatusBar** | `ssh pieroot@log` + branch · 동기화 · entries · encoding · syntax (22px) |
 | **LineNumberGutter** | 본문 좌측 라인 넘버 — **콘텐츠 길이에 맞춰 자동 확장/축소** (`ResizeObserver` + `position:absolute` 라인 컨테이너로 자기 측정 루프 회피) |
 | **CommandPalette** | `⌘K` / `Ctrl+K` — Actions · Posts · Tags · Categories 검색 이동 |
@@ -71,11 +71,11 @@ About 라우트는 다음 위젯들을 한 화면에 묶어 보여줍니다.
 ## Graph view (`/graph`)
 포스트가 카테고리별 군집으로 자연스럽게 응집되는 옵시디언 스타일 노드 그래프.
 
-### 데이터 — 페이지별 해시 기반 캐시
-- 페이지 변경 자동 감지 — `notionGraph:v2:{sha1(sorted pageId:lastEditedTime)}` 키
-- 어떤 페이지든 `last_edited_time`이 바뀌면 새 키 → 자동 재빌드. 페이지 추가/삭제도 시그니처 변경으로 감지.
-- 빌드 시 storm 회피 — `getStaticProps`에서 그래프 prefetch 제거, `/graph` 페이지는 빈 SSR로 빠르게 prerender, 클라이언트가 `/graphs/notion-graph.json`에서 fetch
-- `next start` 후 백그라운드 워밍 — `instrumentation.ts`가 부팅 500ms 뒤 `getNotionGraph()`를 1회 호출해 L1/L2 캐시 채움 (`NEXT_GRAPH_WARM=0`으로 opt-out)
+### 데이터 — 페이지별 해시 기반 캐시 + Qdrant 스냅샷
+- 현재 포스트 목록에서 `sha1(sorted pageId:lastEditedTime)` 해시를 계산해 재빌드 필요 여부를 판단
+- 해시가 일치하는 Qdrant `post_graph_snapshots` 스냅샷이 있으면 그 `BuiltGraph`를 먼저 재사용하고, 없거나 stale이면 raw/built graph를 다시 생성
+- `/graphs/notion-graph.json`는 그대로 JSON fetch 엔드포인트이며, 클라이언트 `/graph` 페이지는 여기서 그래프를 가져옴
+- `instrumentation.ts`가 부팅 500ms 뒤 `refreshGraphSnapshotInQdrant()`를 호출해 캐시와 persisted snapshot을 함께 워밍 (`NEXT_GRAPH_WARM=0`으로 opt-out)
 
 ### 엣지 종류
 한 페어가 여러 타입으로 연결될 수 있고, CONNECTED 패널에서는 자동 머지되어 1줄로 표시됩니다.

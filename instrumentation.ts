@@ -7,13 +7,13 @@ export async function register() {
   // Graph build can take up to 25s on large workspaces; we don't want to block startup.
   setTimeout(async () => {
     try {
-      const { getNotionGraph } = await import("./src/apis/notion-client/getNotionGraph")
+      // Dynamic import required: this file is loaded in non-Node/build contexts where graphSnapshot's Node-only dependencies must stay behind the runtime guards.
+      const { refreshGraphSnapshotInQdrant } = await import("./src/apis/notion-client/graphSnapshot")
       const t0 = Date.now()
-      const graph = await getNotionGraph()
+      const { builtGraph } = await refreshGraphSnapshotInQdrant()
       console.log(
         `[instrumentation] graph warmed in ${Date.now() - t0}ms` +
-          ` (nodes=${graph.nodes.length}, edges=${graph.edges.length}` +
-          `${graph.partial ? ", partial" : ""})`
+          ` (nodes=${builtGraph.nodes.length}, edges=${builtGraph.edges.length}, generatedAt=${builtGraph.generatedAt})`
       )
     } catch (err) {
       console.error("[instrumentation] graph warm failed:", err)

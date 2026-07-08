@@ -1,5 +1,5 @@
-import { NextApiRequest, NextApiResponse } from "next"
-import { getBuiltGraph } from "src/apis/notion-client/getBuiltGraph"
+import type { NextApiRequest, NextApiResponse } from "next"
+import { refreshGraphSnapshotInQdrant } from "src/apis/notion-client/graphSnapshot"
 import { verifyRevalidateToken } from "src/libs/utils/auth/verifyToken"
 
 // Called daily by an external cron service (e.g. crontab, GitHub Actions).
@@ -9,8 +9,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (!verifyRevalidateToken(req)) return res.status(401).json({ message: "Invalid token" })
 
   try {
-    await getBuiltGraph({ bypassCache: true })
-    res.json({ ok: true, revalidatedAt: new Date().toISOString() })
+    const { builtGraph } = await refreshGraphSnapshotInQdrant({ bypassCache: true })
+    res.json({
+      ok: true,
+      nodes: builtGraph.nodes.length,
+      edges: builtGraph.edges.length,
+      revalidatedAt: new Date().toISOString(),
+    })
   } catch (err) {
     console.error("[cron/graph]", err)
     res.status(500).json({ ok: false })

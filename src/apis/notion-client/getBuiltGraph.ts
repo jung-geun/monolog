@@ -1,4 +1,3 @@
-import { createHash } from "crypto"
 import {
   forceSimulation,
   forceLink,
@@ -9,9 +8,12 @@ import {
   forceY,
 } from "d3-force"
 import { cacheStore, keys } from "src/libs/cache"
+import { buildGraph } from "src/libs/utils/graph"
+import type { GraphNode, GraphEdge } from "src/libs/utils/graph"
+import type { NotionGraph } from "src/types/notionGraph"
+import { computePostsGraphHash } from "./graphHash"
 import { getPosts } from "./getPosts"
 import { getNotionGraph } from "./getNotionGraph"
-import { buildGraph, GraphNode, GraphEdge } from "src/libs/utils/graph"
 
 export type BuiltGraph = {
   nodes: GraphNode[]
@@ -25,10 +27,6 @@ const W = 720
 const H = 520
 const BUILT_GRAPH_TTL_MS = 24 * 60 * 60 * 1000
 
-function computePostsHash(posts: { id: string; lastEditedTime?: string; createdTime: string }[]) {
-  const sig = posts.map((p) => `${p.id}:${p.lastEditedTime ?? p.createdTime}`).sort().join("|")
-  return createHash("sha1").update(sig).digest("hex").slice(0, 16)
-}
 
 // Run D3 force simulation synchronously to convergence (server-side, no DOM needed).
 // alphaDecay=0.03 converges at ~222 ticks; 300 gives comfortable headroom.
@@ -53,25 +51,32 @@ function runSimulationSync(nodes: GraphNode[], edges: GraphEdge[]): void {
     .tick(300)
 }
 
-export async function getBuiltGraph(options?: { bypassCache?: boolean }): Promise<BuiltGraph> {
+export async function getBuiltGraph(options?: {
+  bypassCache?: boolean
+  notionGraph?: NotionGraph
+}): Promise<BuiltGraph> {
   const posts = await getPosts()
-  const hash = computePostsHash(posts)
+  const hash = computePostsGraphHash(posts)
   const key = keys.builtGraph(hash)
 
   const build = async (): Promise<BuiltGraph> => {
-    const notionGraph = await getNotionGraph(
-      options?.bypassCache ? { bypassCache: true } : undefined
-    )
+    const notionGraph =
+      options?.notionGraph ??
+      (await getNotionGraph(options?.bypassCache ? { bypassCache: true } : undefined))
+    builtFromPartial = notionGraph.partial === true
     const { nodes, edges, cats, catCenters } = buildGraph(notionGraph, W, H)
     runSimulationSync(nodes, edges)
     return { nodes, edges, cats, catCenters, generatedAt: notionGraph.generatedAt }
   }
 
-  if (options?.bypassCache) {
+  if (options?.bypassCache === true) {
     const fresh = await build()
-    await cacheStore.set(key, fresh, BUILT_GRAPH_TTL_MS)
+    if (!builtFromPartial) await cacheStore.set(key, fresh, BUILT_GRAPH_TTL_MS)
     return fresh
   }
 
-  return cacheStore.getOrSet(key, BUILT_GRAPH_TTL_MS, build)
+  return cacheStore.getOrSet(key, BUILT_GRAPH_TTL_MS, build, {
+    isCacheable: () => !builtFromPartial,
+  })
 }
+  let builtFromPartial = false

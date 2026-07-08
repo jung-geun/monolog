@@ -146,7 +146,7 @@ const Graph = () => {
       .join(" · ")
     return ["graph", `${nodes.length} nodes`, `${edges.length} edges${typeStr ? ` (${typeStr})` : ""}`, "force simulation"]
   }, [nodes.length, edges])
-  useRegisterChrome("graph.json", statusItems)
+  useRegisterChrome("graph.md", statusItems)
 
   // DOM refs for direct coordinate updates during simulation tick
   const circleRefs = useRef<(SVGCircleElement | null)[]>([])

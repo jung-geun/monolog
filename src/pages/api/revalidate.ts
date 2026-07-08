@@ -1,11 +1,11 @@
-import { NextApiRequest, NextApiResponse } from "next"
+import type { NextApiRequest, NextApiResponse } from "next"
 import { getPosts } from "../../apis"
-import { TPost } from "../../types"
+import type { TPost } from "../../types"
+import { getBuiltGraph } from "src/apis/notion-client/getBuiltGraph"
+import { getNotionGraph } from "src/apis/notion-client/getNotionGraph"
+import { refreshGraphSnapshotInQdrant } from "src/apis/notion-client/graphSnapshot"
 import { cacheStore } from "src/libs/cache"
 import { verifyRevalidateToken } from "src/libs/utils/auth/verifyToken"
-import { getNotionGraph } from "src/apis/notion-client/getNotionGraph"
-import { getBuiltGraph } from "src/apis/notion-client/getBuiltGraph"
-
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
@@ -30,8 +30,14 @@ export default async function handler(
       try {
         await cacheStore.clear()
         const posts = await getPosts({ bypassCache: true })
-        await getNotionGraph({ bypassCache: true })
-        await getBuiltGraph({ bypassCache: true })
+        const notionGraph = await getNotionGraph({ bypassCache: true })
+        const builtGraph = await getBuiltGraph({ bypassCache: true, notionGraph })
+        await refreshGraphSnapshotInQdrant({
+          posts,
+          notionGraph,
+          builtGraph,
+          bypassCache: true,
+        })
         const revalidateRequests = [
           res.revalidate('/'),
           res.revalidate('/graph'),
