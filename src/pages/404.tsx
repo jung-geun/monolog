@@ -1,31 +1,29 @@
-import { CONFIG } from "../../site.config"
-import { NextPageWithLayout, TPosts, TTags } from "../types"
-import CustomError from "../routes/Error"
+import type { NextPageWithLayout } from "src/types"
 import MetaConfig from "src/components/MetaConfig"
+import { CONFIG } from "site.config"
 
-type Props = {
-  tags: TTags
-  posts: TPosts
-}
-
-const NotFoundPage: NextPageWithLayout<Props> = () => {
-  return <CustomError />
-}
-
-NotFoundPage.getLayout = (page) => {
-  return (
-    <>
-      <MetaConfig
-        {...{
-          title: CONFIG.blog.title,
-          description: CONFIG.blog.description,
-          type: "website",
-          url: CONFIG.link,
-        }}
-      />
-      {page}
-    </>
-  )
-}
+const NotFoundPage: NextPageWithLayout = () => (
+  <>
+    <MetaConfig
+      title={`404 — ${CONFIG.blog.title}`}
+      description="Page not found"
+      type="website"
+      url={`${CONFIG.link}/404`}
+    />
+    <main
+      style={{
+        minHeight: "100%",
+        display: "grid",
+        placeItems: "center",
+        padding: "48px 24px",
+      }}
+    >
+      <div style={{ textAlign: "center" }}>
+        <h1 style={{ marginBottom: 12, fontSize: 28 }}>404</h1>
+        <p>Page not found.</p>
+      </div>
+    </main>
+  </>
+)
 
 export default NotFoundPage
