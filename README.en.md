@@ -69,7 +69,7 @@ When Pull Requests are created:
 1. Click ⭐ Star on this repository.
 2. [Fork](https://github.com/jung-geun/monolog/fork) to your profile.
 3. Duplicate the [Notion template](https://pieroot.notion.site/307067c015d080d987eadd99c8369f92?v=307067c015d0817a87a8000c109eb446&source=copy_link) and enable "Share to web".
-4. Copy the web link and note the Notion Page ID. Link format: `[username.notion.site/NOTION_PAGE_ID?v=VERSION_ID]`
+4. Copy the DB IDs for the required databases in UUID format and collect each DB's `data_source` ID (see API docs for `data_sources[0].id`).
 5. Clone the forked repository and customize `site.config.js` as desired.
 6. Choose one of the deployment methods below.
 
@@ -77,7 +77,11 @@ When Pull Requests are created:
 
 | Variable Name | Required | Description |
 |---------------|----------|-------------|
-| `NOTION_PAGE_ID` | Required | Notion page ID extracted from "Share to web" URL |
+| `NOTION_TOKEN` | Required | Notion integration token |
+| `NOTION_DATASOURCE_ID` | Required | Notion datasource ID for posts DB (UUID) |
+| `NOTION_COMMENTS_DATASOURCE_ID` | Optional | `data_source` ID for comments DB |
+| `COMMENT_HASH_SALT` | Optional | Salt for anonymous comment identity (`openssl rand -hex 32`) |
+| `REVALIDATE_SECRET` | Optional | Token used by `/api/revalidate`, `/api/init`, `/api/cron/graph` |
 | `NEXT_PUBLIC_GOOGLE_MEASUREMENT_ID` | Optional | For Google Analytics plugin |
 | `NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION` | Optional | For Google Search Console plugin |
 | `NEXT_PUBLIC_NAVER_SITE_VERIFICATION` | Optional | For Naver Search Advisor plugin |
@@ -97,14 +101,14 @@ You can run it locally using Docker. Docker Compose is recommended for easier ma
 | `REVALIDATE_HOURS` | Optional | Revalidation interval in hours (default: 1) |
 | `REVALIDATE_SECRET` | Optional | Token for revalidation API security — must match the `REVALIDATE_SECRET` GitHub Actions secret |
 | `REDIS_URL` | Optional | Redis connection URL for L2 cache (e.g. `redis://localhost:6379`) |
-
-### Create Environment Variable File
-
-First, create a `.env` file:
 | `ANTHROPIC_API_KEY` | Optional | Enables ontology entity/relation extraction for `/ontology`, graph semantic overlay, and RightRail `ai · similar` |
 | `OPENAI_API_KEY` | Optional | Enables `text-embedding-3-small` embeddings stored in Qdrant for vector search |
 | `QDRANT_URL` | Optional | Recommended for persisted graph snapshots; also used by ontology/vector search. `docker-compose.yml` sets `http://qdrant:6333` for the Compose `blog` service. If missing or unreachable, graph reads fall back to rebuild/cache without persisted snapshots. |
 | `QDRANT_API_KEY` | Optional | API key for authenticated remote Qdrant; leave empty for local/self-hosted Qdrant |
+
+### Create Environment Variable File
+
+First, create a `.env` file:
 
 ```bash
 NOTION_TOKEN=your_notion_token
@@ -114,10 +118,6 @@ REVALIDATE_HOURS=1
 REVALIDATE_SECRET=your_random_string     # Generate a secure random string
 REDIS_URL=redis://localhost:6379         # Optional — Redis connection for L2 cache
 ```
-
-### Using docker-compose (Recommended)
-
-Docker Compose provides an easy way to manage the container with automatic restart, health checks, and log persistence.
 Optional ontology/vector search variables:
 
 ```bash
@@ -128,6 +128,10 @@ OPENAI_API_KEY=your_openai_api_key
 QDRANT_URL=http://localhost:6333
 QDRANT_API_KEY=
 ```
+
+### Using docker-compose (Recommended)
+
+Docker Compose provides an easy way to manage the container with automatic restart, health checks, and log persistence.
 
 ```bash
 # Normal blog stack: blog + redis + qdrant
@@ -147,13 +151,13 @@ The docker-compose configuration includes:
 - Automatic restart unless manually stopped
 - Health checks for blog, Redis, and Qdrant
 - Log persistence via volume (`logs-data`)
+- Image cache persistence via volume (`image-cache`)
+- Redis L2 cache persistence via volume (`redis-data`)
+- Qdrant storage via volume (`qdrant-storage`), powering persisted graph snapshots plus `/ontology`, graph semantic overlay, and RightRail `ai · similar`
 - Port mapping to 3000
 
 ### Running Docker Directly
 
-- Image cache persistence via volume (`image-cache`)
-- Redis L2 cache persistence via volume (`redis-data`)
-- Qdrant storage via volume (`qdrant-storage`), powering persisted graph snapshots plus `/ontology`, graph semantic overlay, and RightRail `ai · similar`
 ```bash
 # Run latest version
 docker run -d -p 3000:3000 --env-file .env --restart unless-stopped ghcr.io/jung-geun/monolog:latest

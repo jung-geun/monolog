@@ -22,7 +22,8 @@ To set up a development environment, please follow these steps:
 3. Create a `.env` file in the root directory and add the following environment variables.
 
    ```sh
-   NOTION_PAGE_ID = "YOUR_NOTION_PAGE_ID"
+   NOTION_TOKEN="YOUR_NOTION_TOKEN"
+   NOTION_DATASOURCE_ID="YOUR_NOTION_DATASOURCE_ID"
    ```
 
 4. Start the development Server.
@@ -33,16 +34,19 @@ To set up a development environment, please follow these steps:
 
 ### Use Dockerfile
 1. Run setup command
+
    ```sh
-   make setup NOTION_PAGE_ID='YOUR_NOTION_PAGE_ID'
+   make setup NOTION_TOKEN='YOUR_NOTION_TOKEN' NOTION_DATASOURCE_ID='YOUR_NOTION_DATASOURCE_ID' REVALIDATE_SECRET='YOUR_REVALIDATE_SECRET'
    ```
 
 2. Start the development Server.
+
    ```sh
    make dev
    ```
 
 3. Open `localhost:8001` in your browser.
+
 
 ### Commit message rules
 

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from "react"
 import Link from "next/link"
-import { useRouter } from "next/router"
+import { useRouter } from "next/compat/router"
 import styled from "@emotion/styled"
 import usePostsQuery from "src/hooks/usePostsQuery"
 import { useCategoriesQuery } from "src/hooks/useCategoriesQuery"
@@ -162,7 +162,7 @@ const FileTree = () => {
   const posts = usePostsQuery()
   const categories = useCategoriesQuery()
   const series = useSeriesQuery()
-  const activeSlug = router.query.slug as string | undefined
+  const activeSlug = typeof router?.query.slug === "string" ? router.query.slug : undefined
   const { isFileTreeOpen, expanded, toggleSection } = useRouteChrome()
 
   const recentPosts = posts.slice(0, 15)
@@ -322,13 +322,13 @@ const FileTree = () => {
       <div className="spacer" />
       <Link
         href="/"
-        className={`file-item${router.pathname === "/" ? " active" : ""}`}
+        className={`file-item${router?.pathname === "/" ? " active" : ""}`}
       >
         <span className="file-name">  README.md</span>
       </Link>
       <Link
         href="/about"
-        className={`file-item${router.asPath === "/about" ? " active" : ""}`}
+        className={`file-item${router?.asPath === "/about" ? " active" : ""}`}
       >
         <span className="file-name">  about.md</span>
       </Link>

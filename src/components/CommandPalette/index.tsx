@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useMemo, type ReactNode } from "react"
-import { useRouter } from "next/router"
+import { useRouter } from "next/compat/router"
 import styled, { CSSObject } from "@emotion/styled"
 import { keyframes } from "@emotion/react"
 import useCommandPalette from "src/hooks/useCommandPalette"
@@ -125,7 +125,7 @@ const CommandPalette = () => {
     closePalette()
     if (cmd.action) {
       cmd.action()
-    } else if (cmd.href) {
+    } else if (cmd.href && router) {
       router.push(cmd.href)
     }
   }

@@ -37,7 +37,7 @@ else
 
     while [ $INIT_COUNT -lt $INIT_RETRIES ]; do
       INIT_RESPONSE=$(curl -s -w "\n%{http_code}" \
-        -H "Authorization: Bearer ${TOKEN_FOR_REVALIDATE}" \
+        -H "Authorization: Bearer ${REVALIDATE_SECRET:-${TOKEN_FOR_REVALIDATE}}" \
         "$INIT_URL" 2>&1)
       HTTP_CODE=$(echo "$INIT_RESPONSE" | tail -n 1)
       BODY=$(echo "$INIT_RESPONSE" | head -n -1)

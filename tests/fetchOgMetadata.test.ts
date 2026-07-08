@@ -4,6 +4,7 @@
  * SSRF guard + OG parser unit tests for fetchOgMetadata.
  */
 
+import * as cacheModule from "src/libs/cache"
 import { parseOgFromHtml, getOgMetadata } from "src/libs/utils/notion/fetchOgMetadata"
 
 describe("parseOgFromHtml", () => {
@@ -91,14 +92,38 @@ function makeHtmlResponse(html = HTML_WITH_OG): Response {
   })
 }
 
-jest.mock("src/libs/cache", () => ({
-  cacheStore: {
-    getOrSet: (_key: string, _ttl: number, fetcher: () => Promise<unknown>) => fetcher(),
-    set: jest.fn(),
-    get: jest.fn().mockResolvedValue(null),
-  },
-  keys: { og: (url: string) => `og:test:${url}` },
-}))
+const mockedCache = cacheModule as {
+  cacheStore: typeof cacheModule.cacheStore
+  keys: typeof cacheModule.keys
+  __backend?: Map<string, any>
+}
+const { cacheStore, keys } = mockedCache
+const getMockCacheBackend = () => mockedCache.__backend ?? new Map<string, any>()
+
+jest.mock("src/libs/cache", () => {
+  const backend = new Map<string, any>()
+  return {
+    cacheStore: {
+      getOrSet: async (_key: string, _ttl: number, fetcher: () => Promise<unknown>, options?: { isCacheable?: (data: unknown) => boolean }) => {
+        if (backend.has(_key)) {
+          return backend.get(_key)
+        }
+        const result = await fetcher()
+        const isCacheable = options?.isCacheable ? options.isCacheable(result) : true
+        if (isCacheable) {
+          backend.set(_key, result)
+        }
+        return result
+      },
+      set: jest.fn((key: string, value: unknown, _ttl?: number) => {
+        backend.set(key, value)
+      }),
+      get: jest.fn(async (key: string) => backend.get(key) ?? null),
+    },
+    keys: { og: (url: string) => `og:test:${url}` },
+    __backend: backend,
+  }
+})
 
 jest.mock("dns", () => ({
   promises: {
@@ -110,6 +135,8 @@ describe("getOgMetadata — redirect handling", () => {
   let fetchMock: jest.Mock
 
   beforeEach(() => {
+    getMockCacheBackend().clear()
+    ;(cacheStore.set as jest.Mock).mockClear()
     fetchMock = jest.fn()
     global.fetch = fetchMock
   })
@@ -147,6 +174,25 @@ describe("getOgMetadata — redirect handling", () => {
     const result = await getOgMetadata("https://example.com/")
     expect(result).toBeNull()
     expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it("caches OG miss and skips fetch on subsequent lookups", async () => {
+    const targetUrl = "https://example.com/missing"
+    const cacheKey = keys.og(targetUrl)
+    fetchMock.mockResolvedValue(makeResponse(500))
+
+    const first = await getOgMetadata(targetUrl)
+    expect(first).toBeNull()
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(fetchMock.mock.calls[0][0]).toBe(targetUrl)
+
+    expect(cacheStore.set).toHaveBeenCalledWith(cacheKey, "__og_miss__", 3600000)
+    expect(getMockCacheBackend().get(cacheKey)).toBe("__og_miss__")
+
+    fetchMock.mockClear()
+    const second = await getOgMetadata(targetUrl)
+    expect(second).toBeNull()
+    expect(fetchMock).toHaveBeenCalledTimes(0)
   })
 
   it("blocks redirect to private IP (SSRF guard)", async () => {

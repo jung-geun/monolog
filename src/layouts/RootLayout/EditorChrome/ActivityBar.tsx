@@ -1,4 +1,4 @@
-import { useRouter } from "next/router"
+import { useRouter } from "next/compat/router"
 import Link from "next/link"
 import styled from "@emotion/styled"
 import useScheme from "src/hooks/useScheme"
@@ -16,6 +16,7 @@ import {
 
 const ActivityBar = () => {
   const router = useRouter()
+  const pathname = router?.pathname
   const [scheme, setScheme] = useScheme()
   const { isFileTreeOpen, toggleFileTree } = useRouteChrome()
 
@@ -37,7 +38,7 @@ const ActivityBar = () => {
 
       <Link
         href="/search"
-        className={`icon-btn${!isFileTreeOpen && router.pathname === "/search" ? " active" : ""}`}
+        className={`icon-btn${!isFileTreeOpen && pathname === "/search" ? " active" : ""}`}
         title="search"
         aria-label="search"
       >
@@ -46,7 +47,7 @@ const ActivityBar = () => {
 
       <Link
         href="/graph"
-        className={`icon-btn${!isFileTreeOpen && router.pathname === "/graph" ? " active" : ""}`}
+        className={`icon-btn${!isFileTreeOpen && pathname === "/graph" ? " active" : ""}`}
         title="graph"
         aria-label="graph"
       >

@@ -7,7 +7,7 @@
 import 'dotenv/config'
 import type { PageObjectResponse, BlockObjectResponse } from '@notionhq/client/build/src/api-endpoints'
 import { getOfficialNotionClient } from 'src/apis/notion-client/notionClient'
-import { summarizeBlockTypes } from 'src/libs/utils/notion/analyzeBlocks'
+import { summarizeBlockTypes } from "src/libs/utils/notion/analyzeBlocks"
 import { getRecordMap } from 'src/apis/notion-client/getRecordMap'
 import { Block } from 'notion-types'
 import { unwrapBlock, getBlockById } from 'src/libs/utils/notion/unwrapBlock'

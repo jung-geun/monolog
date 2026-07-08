@@ -187,9 +187,9 @@ src/layouts/
 
 ```
 src/libs/
+├── cache/                  # 캐시 엔진 인터페이스/백엔드(메모리, Redis, Blob)
 ├── fallbackData.ts         # 폴백 데이터
 ├── gtag.ts                # Google Analytics 유틸리티
-├── notionCache.js         # Notion 캐시 관리
 ├── react-query/           # React Query 설정
 │   └── index.ts
 ├── utils/                 # 유틸리티 함수들
@@ -329,15 +329,25 @@ Next.js Pages → Layout → Routes → Components → Styled Components
 ## 환경 변수 설정
 
 필수 환경 변수:
-- `NOTION_PAGE_ID`: Notion 데이터베이스 페이지 ID
-- `NEXT_PUBLIC_GOOGLE_MEASUREMENT_ID`: Google Analytics ID
-- `NEXT_PUBLIC_UTTERANCES_REPO`: Utterances 레포지토리
+- `NOTION_TOKEN`: Notion Internal Integration 토큰
+- `NOTION_DATASOURCE_ID`: 글 DB의 `data_source` ID (UUID with hyphens)
+- `REVALIDATE_SECRET`: `/api/revalidate`, `/api/init`, `/api/cron/graph` 요청 보호 토큰 (`TOKEN_FOR_REVALIDATE` deprecated alias로 호환)
+
+댓글 기능을 사용하는 경우 아래 변수도 필요:
+- `NOTION_COMMENTS_DATASOURCE_ID`: 댓글 DB의 `data_source` ID (UUID with hyphens)
+- `COMMENT_HASH_SALT`: 익명 닉네임 해시용 시크릿 (`openssl rand -hex 32` 생성)
 
 선택적 환경 변수:
+- `NEXT_PUBLIC_GOOGLE_MEASUREMENT_ID`: Google Analytics ID
 - `NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION`: Google Search Console 인증
 - `NEXT_PUBLIC_NAVER_SITE_VERIFICATION`: Naver Search Advisor 인증
-- `REVALIDATE_HOURS`: ISR 재생성 시간 (시간 단위)
-
+- `NEXT_PUBLIC_UTTERANCES_REPO`: Utterances 레포지토리 (`user/repo`)
+- `REDIS_URL`: Redis URL (`redis://...`) — Redis 캐시 활성화 시 사용
+- `CACHE_NAMESPACE`: Redis 키 네임스페이스 (`monolog` 권장)
+- `NEXT_PUBLIC_SITE_URL`: 이미지 프록시 및 메타 URL 생성용 절대 URL
+- `TRUSTED_PROXY_HOPS`: `X-Forwarded-For` 신뢰 hop 수 (`0`이면 비활성)
+- `REVALIDATE_HOURS`: ISR 재생성 시간(시간 단위)
+- `SLACK_WEBHOOK`: 이미지 프록시 실패 알림용 webhook
 ## 배포 및 최적화
 
 ### Vercel 배포 최적화
@@ -380,7 +390,13 @@ npm start
 ### 주요 테스트 명령어
 ```bash
 # 전체 테스트 실행
+npm run test:all
+
+# 단위 테스트
 npm run test
+
+# 통합 테스트
+npm run test:integration
 
 # 테스트 watchers 모드로 실행
 npm run test:watch

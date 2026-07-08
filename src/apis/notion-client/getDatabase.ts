@@ -3,7 +3,6 @@ import {
   TDbIcon,
   TDbPropertySchema,
   TDbPropertyType,
-  TDbRow,
   TDbView,
   TDbViewMeta,
   TDbViewProperty,
@@ -247,25 +246,49 @@ export async function getDatabase(
   }
 
   try {
+    const cacheKey = `${databaseId}:${dataSourceId}`
     return await cacheStore.getOrSet(
-      keys.database(databaseId, lastEdited),
+      keys.database(cacheKey, lastEdited),
       DATABASE_TTL_MS,
       async () => {
         debugLog(`📡 Fetching database: ${databaseId} (data_source: ${dataSourceId})`)
 
-        // Step 2: query rows + retrieve full schema (for select/status option order)
-        const [queryResp, dsMeta] = await Promise.all([
-          notion.dataSources.query({
+        const allPages: any[] = []
+        let cursor: string | undefined = undefined
+        const MAX_DB_ROWS = 5_000
+
+        while (true) {
+          const queryResp = await notion.dataSources.query({
             data_source_id: dataSourceId,
             page_size: 100,
-          }),
-          notion.dataSources
-            .retrieve({ data_source_id: dataSourceId })
-            .catch(() => null as any),
-        ])
+            start_cursor: cursor,
+          })
+          const results = queryResp.results ?? []
+          allPages.push(...results)
+
+          if (allPages.length > MAX_DB_ROWS) {
+            allPages.length = MAX_DB_ROWS
+          }
+
+          const nextCursor = queryResp.next_cursor
+          if (
+            !queryResp.has_more ||
+            !nextCursor ||
+            results.length === 0 ||
+            allPages.length >= MAX_DB_ROWS
+          ) {
+            break
+          }
+
+          cursor = nextCursor
+        }
+
+        const dsMeta = await notion.dataSources
+          .retrieve({ data_source_id: dataSourceId })
+          .catch(() => null as any)
 
         const dsProperties: Record<string, any> | undefined = (dsMeta as any)?.properties
-        const firstPage = queryResp.results[0] as any
+        const firstPage = allPages[0] as any
         // Prefer schema from data source retrieve (covers all properties + types);
         // fall back to first row properties if retrieve failed.
         const propertySchemas: TDbPropertySchema[] = dsProperties
@@ -281,20 +304,6 @@ export async function getDatabase(
               type: (val.type ?? "rich_text") as TDbPropertyType,
             }))
           : []
-
-        const rows: TDbRow[] = queryResp.results.map((page: any) => {
-          const values: Record<string, unknown> = {}
-          for (const [name, prop] of Object.entries(page.properties ?? {})) {
-            values[name] = normalizeValue(prop)
-          }
-          return {
-            id: page.id,
-            url: `https://www.notion.so/${page.id.replace(/-/g, "")}`,
-            lastEdited: page.last_edited_time ?? "",
-            icon: normalizeIcon(page.icon),
-            values,
-          }
-        })
 
         const groupBy = pickGroupBy(propertySchemas)
         const groupOptions = extractGroupOptions(dsProperties, groupBy)
@@ -313,11 +322,25 @@ export async function getDatabase(
         const views = viewInfo.all
         const defaultViewId = viewInfo.picked?.id
 
+        const dbRows = allPages.map((page: any) => {
+          const values: Record<string, unknown> = {}
+          for (const [name, prop] of Object.entries(page.properties ?? {})) {
+            values[name] = normalizeValue(prop)
+          }
+          return {
+            id: page.id,
+            url: `https://www.notion.so/${page.id.replace(/-/g, "")}`,
+            lastEdited: page.last_edited_time ?? "",
+            icon: normalizeIcon(page.icon),
+            values,
+          }
+        })
+
         const database: TNotionDatabase = {
           id: databaseId,
           title,
           properties: propertySchemas,
-          rows,
+          rows: dbRows,
           view,
           groupBy,
           groupOptions: groupOptions ?? null,
@@ -327,7 +350,7 @@ export async function getDatabase(
         }
 
         debugLog(
-          `✅ Fetched database "${title}" with ${rows.length} rows (view: ${database.view}${
+          `✅ Fetched database "${title}" with ${dbRows.length} rows (view: ${database.view}${
             groupBy ? `, groupBy: ${groupBy}, ${groupOptions?.length ?? 0} options` : ""
           }${viewProperties ? `, viewProps: ${viewProperties.length}` : ""}${views.length > 1 ? `, views: ${views.length}` : ""})`
         )

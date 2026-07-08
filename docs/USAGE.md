@@ -18,6 +18,9 @@ cp .env.example .env
 # 댓글 활성 시 추가 필수:
 #   NOTION_COMMENTS_DATASOURCE_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 #   COMMENT_HASH_SALT=$(openssl rand -hex 32)
+# 방문자 통계 활성 시 추가 필수:
+#   NOTION_VISIT_STATS_DATASOURCE_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+#   VISITOR_HASH_SALT=$(openssl rand -hex 32)
 
 yarn dev            # or: npm run dev
 ```
@@ -32,19 +35,20 @@ yarn dev            # or: npm run dev
 [Notion Integrations](https://www.notion.so/my-integrations)에서 Internal Integration을 만들고 토큰(`ntn_...`)을 복사합니다.
 
 ### 2. DB 템플릿 복제 (권장)
-[**monolog blog assets**](https://www.notion.so/pieroot/blog-assets-35a067c015d080a0bf17d3a0dffb3784) 페이지를 본인 워크스페이스로 **Duplicate** 합니다. 페이지 안에는 monolog가 사용하는 두 DB가 미리 구성되어 있습니다.
+[**monolog blog assets**](https://www.notion.so/pieroot/blog-assets-35a067c015d080a0bf17d3a0dffb3784) 페이지를 본인 워크스페이스로 **Duplicate** 합니다. 페이지 안에는 monolog가 사용하는 DB가 미리 구성되어 있습니다.
 
 | DB | 용도 | 환경변수 |
 |---|---|---|
 | `blog-table` | 글 본문 (Posts · Pages · Papers) | `NOTION_DATASOURCE_ID` |
 | `comments` | 방문자 익명 댓글 (선택) | `NOTION_COMMENTS_DATASOURCE_ID` |
+| `visit-stats` | 페이지별 고유 방문자 통계 (선택) | `NOTION_VISIT_STATS_DATASOURCE_ID` |
 
-복제한 두 DB를 각각 열어:
+복제한 DB를 각각 열어:
 1. 우상단 `...` → `Add connections` → 1단계에서 만든 Integration 추가
 2. **data_source ID 확인**: Notion DB 페이지 URL의 32자 hex ID를 `8-4-4-4-12` UUID 포맷으로 변환 후 `curl -H "Authorization: Bearer $NOTION_TOKEN" https://api.notion.com/v1/databases/{database_id}`를 호출해 `data_sources[0].id` 값을 복사합니다. 이 값을 환경변수에 입력합니다.
    - 예: `curl` 응답의 `"data_sources":[{"id":"xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"}]` 에서 id 복사
 
-> 댓글 기능을 끄려면 `site.config.js`의 `notionComments.enable: false`로 두면 됩니다 — `comments` DB는 무시됩니다.
+> 댓글 기능을 끄려면 `site.config.js`의 `notionComments.enable: false`로 두면 됩니다 — `comments` DB는 무시됩니다. 방문자 통계 기능은 `NOTION_VISIT_STATS_DATASOURCE_ID`와 `VISITOR_HASH_SALT`가 설정된 경우에만 동작합니다.
 
 ### 3. 직접 만들고 싶다면
 
@@ -63,6 +67,7 @@ yarn dev            # or: npm run dev
 | `Tags` | multi_select | 태그 (복수) |
 | `Summary` | rich_text | 요약 (피드 카드에 표시) |
 | `Thumbnail` | files 또는 url | 썸네일 이미지 (글 목록 우측 + 본문 상단 히어로) |
+| `접속자수` | number | 서버가 계산해 Notion에 동기화하는 페이지별 고유 방문자 수 |
 
 #### `comments` (댓글)
 | 프로퍼티명 | 타입 | 설명 |
@@ -76,6 +81,15 @@ yarn dev            # or: npm run dev
 | `IpHash` | rich_text | `SHA-256(ip + COMMENT_HASH_SALT)` 앞 16자 |
 
 `Status`를 `hidden` 또는 `spam`으로 바꾸면 페이지에서 자동 제외됩니다 (캐시 TTL 45s 만료 후).
+
+#### `visit-stats` (방문자 통계)
+| 프로퍼티명 | 타입 | 설명 |
+|---|---|---|
+| `Title` | title | 자동 요약 — `slug:visitKeyPrefix` |
+| `Slug` | rich_text | 글 slug (조회 키) |
+| `PostId` | rich_text | Notion 글 page_id |
+| `VisitKey` | rich_text | `SHA-256(postId + salted visitor cookie)` 앞 32자. 원본 쿠키·IP·User-Agent는 저장하지 않음 |
+| `FirstVisitedAt` | date | 최초 방문 시각 |
 
 사이트 메타(제목, 설명, 프로필, 프로젝트 카드, About 페이지의 stack 등)는 루트의 `site.config.js`에서 관리합니다.
 
@@ -97,11 +111,22 @@ yarn dev            # or: npm run dev
 | `NOTION_COMMENTS_DATASOURCE_ID` | `comments` DB의 **data_source ID** (UUID with hyphens) |
 | `COMMENT_HASH_SALT` | IP/닉네임 해싱용 salt — 생성: `openssl rand -hex 32` |
 
+### 방문자 통계 활성 시 필수
+
+| 변수명 | 설명 |
+|---|---|
+| `NOTION_VISIT_STATS_DATASOURCE_ID` | `visit-stats` DB의 **data_source ID** (UUID with hyphens) |
+| `VISITOR_HASH_SALT` | 방문자 쿠키 해싱용 salt — 생성: `openssl rand -hex 32`. `COMMENT_HASH_SALT`와 재사용하지 마세요 |
+
 ### 선택
 
 | 변수명 | 기본값 | 설명 |
 |---|---|---|
 | `REDIS_URL` | — | Redis 연결 URL. 설정 시 L2 캐시 활성 (cold start 성능 향상). 예: `redis://localhost:6379`, `rediss://user:pass@host:6380` |
+| `ANTHROPIC_API_KEY` | — | `/ontology`, Graph semantic overlay, RightRail `ai · similar`의 엔티티/관계 추출용 Anthropic API key |
+| `OPENAI_API_KEY` | — | Qdrant 벡터 검색에 저장할 `text-embedding-3-small` 임베딩 생성용 OpenAI API key |
+| `QDRANT_URL` | `http://localhost:6333` | 로컬 개발 또는 외부 Qdrant REST endpoint. Docker Compose `ontology` profile은 `docker-compose.yml`에서 컨테이너용 `http://qdrant:6333`을 직접 설정 |
+| `QDRANT_API_KEY` | — | 인증이 걸린 외부 Qdrant용 API key. 로컬/self-hosted Qdrant는 빈 값 |
 | `CACHE_NAMESPACE` | `monolog` | Redis 키 prefix. 동일 Redis를 staging·preview 등 여러 배포가 공유할 때 충돌 방지 |
 | `REVALIDATE_SECRET` | — | `/api/revalidate` · `/api/init` · `/api/cron/graph` 보호 토큰. GitHub Actions의 `REVALIDATE_SECRET` secret과 **동일 이름·동일 값**. (구 이름 `TOKEN_FOR_REVALIDATE`도 deprecated alias로 호환) |
 | `REVALIDATE_HOURS` | `6` | ISR 재생성 주기 (시간) |
@@ -132,13 +157,18 @@ yarn dev            # or: npm run dev
 |---|---|---|
 | `GET /api/revalidate?secret=...&path=...` | `REVALIDATE_SECRET` | ISR 재검증 + 캐시 wipe. `path` 생략 시 전체 페이지를 background 처리하고 즉시 `{"revalidated":true,"status":"processing"}` 반환 |
 | `GET /api/init?secret=...` | `REVALIDATE_SECRET` | 컨테이너 시작 시 ISR 워밍 |
+| `POST /api/cron/ontology` | `REVALIDATE_SECRET` Bearer | LLM ontology, Qdrant embeddings, semantic graph edges, RightRail `ai · similar` 데이터를 생성/갱신. `?force=1`이면 캐시 우회 |
+| `GET /api/similar?postId=<id-or-slug>&limit=5` | 없음 | Qdrant 기반 `ai · similar` 글 목록 반환. ontology embedding이 아직 없으면 `202` |
 | `GET /api/image-proxy?id=<uuid>&kind=s3` | 없음 (allow-list) | Notion S3 이미지 프록시 (안정 URL) |
 | `GET /api/image-proxy?url=<url>` | 없음 | 레거시 image-proxy (구 ISR 캐시 호환) |
 | `GET /api/refresh-image?blockId=...` | 없음 | 단일 블록 이미지 URL 재발급 |
 | `GET /api/comments?slug=...` | 없음 | slug별 댓글 목록 (45s 서버 캐시) |
 | `POST /api/comments` | 없음 | 익명 댓글 작성 (honeypot + IP rate limit) |
+| `POST /api/visits` | 없음 | 글 상세 페이지 방문 시 서버가 first-party `HttpOnly` 쿠키로 페이지별 고유 방문을 dedupe하고 Notion `접속자수`를 갱신 |
 | `GET /sitemap.xml` | — | SSR 사이트맵 |
 | `GET /rss.xml` | — | SSR RSS 2.0 피드 |
+
+방문자 통계는 1년짜리 first-party `HttpOnly` 쿠키(`monolog_visitor_id`)를 사용합니다. Notion에는 salted per-page `VisitKey`만 저장하며 원본 쿠키 값, 원본 IP, User-Agent, cross-page visitor ID는 저장하지 않습니다. 방문자가 쿠키를 삭제하거나 다른 브라우저/기기를 쓰면 새 방문자로 계산됩니다.
 
 ```bash
 # 수동 전체 ISR 갱신
@@ -150,7 +180,12 @@ curl "https://your-site.com/api/revalidate?secret=$REVALIDATE_SECRET"
 ## Docker
 
 ```bash
+# 기본 스택: blog + redis, Qdrant 없음
 docker compose up -d
+
+# 선택 기능 포함: blog + redis + qdrant (/ontology, Graph semantic overlay, RightRail ai · similar)
+docker compose --profile ontology up -d
+
 docker compose logs -f
 ```
 
@@ -165,6 +200,17 @@ docker compose logs -f
 
 - 멀티 아키: `linux/amd64`, `linux/arm64`
 - SLSA build provenance attestation 자동 첨부
+
+### Qdrant ontology/vector search (선택)
+
+Qdrant는 기본 `docker compose up -d`에서 뜨지 않습니다. `/ontology`, Graph semantic overlay, RightRail `ai · similar`를 쓰는 경우에만 `docker compose --profile ontology up -d`로 시작합니다. Compose 안의 `blog` 컨테이너는 `QDRANT_URL=http://qdrant:6333`을 사용합니다. 호스트에서 직접 개발할 때만 `.env`의 `QDRANT_URL=http://localhost:6333`을 사용합니다.
+
+온톨로지 빌드/갱신:
+
+```bash
+curl -X POST "https://your-site.com/api/cron/ontology" \
+  -H "Authorization: Bearer $REVALIDATE_SECRET"
+```
 
 ```bash
 docker run -d -p 3000:3000 --env-file .env ghcr.io/jung-geun/monolog:latest
@@ -217,7 +263,9 @@ npm run build         # 프로덕션 빌드 (next build --webpack)
 npm run start         # 빌드 결과 실행
 npm run type-check    # TypeScript strict 검사
 npm run lint          # ESLint
-npm run test          # Jest 전체
+npm run test          # Jest 단위 테스트
+npm run test:integration # 통합 테스트
+npm run test:all      # Jest 전체 (unit + integration)
 npm run test:watch
 npm run test:coverage
 ```
@@ -225,8 +273,7 @@ npm run test:coverage
 ---
 
 ## 디렉터리 구조
-
-```
+```bash
 src/
 ├── apis/notion-client/      — Notion v5 + 캐시 (getPosts · getRecordMap · getDatabase)
 ├── components/
@@ -238,7 +285,7 @@ src/
 │   └── MetaConfig/          — OG · Twitter · AdSense
 ├── hooks/                   — usePostsQuery · usePostQuery · useSeriesQuery · useCategoriesQuery · ...
 ├── layouts/RootLayout/
-│   └── EditorChrome/        — TitleBar · ActivityBar · FileTree · TabBar · StatusBar · LineNumberGutter
+│   └── EditorChrome/        — TitleBar · ... · LineNumberGutter
 ├── libs/
 │   ├── cache/               — L1 Memory + L2 Redis 포스트 캐시 / BlobFsBackend 이미지 캐시
 │   ├── react-query/         — 싱글톤 QueryClient
@@ -275,3 +322,4 @@ src/pages/
 tests/                       — Jest (jsdom · node · @swc/jest)
 .github/workflows/           — docker-build · revalidate · test
 ```
+

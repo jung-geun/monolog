@@ -1,10 +1,8 @@
 import Link from "next/link"
-import { useRouter } from "next/router"
 import styled from "@emotion/styled"
 import { useRouteChrome } from "./RouteChromeContext"
 
 const TabBar = () => {
-  const router = useRouter()
   const { tabs, activeTabId, closeTab, switchTab } = useRouteChrome()
 
   const handleClose = (e: React.MouseEvent, id: string) => {

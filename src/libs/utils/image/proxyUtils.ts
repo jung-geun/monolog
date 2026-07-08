@@ -66,58 +66,75 @@ export function unwrapProxiedUrl(input: string, debug = false): string {
   let cur = String(input)
   const maxRounds = 12
 
+  const log = (round: number, message: string) => {
+    if (debug) {
+      console.log(`[image-proxy] unwrap: ${message} at round ${round}`)
+    }
+  }
+
+  const extractFromProxyUrl = (value: string): string | null => {
+    try {
+      const parsed = new URL(value, "https://dummy.invalid")
+      if (parsed.pathname !== IMAGE_PROXY_PATH) return null
+
+      const candidate = parsed.searchParams.get("url")
+      if (!candidate) return null
+      return candidate
+    } catch {
+      return null
+    }
+  }
+
   for (let round = 0; round < maxRounds; round++) {
+    const directUrlFromProxy = extractFromProxyUrl(cur)
+    if (directUrlFromProxy) {
+      if (directUrlFromProxy === cur) break
+      cur = directUrlFromProxy
+      log(round, "extracted proxy url param")
+      continue
+    }
+
     if (/^https?:\/\//i.test(cur)) {
-      if (debug) {
-        console.log(`[image-proxy] unwrap: got absolute url at round ${round}`)
-      }
+      log(round, "got absolute url without proxy hop")
       break
     }
 
-    const plusNormalized = cur.replace(/\+/g, ' ')
+    const plusNormalized = cur.replace(/\+/g, " ")
 
     let decoded: string
     try {
       decoded = decodeURIComponent(plusNormalized)
     } catch (e) {
-      if (debug) {
-        console.log('[image-proxy] unwrap: decodeURIComponent failed at round', round, e && (e as Error).message)
-      }
+      log(round, "decodeURIComponent failed")
       break
     }
 
-    const lastQuestionUrl = decoded.lastIndexOf('?url=')
-    const lastAmpUrl = decoded.lastIndexOf('&url=')
+    const lastQuestionUrl = decoded.lastIndexOf("?url=")
+    const lastAmpUrl = decoded.lastIndexOf("&url=")
     const lastUrlIndex = Math.max(lastQuestionUrl, lastAmpUrl)
-      if (lastUrlIndex !== -1) {
+    if (lastUrlIndex !== -1) {
       const candidate = decoded.substring(lastUrlIndex + 5)
       if (candidate && candidate !== cur) {
         cur = candidate
-          if (debug) {
-            console.log('[image-proxy] unwrap: extracted after last url= at round', round)
-          }
+        log(round, "extracted after last url=")
         continue
       }
     }
 
     const proxyIndex = decoded.indexOf(IMAGE_PROXY_PATH)
-    const firstUrlParam = decoded.indexOf('?url=')
+    const firstUrlParam = decoded.indexOf("?url=")
     if (proxyIndex !== -1 && firstUrlParam !== -1) {
       const candidate = decoded.substring(firstUrlParam + 5)
       if (candidate && candidate !== cur) {
         cur = candidate
-        if (debug) {
-          console.log('[image-proxy] unwrap: extracted after first ?url= at round', round)
-        }
+        log(round, "extracted after first ?url=")
         continue
       }
     }
 
     if (decoded !== cur) {
       cur = decoded
-      if (debug) {
-        console.log('[image-proxy] unwrap: decoding progressed at round', round)
-      }
+      log(round, "decoded progress")
       continue
     }
 
@@ -127,7 +144,6 @@ export function unwrapProxiedUrl(input: string, debug = false): string {
   for (let i = 0; i < 6 && !/^https?:\/\//i.test(cur); i++) {
     try {
       cur = decodeURIComponent(cur)
-      if (/^https?:\/\//i.test(cur)) break
     } catch {
       break
     }
@@ -138,19 +154,49 @@ export function unwrapProxiedUrl(input: string, debug = false): string {
 
 /** Mask presigned tokens/signatures for safer logging. */
 export function maskPresignedUrl(urlStr: unknown): string {
+  const raw = String(urlStr ?? "")
+  if (!raw) return ""
+
   try {
-    const u = new URL(String(urlStr))
-    for (const key of Array.from(u.searchParams.keys())) {
-      if (/^X-Amz-/i.test(key) || /signature|token|credential/i.test(key)) {
-        u.searchParams.set(key, '[redacted]')
+    let parsed: URL
+    const isAbsolute = /^[a-z][a-z\d+\-.]*:\/\//i.test(raw)
+    try {
+      parsed = new URL(raw)
+    } catch {
+      parsed = new URL(raw, "https://example.com")
+    }
+
+    const masked = new URL(parsed.toString())
+
+    for (const key of Array.from(masked.searchParams.keys())) {
+      if (/^x-amz-/i.test(key) || /signature|token|credential/i.test(key)) {
+        masked.searchParams.set(key, "[redacted]")
+        continue
+      }
+
+      if (key === "url") {
+        const nested = masked.searchParams.get(key)
+        if (nested) {
+          const maskedNested = maskPresignedUrl(nested)
+          if (maskedNested) {
+            masked.searchParams.set(key, maskedNested)
+          }
+        }
       }
     }
-    return u.toString()
+
+    const maskedUrl = masked.toString()
+    if (!isAbsolute) {
+      return `${masked.pathname}${masked.search}${masked.hash}`
+    }
+    return maskedUrl
   } catch {
     try {
-      return String(urlStr).slice(0, 2000)
+      return raw.slice(0, 2000)
     } catch {
-      return ''
+      return ""
     }
   }
 }
+
+  

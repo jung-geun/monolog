@@ -12,20 +12,19 @@ services:
     env_file:
       - .env
     environment:
-      - NODE_ENV=production
-      - NOTION_TOKEN=COPY_YOUR_NOTION_TOKEN_HERE
-      - NOTION_DATASOURCE_ID=COPY_YOUR_NOTION_DATASOURCE_ID_HERE
-      - NEXT_PUBLIC_GOOGLE_MEASUREMENT_ID=COPY_YOUR_GOOGLE_MEASUREMENT_ID_HERE
-      - REVALIDATE_HOURS=1
+      NODE_ENV: production
+      NOTION_TOKEN: ${NOTION_TOKEN:-COPY_YOUR_NOTION_TOKEN_HERE}
+      NOTION_DATASOURCE_ID: ${NOTION_DATASOURCE_ID:-COPY_YOUR_NOTION_DATASOURCE_ID_HERE}
+      NEXT_PUBLIC_GOOGLE_MEASUREMENT_ID: ${NEXT_PUBLIC_GOOGLE_MEASUREMENT_ID:-COPY_YOUR_GOOGLE_MEASUREMENT_ID_HERE}
       # Must match the REVALIDATE_SECRET GitHub Actions secret
-      - REVALIDATE_SECRET=GENERATE_RANDOM_STRING_AND_PUT_HERE
-      # Legacy alias (deprecated — will be removed in a future release): TOKEN_FOR_REVALIDATE
-      - REDIS_URL=redis://redis:6379
-      - QDRANT_URL=http://qdrant:6333
+      REVALIDATE_SECRET: ${REVALIDATE_SECRET:-GENERATE_RANDOM_STRING_AND_PUT_HERE}
+      REVALIDATE_HOURS: ${REVALIDATE_HOURS:-1}
+      REDIS_URL: redis://redis:6379
+      QDRANT_URL: http://qdrant:6333
     depends_on:
       redis:
-      qdrant:
         condition: service_healthy
+      qdrant:
         condition: service_healthy
     restart: unless-stopped
     volumes:
@@ -49,6 +48,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 3
+
   qdrant:
     image: qdrant/qdrant:v1.14.1
     container_name: blog-qdrant
@@ -64,9 +64,8 @@ services:
       retries: 5
       start_period: 20s
 
-
 volumes:
   logs-data:
   image-cache:
-  qdrant-storage:
   redis-data:
+  qdrant-storage:

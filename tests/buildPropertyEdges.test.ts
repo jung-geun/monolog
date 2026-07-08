@@ -73,6 +73,22 @@ describe("buildPropertyEdges", () => {
     expect(tagNodes).toHaveLength(1)
     expect(tagNodes[0].id).toBe("tag:gpu")
   })
+
+  it("시리즈는 공백/대소문자 차이만 동일 hub로 정규화", () => {
+    const posts = [
+      makePost({ id: "p1", series: [" K8S-Guide "], date: { start_date: "2024-01-01" } }),
+      makePost({ id: "p2", series: ["k8s-guide"], date: { start_date: "2024-01-03" } }),
+      makePost({ id: "p3", series: [" K8S-Guide"], date: { start_date: "2024-01-02" } }),
+    ]
+
+    const { hubNodes, propertyEdges } = buildPropertyEdges(posts)
+    const seriesNodes = hubNodes.filter((n) => n.kind === "series")
+    expect(seriesNodes).toHaveLength(1)
+    expect(seriesNodes[0].id).toBe("series:k8s-guide")
+
+    const inSeriesEdges = propertyEdges.filter((e) => e.type === "in-series")
+    expect(inSeriesEdges).toHaveLength(3)
+  })
 })
 
 describe("normalizeHubId", () => {

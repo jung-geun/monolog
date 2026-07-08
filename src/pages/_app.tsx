@@ -7,7 +7,6 @@ import GoogleAnalytics from "src/components/GoogleAnalytics"
 import { JetBrains_Mono } from "next/font/google"
 import Head from "next/head"
 import { useEffect, useState } from "react"
-import { useRouter } from "next/router"
 export const jetbrainsMono = JetBrains_Mono({
   subsets: ["latin"],
   weight: ["400", "500", "600"],
@@ -22,7 +21,6 @@ if (process.env.NODE_ENV === 'production') {
 
 function App({ Component, pageProps }: AppPropsWithLayout) {
   const getLayout = Component.getLayout || ((page) => page)
-  const router = useRouter()
   // Server always gets a fresh QueryClient; browser reuses the shared singleton.
   // This prevents React Query v5's HydrationBoundary from deferring existing
   // queries to useEffect (which never runs on the server), causing hydration mismatches.

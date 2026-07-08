@@ -22,9 +22,9 @@ jest.mock("src/apis/notion-client/notionClient", () => ({
   getOfficialNotionClient: jest.fn(),
 }))
 
+import * as cache from "src/libs/cache"
 import { getDatabase } from "src/apis/notion-client/getDatabase"
 import { getOfficialNotionClient } from "src/apis/notion-client/notionClient"
-
 const defaultDbMeta = {
   last_edited_time: "2026-01-01T00:00:00.000Z",
   title: [{ plain_text: "Test DB" }],
@@ -125,6 +125,59 @@ describe("getDatabase", () => {
     expect(db!.rows[0].values["Tags"]).toEqual(["TypeScript", "React"])
     expect(db!.title).toBe("Test DB")
   })
+
+  it("paginates dataSources.query using start_cursor", async () => {
+    const firstPage = Array.from({ length: 100 }, (_, i) => ({
+      id: `row-${i}`,
+      last_edited_time: "2026-01-01T00:00:00.000Z",
+      properties: { Name: { type: "title", title: [{ plain_text: `Page1-${i + 1}` }] } },
+    }))
+    const secondPageRow = {
+      id: "page2-row",
+      last_edited_time: "2026-01-01T00:00:00.000Z",
+      properties: { Name: { type: "title", title: [{ plain_text: "Page2-1" }] } },
+    }
+
+    mockNotion.dataSources.query
+      .mockResolvedValueOnce({
+        results: firstPage,
+        has_more: true,
+        next_cursor: "cursor-2",
+      })
+      .mockResolvedValueOnce({
+        results: [secondPageRow],
+        has_more: false,
+        next_cursor: null,
+      })
+
+    const db = await getDatabase("db-id")
+
+    expect(mockNotion.dataSources.query).toHaveBeenCalledTimes(2)
+    expect(mockNotion.dataSources.query).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ data_source_id: "ds-1", page_size: 100, start_cursor: undefined })
+    )
+    expect(mockNotion.dataSources.query).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ data_source_id: "ds-1", page_size: 100, start_cursor: "cursor-2" })
+    )
+
+    expect(db).not.toBeNull()
+    expect(db!.rows).toHaveLength(101)
+    expect(db!.rows[100].values["Name"]).toBe("Page2-1")
+  })
+
+  it("uses cache key including both databaseId and dataSourceId", async () => {
+    mockNotion.dataSources.query.mockResolvedValue({ results: [], has_more: false, next_cursor: null })
+    await getDatabase("db-id")
+
+    expect(cache.cacheStore.getOrSet).toHaveBeenCalledWith(
+      `database:db-id:ds-1:${defaultDbMeta.last_edited_time}`,
+      30 * 60 * 1000,
+      expect.any(Function)
+    )
+  })
+
 
   it("defaults view to table when no groupable property exists", async () => {
     mockNotion.dataSources.query.mockResolvedValue({

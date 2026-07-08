@@ -88,6 +88,8 @@ About 라우트는 다음 위젯들을 한 화면에 묶어 보여줍니다.
 | `shared-tag` | 같은 태그를 가진 페이지 쌍 (>8개 페이지 공유 태그는 spam 방지로 스킵) |
 | `shared-series` | 같은 시리즈 내 모든 페어 |
 | `series-next` | 시리즈 내 날짜 순 인접 페어 (방향성 있음) |
+| `similar-topic` | Qdrant cosine similarity `>= 0.85`. Semantic overlay의 `similar` 토글을 켰을 때 표시 |
+| `elaborates` / `contradicts` / `supports` / `prerequisite` / `applies` | ontology 빌드가 LLM으로 분류한 의미 관계. Semantic overlay의 `logical` 토글을 켰을 때 표시 |
 
 ### 시각화 — d3-force 시뮬레이션
 - `forceSimulation` + `forceLink`(엣지 weight 기반 distance/strength) + `forceManyBody`(척력) + `forceX/Y`(중심 응집) + `forceCollide`(겹침 방지)
@@ -100,6 +102,7 @@ About 라우트는 다음 위젯들을 한 화면에 묶어 보여줍니다.
 - **실시간 force 슬라이더** — `repulsion` (charge 강도) · `centering` (중심 인력 강도). 시뮬레이션 재생성 없이 force 파라미터만 mutation + `sim.alpha(0.5).restart()`로 부드러운 재배치
 - **reset view / reset force** — 줌과 force를 독립적으로 초기화
 - **CONNECTED 클릭** — 우측 detail panel의 연결 글을 누르면 해당 노드로 selectedIdx 전환
+- **Semantic overlay** — `similar` 토글은 Qdrant 기반 `similar-topic` edge를 threshold로 필터링하고, `logical` 토글은 LLM ontology 관계(`elaborates` · `supports` · `contradicts` · `prerequisite` · `applies`)를 표시
 
 ---
 
@@ -139,7 +142,7 @@ DB 블록 주입은 **createPortal** 기반 — react-notion-x가 그린 자리�
 
 ## Reading aids
 - **ReadingProgress** — `.scroll-area` 진행률 2px accent 바
-- **RightRail (240px)** — TOC + 시리즈 글 목록 + 동일 카테고리 related 3개 + 공유 태그 mini-graph SVG
+- **RightRail (240px)** — TOC + 시리즈 글 목록 + 동일 카테고리 related 3개 + Qdrant 기반 `ai · similar`(선택 기능) + 공유 태그 mini-graph SVG
 - **Frontmatter** — YAML 형식 메타데이터 블록 (모노스페이스, key가 accent3 컬러)
 - **SeriesNav** — 본문 하단 시리즈 Prev/Next 박스
 - **SPA 내부 링크** — 본문의 다른 글로 향하는 링크는 capture-phase 인터셉터로 `router.push`로 전환, 새로고침 없는 페이지 이동

@@ -4,22 +4,12 @@ import { listComments, createComment } from "src/apis/notion-client/comments"
 import { commentPostSchema, sanitizeBody, checkSpam } from "src/libs/utils/comments/sanitize"
 import { inspectRateLimit, commitRateLimit, checkGetRateLimit } from "src/libs/utils/comments/rateLimit"
 import { nicknameSuffix } from "src/libs/utils/comments/hash"
-import { getIpHash } from "src/libs/utils/security"
+import { getIpHash, isRequestOriginAllowed } from "src/libs/utils/security"
 import { getPosts } from "src/apis/notion-client/getPosts"
 import type { TPost, TPosts } from "src/types"
 import { CONFIG } from "site.config"
 
 const CACHE_TTL_MS = ((CONFIG as any).notionComments?.cacheTtlSec ?? 45) * 1000
-
-function isAllowedOrigin(req: NextApiRequest): boolean {
-  if (process.env.NODE_ENV !== "production") return true
-  const origin = req.headers["origin"] as string | undefined
-  const referer = req.headers["referer"] as string | undefined
-  const source = origin ?? referer
-  if (!source) return false
-  const allowed = [CONFIG.link, process.env.NEXT_PUBLIC_SITE_URL].filter(Boolean) as string[]
-  return allowed.some((base) => source.startsWith(base))
-}
 
 // posts 배열 참조가 같으면 (cacheStore 캐시 히트) Map을 재사용 — 매 요청 재구성 방지
 let memoSlugMap: { source: TPosts; map: Map<string, TPost> } | null = null
@@ -63,9 +53,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(500).json({ error: "failed to fetch comments" })
     }
   }
-
   if (req.method === "POST") {
-    if (!isAllowedOrigin(req)) {
+    if (!isRequestOriginAllowed(req, [CONFIG.link, process.env.NEXT_PUBLIC_SITE_URL, process.env.SITE_URL, process.env.NEXT_PUBLIC_APP_URL, process.env.VERCEL_URL])) {
       return res.status(403).json({ error: "forbidden" })
     }
 

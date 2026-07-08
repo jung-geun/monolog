@@ -4,7 +4,7 @@
  * Tests for image proxy utilities, replacing scripts/test-unpack.js and scripts/test-unpack-cases.js
  */
 
-import { unwrapProxiedUrl, isAlreadyProxied, createProxyRequestUrl } from 'src/libs/utils/image/proxyUtils'
+import { unwrapProxiedUrl, isAlreadyProxied, createProxyRequestUrl, maskPresignedUrl } from 'src/libs/utils/image/proxyUtils'
 import { customMapImageUrl } from 'src/libs/utils/notion/customMapImageUrl'
 
 describe('isAlreadyProxied', () => {
@@ -41,6 +41,28 @@ describe('createProxyRequestUrl', () => {
     expect(createProxyRequestUrl(url1)).toBe(createProxyRequestUrl(url2))
   })
 })
+describe('maskPresignedUrl', () => {
+  it('redacts sensitive query params on absolute URLs', () => {
+    const url =
+      'https://example.com/image?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Signature=super-secret&token=shh'
+    const out = decodeURIComponent(maskPresignedUrl(url))
+    expect(out).not.toContain('super-secret')
+    expect(out).not.toContain('shh')
+    expect(out).toContain('X-Amz-Algorithm=[redacted]')
+    expect(out).toContain('X-Amz-Signature=[redacted]')
+    expect(out).toContain('token=[redacted]')
+  })
+
+  it('redacts signatures in nested proxy URL params', () => {
+    const input =
+      '/api/image-proxy?url=https%3A%2F%2Fexample.com%2Fimg.png%3FX-Amz-Signature%3Dsuper-secret%26foo%3Dbar'
+    const out = maskPresignedUrl(input)
+    expect(out.startsWith('/api/image-proxy?url=')).toBe(true)
+    expect(out).not.toContain('super-secret')
+    expect(decodeURIComponent(out).includes('X-Amz-Signature=%5Bredacted%5D')).toBe(true)
+  })
+})
+
 
 describe('customMapImageUrl', () => {
   it('should NOT wrap already proxied URL', () => {
@@ -68,6 +90,11 @@ describe('unwrapProxiedUrl', () => {
       name: 'encoded-query-params',
       input: '%2Fapi%2Fimage-proxy%3Furl%3Dhttps%253A%252F%252Fexample.com%252Fimg.png%253Fparam%253Da%2526b%253Dc',
       asserts: (out: string) => out.startsWith('https://example.com/img.png') && out.includes('param=a') && out.includes('b=c')
+    },
+    {
+      name: 'absolute-proxy-url',
+      input: 'https://example.com/api/image-proxy?url=https%3A%2F%2Fexample.com%2Fimg.png',
+      asserts: (out: string) => out === 'https://example.com/img.png'
     }
   ]
 

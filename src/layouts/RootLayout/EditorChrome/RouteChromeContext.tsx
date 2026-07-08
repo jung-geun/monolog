@@ -7,7 +7,7 @@ import React, {
   ReactNode,
   useRef,
 } from "react"
-import { useRouter } from "next/router"
+import { useRouter } from "next/compat/router"
 
 // ---------------------------------------------------------------------------
 // Tab types
@@ -154,7 +154,7 @@ export const RouteChromeProvider = ({ children }: { children: ReactNode }) => {
       if (id === activeTabId && next.length > 0) {
         const adjacent = next[Math.max(0, idx - 1)]
         setActiveTabId(adjacent.id)
-        routerRef.current.push(adjacent.href)
+        routerRef.current?.push(adjacent.href)
       }
     },
     [activeTabId]
@@ -166,7 +166,8 @@ export const RouteChromeProvider = ({ children }: { children: ReactNode }) => {
 
   // Auto open tab on route change
   useEffect(() => {
-    const handleRouteChange = (url: string) => {
+    if (!router) return
+    const handleRouteChange = (_url: string) => {
       if (typeof window === "undefined") return
       if (window.matchMedia("(max-width: 960px)").matches) {
         setFileTreeOpen(false)
@@ -190,7 +191,7 @@ export const RouteChromeProvider = ({ children }: { children: ReactNode }) => {
         if (next.length > 0) {
           const adjacent = next[Math.max(0, idx - 1)]
           setActiveTabId(adjacent.id)
-          routerRef.current.push(adjacent.href)
+          routerRef.current?.push(adjacent.href)
         }
       }
     }
@@ -237,7 +238,7 @@ export const useRegisterChrome = (filename: string, statusItems: string[]) => {
 
   // Also open (or activate) a tab for the current route
   useEffect(() => {
-    if (!filename) return
+    if (!filename || !router) return
     // README is always the first, non-closeable tab
     if (filename === "README.md") {
       openTab(README_TAB)

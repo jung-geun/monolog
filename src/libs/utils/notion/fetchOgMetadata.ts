@@ -258,32 +258,35 @@ async function fetchUncached(url: string): Promise<OgMetadata | null> {
 }
 
 /**
- * Fetch OG metadata for `url` with L1/L2 cache + dedup. Successful fetches
- * are cached for 7 days; failures (null) for 1 hour so a temporary outage
- * (or one broken bookmark URL) doesn't lock the entry out for a week.
- *
- * cacheStore.getOrSet is single-TTL by API. To get split TTLs we tell it to
- * skip auto-caching for null results (`isCacheable`) and manually persist
- * the negative entry under the short TTL inside the fetcher itself. The
- * inflight dedup behaviour of getOrSet still applies to both cases.
+ * Fetch OG metadata for `url` with L1/L2 cache + dedup.
+ * Successful fetches are cached for 7 days; misses are cached for 1 hour to
+ * avoid repeatedly retrying dead links while allowing recovery after transient
+ * failures.
  */
+const OG_MISS_SENTINEL = "__og_miss__"
+type CachedOgMetadata = OgMetadata | typeof OG_MISS_SENTINEL
+
 export async function getOgMetadata(url: string): Promise<OgMetadata | null> {
-  return cacheStore.getOrSet<OgMetadata | null>(
-    keys.og(url),
+  const key = keys.og(url)
+
+  const cached = await cacheStore.getOrSet<CachedOgMetadata>(
+    key,
     OG_TTL_HIT_MS,
     async () => {
       const result = await fetchUncached(url)
       if (result === null) {
-        // Persist the negative entry directly with the short miss TTL.
-        // getOrSet's auto-set is suppressed by isCacheable below.
-        await cacheStore.set(keys.og(url), null, OG_TTL_MISS_MS)
+        // Persist the negative result explicitly with the short miss TTL.
+        await cacheStore.set(key, OG_MISS_SENTINEL, OG_TTL_MISS_MS)
+        return OG_MISS_SENTINEL
       }
       return result
     },
     {
-      // Successful fetches go through getOrSet's auto-set with OG_TTL_HIT_MS;
-      // null results were already persisted with OG_TTL_MISS_MS above.
-      isCacheable: (data) => data !== null,
+      // Successful fetches go through getOrSet auto-set with OG_TTL_HIT_MS.
+      // Miss marker entries are set manually above with OG_TTL_MISS_MS.
+      isCacheable: (data) => data !== OG_MISS_SENTINEL,
     }
   )
+
+  return cached === OG_MISS_SENTINEL ? null : cached
 }

@@ -16,6 +16,36 @@ import { extractS3ImageId } from 'src/libs/utils/image/cache/hashUtils'
 import { getIpHash, checkImageProxyRateLimit } from 'src/libs/utils/security'
 
 const FETCH_TIMEOUT_MS = 10_000
+const MAX_IMAGE_BYTES = 10 * 1024 * 1024
+
+const REFRESHABLE_STATUS = new Set([401, 403, 404, 410])
+
+const ALLOWED_HOSTS = [
+  /\.amazonaws\.com$/i,
+  /^amazonaws\.com$/i,
+  /\.notion\.so$/i,
+  /^notion\.so$/i,
+  /\.notion\.com$/i,
+  /^notion\.com$/i,
+  /\.notion-static\.com$/i,
+]
+
+const LOG_FIELD_MAX_LEN = 2000
+
+const isImageContentType = (value: string | null): boolean => {
+  if (!value) return false
+  const contentType = value.split(";")[0].trim().toLowerCase()
+  return contentType.startsWith("image/")
+}
+
+function sanitizeForLog(value: string): string {
+  if (!value) return ""
+  try {
+    return maskPresignedUrl(value).slice(0, LOG_FIELD_MAX_LEN)
+  } catch {
+    return String(value).slice(0, LOG_FIELD_MAX_LEN)
+  }
+}
 
 async function safeFetch(url: string): Promise<Response> {
   const controller = new AbortController()
@@ -35,7 +65,63 @@ async function safeFetch(url: string): Promise<Response> {
   }
 }
 
-const REFRESHABLE_STATUS = new Set([401, 403, 404, 410])
+function validateImageSource(rawUrl: string, label = "image URL"): URL {
+  const url = new URL(rawUrl)
+  if (url.protocol !== "http:" && url.protocol !== "https:") {
+    throw new Error(`${label} protocol not allowed`)
+  }
+  if (!ALLOWED_HOSTS.some((re) => re.test(url.hostname))) {
+    throw new Error(`${label} host not allowed`)
+  }
+  return url
+}
+
+async function readImageResponseBody(response: Response): Promise<{ buffer: Buffer; contentType: string }> {
+  const contentType = response.headers.get("content-type") ?? ""
+  if (!isImageContentType(contentType)) {
+    throw new Error(`Disallowed content type: ${contentType || "unknown"}`)
+  }
+
+  const contentLengthHeader = response.headers.get("content-length")
+  if (contentLengthHeader) {
+    const contentLength = Number(contentLengthHeader)
+    if (Number.isFinite(contentLength) && contentLength > MAX_IMAGE_BYTES) {
+      throw new Error(`Image response too large (${contentLength} bytes)`)
+    }
+  }
+
+  const stream = response.body
+  if (!stream) {
+    const buffer = Buffer.from(await response.arrayBuffer())
+    if (buffer.byteLength > MAX_IMAGE_BYTES) {
+      throw new Error(`Image response too large (${buffer.byteLength} bytes)`)
+    }
+    return { buffer, contentType }
+  }
+
+  const reader = stream.getReader()
+  const chunks: Buffer[] = []
+  let total = 0
+
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) {
+      break
+    }
+    const chunk = Buffer.from(value)
+    total += chunk.byteLength
+    if (total > MAX_IMAGE_BYTES) {
+      await reader.cancel("Image too large")
+      throw new Error(`Image response too large (${total} bytes)`)
+    }
+    chunks.push(chunk)
+  }
+
+  return {
+    buffer: Buffer.concat(chunks),
+    contentType,
+  }
+}
 
 // Signed URL in-memory LRU (50-min TTL — shorter than Notion's ~1h presigned expiry)
 const signedUrlLru = new Map<string, { url: string; exp: number }>()
@@ -61,9 +147,9 @@ const inFlightMap = new Map<string, Promise<{ buffer: Buffer; contentType: strin
 
 const firstQueryValue = (value: string | string[] | undefined): string | undefined => {
   if (Array.isArray(value)) {
-    return value.find((v) => typeof v === 'string' && v.length > 0)
+    return value.find((v) => typeof v === "string" && v.length > 0)
   }
-  return typeof value === 'string' && value.length > 0 ? value : undefined
+  return typeof value === "string" && value.length > 0 ? value : undefined
 }
 
 const parseProxyMetadata = (req: NextApiRequest): ImageProxyMetadata => {
@@ -85,17 +171,17 @@ const shouldAttemptRefresh = (status?: number, metadata?: ImageProxyMetadata) =>
 
 const extractUrlFromFileValue = (value: any): string | null => {
   if (!value) return null
-  if (value.type === 'file') {
+  if (value.type === "file") {
     return value.file?.url ?? null
   }
-  if (value.type === 'external') {
+  if (value.type === "external") {
     return value.external?.url ?? null
   }
   return null
 }
 
 const extractUrlFromBlock = (block: any): string | null => {
-  if (!block || typeof block !== 'object') return null
+  if (!block || typeof block !== "object") return null
   const type = block.type
   if (!type) return null
   const typeValue = (block as any)[type]
@@ -104,17 +190,17 @@ const extractUrlFromBlock = (block: any): string | null => {
 }
 
 const extractUrlFromProperty = (property: any, declaredType?: string): string | null => {
-  if (!property || typeof property !== 'object') return null
+  if (!property || typeof property !== "object") return null
   const propType = declaredType || property.type
 
-  if (propType === 'files' || propType === 'file') {
+  if (propType === "files" || propType === "file") {
     const files: any[] | undefined = property.files
     if (Array.isArray(files) && files.length > 0) {
       return extractUrlFromFileValue(files[0])
     }
   }
 
-  if (propType === 'url' && typeof property.url === 'string') {
+  if (propType === "url" && typeof property.url === "string") {
     return property.url
   }
 
@@ -139,10 +225,10 @@ const refreshImageUrlFromNotion = async (metadata: ImageProxyMetadata) => {
         const block = await notion.blocks.retrieve({ block_id: metadata.blockId })
         const refreshed = extractUrlFromBlock(block)
         if (refreshed) {
-          return { url: refreshed, via: 'block' }
+          return { url: refreshed, via: "block" }
         }
       } catch (err) {
-        console.log('[image-proxy] refresh via block failed', metadata.blockId, err instanceof Error ? err.message : err)
+        console.log("[image-proxy] refresh via block failed", metadata.blockId, err instanceof Error ? err.message : err)
       }
     }
 
@@ -153,34 +239,24 @@ const refreshImageUrlFromNotion = async (metadata: ImageProxyMetadata) => {
           const property = (page as any)?.properties?.[metadata.property]
           const refreshed = extractUrlFromProperty(property, metadata.propertyType)
           if (refreshed) {
-            return { url: refreshed, via: 'page-property' }
+            return { url: refreshed, via: "page-property" }
           }
         }
 
         const coverUrl = extractUrlFromCover((page as any)?.cover)
         if (coverUrl) {
-          return { url: coverUrl, via: 'page-cover' }
+          return { url: coverUrl, via: "page-cover" }
         }
       } catch (err) {
-        console.log('[image-proxy] refresh via page failed', metadata.pageId, err instanceof Error ? err.message : err)
+        console.log("[image-proxy] refresh via page failed", metadata.pageId, err instanceof Error ? err.message : err)
       }
     }
   } catch (err) {
-    console.log('[image-proxy] refresh initialization failed', err instanceof Error ? err.message : err)
+    console.log("[image-proxy] refresh initialization failed", err instanceof Error ? err.message : err)
   }
 
   return { url: null, via: undefined as string | undefined }
 }
-
-const ALLOWED_HOSTS = [
-  /\.amazonaws\.com$/i,
-  /^amazonaws\.com$/i,
-  /\.notion\.so$/i,
-  /^notion\.so$/i,
-  /\.notion\.com$/i,
-  /^notion\.com$/i,
-  /\.notion-static\.com$/i,
-]
 
 const PLACEHOLDER_SVG = `<?xml version="1.0" encoding="UTF-8"?><svg xmlns='http://www.w3.org/2000/svg' width='400' height='300' viewBox='0 0 400 300' role='img' aria-label='Image unavailable'><rect width='100%' height='100%' fill='#f3f4f6'/><text x='50%' y='50%' dominant-baseline='middle' text-anchor='middle' fill='#6b7280' font-family='-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif' font-size='18'>Image unavailable</text></svg>`
 
@@ -240,7 +316,6 @@ export default async function handler(
     }
 
     try {
-      // Resolve a fresh presigned URL: in-memory LRU → Notion API
       let signedUrl = getLruSignedUrl(id)
       if (!signedUrl) {
         const refreshed = await refreshImageUrlFromNotion(metadata)
@@ -255,50 +330,55 @@ export default async function handler(
         setLruSignedUrl(id, signedUrl)
       }
 
-      // SSRF allow-list
       let parsedSignedUrl: URL
       try {
-        parsedSignedUrl = new URL(signedUrl)
+        parsedSignedUrl = validateImageSource(signedUrl, "s3 image URL")
       } catch {
         resolveInFlight(null)
         inFlightMap.delete(cacheKey)
         return res.status(400).json({ error: 'Invalid URL' })
       }
-      if (parsedSignedUrl.protocol !== 'https:' && parsedSignedUrl.protocol !== 'http:') {
-        resolveInFlight(null)
-        inFlightMap.delete(cacheKey)
-        return res.status(403).json({ error: 'Protocol not allowed' })
-      }
-      if (!ALLOWED_HOSTS.some((re) => re.test(parsedSignedUrl.hostname))) {
-        resolveInFlight(null)
-        inFlightMap.delete(cacheKey)
-        return res.status(403).json({ error: 'Host not allowed' })
-      }
 
-      // Fetch with retry; on 4xx refresh the signed URL once from Notion API
-      let imageResponse: Response | undefined
+      let signedUrlToUse = parsedSignedUrl.toString()
+
+      // Fetch with retry; on 4xx refresh the signed URL from Notion API
+      let image: { buffer: Buffer; contentType: string } | null = null
       let lastError: unknown
       const maxAttempts = 3
 
       for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        let imageResponse: Response | undefined
         try {
-          imageResponse = await safeFetch(signedUrl)
+          imageResponse = await safeFetch(signedUrlToUse)
         } catch (err) {
           lastError = err
           imageResponse = undefined
         }
 
-        if (imageResponse?.ok) break
+        if (imageResponse?.ok) {
+          try {
+            image = await readImageResponseBody(imageResponse)
+            break
+          } catch (err) {
+            lastError = err
+            break
+          }
+        }
 
         const status = imageResponse?.status
         if (status && REFRESHABLE_STATUS.has(status)) {
           signedUrlLru.delete(id)
           const refreshed = await refreshImageUrlFromNotion(metadata)
-          if (refreshed.url && refreshed.url !== signedUrl) {
-            signedUrl = refreshed.url
-            setLruSignedUrl(id, signedUrl)
-            lastError = undefined
-            continue
+          if (refreshed.url && refreshed.url !== signedUrlToUse) {
+            try {
+              const validated = validateImageSource(refreshed.url, "refreshed image URL")
+              signedUrlToUse = validated.toString()
+              setLruSignedUrl(id, signedUrlToUse)
+              lastError = undefined
+              continue
+            } catch {
+              lastError = new Error("Refreshed URL failed allow-list validation")
+            }
           }
         }
 
@@ -306,38 +386,34 @@ export default async function handler(
           lastError = new Error(`HTTP ${imageResponse.status}`)
         }
         if (attempt < maxAttempts) {
-          await new Promise((r) => setTimeout(r, Math.pow(2, attempt) * 100))
+          await new Promise((resolve) => setTimeout(resolve, Math.pow(2, attempt) * 100))
         }
       }
 
-      if (!imageResponse?.ok) {
+      if (!image) {
         const err = lastError || new Error('Failed to fetch image')
         resolveInFlight(null)
         inFlightMap.delete(cacheKey)
         throw err
       }
 
-      const arrayBuf = await imageResponse.arrayBuffer()
-      const buffer = Buffer.from(arrayBuf)
-      const contentType = imageResponse.headers.get('content-type') || 'image/jpeg'
-
       // Persist to BLOB disk cache (non-blocking — client gets response immediately)
       imageBlobCache
-        .set(cacheKey, buffer, contentType, getImageCacheTtl({ id }))
+        .set(cacheKey, image.buffer, image.contentType, getImageCacheTtl({ id }))
         .catch(() => {})
 
-      resolveInFlight({ buffer, contentType })
+      resolveInFlight(image)
       inFlightMap.delete(cacheKey)
 
-      res.setHeader('Content-Type', contentType)
+      res.setHeader('Content-Type', image.contentType)
       res.setHeader('Cache-Control', 'public, max-age=31536000, s-maxage=31536000, immutable')
       res.setHeader('CDN-Cache-Control', 'public, max-age=31536000')
-      res.setHeader('Content-Length', buffer.byteLength)
-      return res.status(200).send(buffer)
+      res.setHeader('Content-Length', image.buffer.byteLength)
+      return res.status(200).send(image.buffer)
     } catch (error) {
       resolveInFlight(null)
       inFlightMap.delete(cacheKey)
-      console.error('[image-proxy] kind=s3 failed:', error)
+      console.error('[image-proxy] kind=s3 failed:', sanitizeForLog(error instanceof Error ? error.message : String(error)))
       try {
         const slackWebhook = process.env.SLACK_WEBHOOK
         if (slackWebhook) {
@@ -366,9 +442,12 @@ export default async function handler(
     return res.status(400).json({ error: 'Missing or invalid URL parameter' })
   }
 
-  const finalUrl = unwrapProxiedUrl(url, true)
-  console.log('[image-proxy] received url=', url)
-  console.log('[image-proxy] finalUrl=', finalUrl)
+  const finalUrl = unwrapProxiedUrl(url)
+
+  if (process.env.NODE_ENV !== 'production') {
+    console.log('[image-proxy] received url=', sanitizeForLog(url))
+    console.log('[image-proxy] finalUrl=', sanitizeForLog(finalUrl))
+  }
 
   // Fallback: if unwrapping didn't produce an absolute URL, try to find an
   // embedded https substring (possibly percent-encoded) and decode from there.
@@ -390,10 +469,14 @@ export default async function handler(
     }
   }
 
-  console.log('[image-proxy] resolvedUrl=', resolvedUrl)
+  if (process.env.NODE_ENV !== 'production') {
+    console.log('[image-proxy] resolvedUrl=', sanitizeForLog(resolvedUrl))
+  }
 
   if (metadata.blockId || metadata.pageId || metadata.property) {
-    console.log('[image-proxy] metadata=', metadata)
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[image-proxy] metadata=', metadata)
+    }
   }
 
   // Heuristic: recover missing X-Amz params from a partially-encoded raw input
@@ -403,7 +486,7 @@ export default async function handler(
       let decodedRaw = raw
       try {
         decodedRaw = decodeURIComponent(raw)
-      } catch (e) {
+      } catch {
         // ignore decode errors and fall back to raw
       }
 
@@ -422,29 +505,36 @@ export default async function handler(
           }
 
           const merged = u.toString()
-          console.log('[image-proxy] heuristic: merged additional X-Amz params into resolvedUrl')
+          if (process.env.NODE_ENV !== 'production') {
+            console.log('[image-proxy] heuristic: merged additional X-Amz params into resolvedUrl')
+          }
           resolvedUrl = merged
         } catch (e) {
-          console.log('[image-proxy] heuristic merge failed', e && (e as Error).message)
+          if (process.env.NODE_ENV !== 'production') {
+            console.log('[image-proxy] heuristic merge failed', e && (e as Error).message)
+          }
         }
       }
     }
   } catch (e) {
-    console.log('[image-proxy] heuristic step error', e && (e as Error).message)
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[image-proxy] heuristic step error', e && (e as Error).message)
+    }
   }
 
   let parsedUrl: URL
   try {
-    parsedUrl = new URL(resolvedUrl)
-  } catch {
+    parsedUrl = validateImageSource(resolvedUrl, 'image URL')
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('protocol')) {
+      return res.status(403).json({ error: 'Protocol not allowed' })
+    }
+    if (error instanceof Error && error.message.includes('host')) {
+      return res.status(403).json({ error: 'Host not allowed' })
+    }
     return res.status(400).json({ error: 'Invalid URL' })
   }
-  if (parsedUrl.protocol !== 'https:' && parsedUrl.protocol !== 'http:') {
-    return res.status(403).json({ error: 'Protocol not allowed' })
-  }
-  if (!ALLOWED_HOSTS.some((re) => re.test(parsedUrl.hostname))) {
-    return res.status(403).json({ error: 'Host not allowed' })
-  }
+  resolvedUrl = parsedUrl.toString()
 
   // BLOB cache check for legacy url= requests that contain a stable S3 UUID
   const legacyS3Id = extractS3ImageId(resolvedUrl)
@@ -469,8 +559,9 @@ export default async function handler(
     success: false,
   }
 
+  let lastStatus: number | null = null
   try {
-    let imageResponse: Response | undefined
+    let image: { buffer: Buffer; contentType: string } | null = null
     let lastError: unknown
     let currentUrl = resolvedUrl
 
@@ -478,16 +569,25 @@ export default async function handler(
     let attempt = 1
 
     while (attempt <= maxAttempts) {
+      let imageResponse: Response | undefined
       try {
         imageResponse = await safeFetch(currentUrl)
+        lastStatus = imageResponse.status
       } catch (err) {
         lastError = err
+        lastStatus = null
         imageResponse = undefined
       }
 
-      if (imageResponse && imageResponse.ok) {
-        resolvedUrl = currentUrl
-        break
+      if (imageResponse?.ok) {
+        try {
+          image = await readImageResponseBody(imageResponse)
+          resolvedUrl = currentUrl
+          break
+        } catch (err) {
+          lastError = err
+          break
+        }
       }
 
       const status = imageResponse?.status
@@ -495,18 +595,25 @@ export default async function handler(
         refreshDiagnostics.attempted = true
         const refreshed = await refreshImageUrlFromNotion(metadata)
         if (refreshed.url && refreshed.url !== currentUrl) {
-          refreshDiagnostics.success = true
-          refreshDiagnostics.via = refreshed.via
-          currentUrl = refreshed.url
-          resolvedUrl = refreshed.url
-          lastError = undefined
-          console.log('[image-proxy] refreshed image URL from Notion', {
-            via: refreshed.via,
-            blockId: metadata.blockId,
-            pageId: metadata.pageId,
-            property: metadata.property,
-          })
-          continue
+          try {
+            const validatedRefreshed = validateImageSource(refreshed.url, 'refreshed image URL')
+            refreshDiagnostics.success = true
+            refreshDiagnostics.via = refreshed.via
+            currentUrl = validatedRefreshed.toString()
+            resolvedUrl = currentUrl
+            lastError = undefined
+            if (process.env.NODE_ENV !== 'production') {
+              console.log('[image-proxy] refreshed image URL from Notion', {
+                via: refreshed.via,
+                blockId: metadata.blockId,
+                pageId: metadata.pageId,
+                property: metadata.property,
+              })
+            }
+            continue
+          } catch {
+            lastError = new Error('Refreshed URL failed allow-list validation')
+          }
         }
       }
 
@@ -522,47 +629,23 @@ export default async function handler(
       attempt += 1
     }
 
-    if (!imageResponse || !imageResponse.ok) {
-      const err = lastError || new Error('Failed to fetch image')
-      try {
-        const logFile = resolveLogFile('image-proxy-errors.jsonl')
-        const record = {
-          timestamp: new Date().toISOString(),
-          ip: getRequestIp(req),
-          receivedUrl: String(url).slice(0, 2000),
-          rawRequestUrl: String(req.url).slice(0, 2000),
-          finalUrl: finalUrl?.slice ? finalUrl.slice(0, 2000) : finalUrl,
-          resolvedUrl: resolvedUrl?.slice ? resolvedUrl.slice(0, 2000) : resolvedUrl,
-          maskedResolvedUrl: maskPresignedUrl(resolvedUrl),
-          status: imageResponse ? imageResponse.status : null,
-          message: err instanceof Error ? err.message : String(err),
-          userAgent: req.headers['user-agent'],
-          metadata,
-          refresh: refreshDiagnostics,
-        }
-        appendJsonLog(logFile, record)
-      } catch (fsErr) {
-        errorLog('[image-proxy] failed to write error log', fsErr)
-      }
-
-      throw err
+    if (!image) {
+      throw lastError || new Error('Failed to fetch image')
     }
-
-    const imageBuffer = await imageResponse.arrayBuffer()
-    const buffer = Buffer.from(imageBuffer)
-    const contentType = imageResponse.headers.get('content-type') || 'image/jpeg'
 
     // Populate BLOB cache for any legacy url= requests that contain an S3 UUID
     // so subsequent kind=s3 requests immediately get a cache HIT.
     if (legacyCacheKey) {
-      imageBlobCache.set(legacyCacheKey, buffer, contentType, getImageCacheTtl({ id: legacyS3Id ?? undefined })).catch(() => {})
+      imageBlobCache
+        .set(legacyCacheKey, image.buffer, image.contentType, getImageCacheTtl({ id: legacyS3Id ?? undefined }))
+        .catch(() => {})
     }
 
-    res.setHeader('Content-Type', contentType)
+    res.setHeader('Content-Type', image.contentType)
     res.setHeader('Cache-Control', 'public, max-age=31536000, s-maxage=31536000, immutable')
     res.setHeader('CDN-Cache-Control', 'public, max-age=31536000')
-    res.setHeader('Content-Length', buffer.byteLength)
-    res.status(200).send(buffer)
+    res.setHeader('Content-Length', image.buffer.byteLength)
+    return res.status(200).send(image.buffer)
   } catch (error) {
     console.error('Error proxying image:', error)
 
@@ -571,11 +654,12 @@ export default async function handler(
       const record = {
         timestamp: new Date().toISOString(),
         ip: getRequestIp(req),
-        receivedUrl: String(url).slice(0, 2000),
-        rawRequestUrl: String(req.url).slice(0, 2000),
-        finalUrl: finalUrl?.slice ? finalUrl.slice(0, 2000) : finalUrl,
-        resolvedUrl: resolvedUrl?.slice ? resolvedUrl.slice(0, 2000) : resolvedUrl,
+        receivedUrl: sanitizeForLog(url),
+        rawRequestUrl: sanitizeForLog(String(req.url)),
+        finalUrl: sanitizeForLog(finalUrl),
+        resolvedUrl: sanitizeForLog(resolvedUrl),
         maskedResolvedUrl: maskPresignedUrl(resolvedUrl),
+        status: lastStatus,
         message: error instanceof Error ? error.message : String(error),
         stack: error && (error as any).stack ? String((error as any).stack).slice(0, 2000) : undefined,
         userAgent: req.headers['user-agent'],
@@ -590,8 +674,7 @@ export default async function handler(
       const slackWebhook = process.env.SLACK_WEBHOOK
       if (slackWebhook) {
         try {
-          const rawRequestUrl = String(req.url).slice(0, 2000)
-          const maskedResolved = maskPresignedUrl(resolvedUrl)
+          const rawRequestUrl = sanitizeForLog(String(req.url))
           const metaParts: string[] = []
           if (metadata.blockId) metaParts.push(`blockId=${metadata.blockId}`)
           if (metadata.pageId) metaParts.push(`pageId=${metadata.pageId}`)
@@ -600,8 +683,9 @@ export default async function handler(
           const refreshLine = refreshDiagnostics.attempted
             ? `\n• refresh: ${refreshDiagnostics.success ? `success via ${refreshDiagnostics.via}` : 'attempted but failed'}`
             : ''
+          const maskedResolved = maskPresignedUrl(resolvedUrl)
           const slackBody = {
-            text: `:warning: image-proxy failed\n• requested: ${rawRequestUrl}\n• resolved: ${maskedResolved}\n• message: ${error instanceof Error ? error.message : String(error)}${metaLine}${refreshLine}`
+            text: `:warning: image-proxy failed\n• requested: ${rawRequestUrl}\n• resolved: ${maskedResolved}\n• message: ${error instanceof Error ? error.message : String(error)}${metaLine}${refreshLine}`,
           }
           fetch(slackWebhook, {
             method: 'POST',
@@ -620,8 +704,8 @@ export default async function handler(
       res.setHeader('Content-Type', 'image/svg+xml')
       res.setHeader('Cache-Control', 'public, max-age=600, s-maxage=600')
       return res.status(200).send(PLACEHOLDER_SVG)
-    } catch (e) {
-      return res.status(500).json({ error: 'Failed to proxy image', details: error instanceof Error ? error.message : 'Unknown error' })
+    } catch {
+      return res.status(500).json({ error: 'Failed to proxy image' })
     }
   }
 }

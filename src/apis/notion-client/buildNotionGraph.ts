@@ -201,17 +201,32 @@ export function buildPropertyEdges(posts: TPost[]): {
   }
 
   // series hub 노드 + in-series 엣지 + series-next (시간순 인접)
-  const bySeries = new Map<string, TPost[]>()
+  const bySeries = new Map<
+    string,
+    {
+      title: string
+      posts: TPost[]
+    }
+  >()
   for (const p of posts) {
-    const s = p.series?.[0]
-    if (!s) continue
-    if (!bySeries.has(s)) bySeries.set(s, [])
-    bySeries.get(s)!.push(p)
+    const rawSeries = p.series?.[0]
+    if (!rawSeries) continue
+    const normalizedSeries = rawSeries.trim()
+    if (!normalizedSeries) continue
+    const seriesId = normalizeHubId("series", normalizedSeries)
+    const bucket = bySeries.get(seriesId)
+    if (!bucket) {
+      bySeries.set(seriesId, {
+        title: normalizedSeries,
+        posts: [p],
+      })
+    } else {
+      bucket.posts.push(p)
+    }
   }
-  for (const [seriesName, list] of bySeries) {
-    const seriesId = normalizeHubId("series", seriesName)
-    hubNodes.push({ kind: "series", id: seriesId, title: seriesName })
-    for (const p of list) {
+  for (const [seriesId, { title, posts: seriesPosts }] of bySeries) {
+    hubNodes.push({ kind: "series", id: seriesId, title })
+    for (const p of seriesPosts) {
       propertyEdges.push({ source: p.id, target: seriesId, type: "in-series", weight: 1 })
     }
   }

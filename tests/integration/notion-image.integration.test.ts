@@ -4,12 +4,10 @@
  * 이 테스트는 실제 Notion API(공식 클라이언트)를 호출하는 통합 테스트입니다.
  * DOM API에 의존하지 않으므로 Node 환경에서 실행해야 window 관련 mock이 필요 없습니다.
  */
-
 import 'dotenv/config'
-import type { PageObjectResponse, QueryDataSourceResponse } from '@notionhq/client/build/src/api-endpoints'
 import { getOfficialNotionClient } from 'src/apis/notion-client/notionClient'
-import { summarizeBlockTypes } from 'src/libs/utils/notion/analyzeBlocks'
-import type { BlockSummary } from 'src/libs/utils/notion/analyzeBlocks'
+import type { PageObjectResponse, QueryDataSourceResponse } from '@notionhq/client/build/src/api-endpoints'
+import { summarizeBlockTypes, type BlockSummary } from "src/libs/utils/notion/analyzeBlocks"
 const REQUIRED_ENV = ['NOTION_TOKEN', 'NOTION_DATASOURCE_ID'] as const
 const missingEnv = REQUIRED_ENV.filter((key) => !process.env[key])
 

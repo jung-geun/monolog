@@ -2,10 +2,10 @@ import {
   forceSimulation,
   forceLink,
   forceManyBody,
-  forceCenter,
   forceCollide,
   forceX,
   forceY,
+  forceRadial,
 } from "d3-force"
 import { cacheStore, keys } from "src/libs/cache"
 import { buildGraph } from "src/libs/utils/graph"
@@ -29,26 +29,48 @@ const BUILT_GRAPH_TTL_MS = 24 * 60 * 60 * 1000
 
 
 // Run D3 force simulation synchronously to convergence (server-side, no DOM needed).
-// alphaDecay=0.03 converges at ~222 ticks; 300 gives comfortable headroom.
+// alphaDecay=0.03 converges at ~222 ticks; 400 gives headroom for forceRadial settling.
 function runSimulationSync(nodes: GraphNode[], edges: GraphEdge[]): void {
   type N = GraphNode & { index?: number; vx?: number; vy?: number; fx?: number | null; fy?: number | null }
-  const links = edges.map((e) => ({ source: e.a, target: e.b, weight: e.weight }))
+  type L = { source: number; target: number; weight: number; type: string; sameCategory: boolean }
+
+  const links: L[] = edges.map((e) => ({
+    source: e.a,
+    target: e.b,
+    weight: e.weight,
+    type: e.type,
+    sameCategory: e.sameCategory,
+  }))
+
+  const isHubLink = (d: L) => d.type === "has-tag" || d.type === "in-series"
 
   forceSimulation<N>(nodes as N[])
     .force(
       "link",
-      forceLink<N, typeof links[number]>(links)
+      forceLink<N, L>(links)
         .id((_, i) => i)
-        .distance((d) => 40 / Math.max(1, Math.sqrt(d.weight)))
-        .strength((d) => Math.min(0.8, 0.2 + 0.15 * d.weight))
+        .distance((d) =>
+          isHubLink(d)
+            ? 110
+            : Math.max(20, 44 / Math.max(1, Math.log2(1 + d.weight)))
+        )
+        .strength((d) =>
+          isHubLink(d)
+            ? 0.04
+            : Math.min(0.6, 0.15 + 0.1 * d.weight)
+        )
     )
-    .force("charge", forceManyBody<N>().strength(-30))
-    .force("center", forceCenter<N>(W / 2, H / 2))
-    .force("x", forceX<N>(W / 2).strength(0.04))
-    .force("y", forceY<N>(H / 2).strength(0.04))
-    .force("collide", forceCollide<N>(11))
+    .force("charge", forceManyBody<N>().strength((node) => (node.kind === "post" ? -220 : -30)))
+    .force(
+      "radial",
+      forceRadial<N>(Math.min(W, H) * 0.42, W / 2, H / 2)
+        .strength((node) => (node.kind === "post" ? 0 : 0.18))
+    )
+    .force("x", forceX<N>(W / 2).strength((n) => (n.kind === "post" ? 0.01 : 0)))
+    .force("y", forceY<N>(H / 2).strength((n) => (n.kind === "post" ? 0.01 : 0)))
+    .force("collide", forceCollide<N>((node) => (node.kind === "post" ? 14 : 7)))
     .stop()
-    .tick(300)
+    .tick(400)
 }
 
 export async function getBuiltGraph(options?: {
@@ -58,6 +80,7 @@ export async function getBuiltGraph(options?: {
   const posts = await getPosts()
   const hash = computePostsGraphHash(posts)
   const key = keys.builtGraph(hash)
+  let builtFromPartial = false
 
   const build = async (): Promise<BuiltGraph> => {
     const notionGraph =
@@ -79,4 +102,3 @@ export async function getBuiltGraph(options?: {
     isCacheable: () => !builtFromPartial,
   })
 }
-  let builtFromPartial = false

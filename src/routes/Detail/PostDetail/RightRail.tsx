@@ -1,10 +1,11 @@
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import styled from "@emotion/styled"
 import { ExtendedRecordMap } from "notion-types"
 import { uuidToId } from "notion-utils"
 import { unwrapBlock } from "src/libs/utils/notion/unwrapBlock"
 import usePostsQuery from "src/hooks/usePostsQuery"
+import useSimilarPostsQuery from "src/hooks/useSimilarPostsQuery"
 import { TPost } from "src/types"
 
 type TocEntry = { id: string; text: string; level: number }
@@ -38,9 +39,17 @@ const extractToc = (recordMap: ExtendedRecordMap | null): TocEntry[] => {
 const RightRail = ({ recordMap, post }: Props) => {
   const [activeId, setActiveId] = useState<string>("")
   const allPosts = usePostsQuery()
-  const toc = extractToc(recordMap)
+  const { similar } = useSimilarPostsQuery(post.id, 5)
+  const toc = useMemo(() => extractToc(recordMap), [recordMap])
+  const postTags = useMemo(() => post.tags || [], [post.tags])
+  const postSlug = post.slug
+  const postCategory = post.category?.[0]
+  const seriesName = post.series?.[0]
+  const normalizedPostTags = useMemo(
+    () => [...new Set(postTags)],
+    [postTags]
+  )
 
-  // Track active TOC entry on scroll
   useEffect(() => {
     const scrollEl = document.querySelector(".scroll-area")
     if (!scrollEl || !toc.length) return
@@ -58,30 +67,34 @@ const RightRail = ({ recordMap, post }: Props) => {
     return () => scrollEl.removeEventListener("scroll", update)
   }, [toc])
 
-  const related = allPosts
-    .filter(
-      (p) =>
-        p.slug !== post.slug &&
-        p.category?.[0] === post.category?.[0]
-    )
-    .slice(0, 3)
+  const related = useMemo(() => {
+    return allPosts
+      .filter(
+        (p) =>
+          p.slug !== postSlug &&
+          p.category?.[0] === postCategory
+      )
+      .slice(0, 3)
+  }, [allPosts, postCategory, postSlug])
 
-  const seriesName = post.series?.[0]
-  const seriesEntries = seriesName
-    ? allPosts.filter((p) => p.series?.includes(seriesName))
-    : []
+  const seriesEntries = useMemo(() => {
+    return seriesName
+      ? allPosts.filter((p) => p.series?.includes(seriesName))
+      : []
+  }, [allPosts, seriesName])
 
-  const postTags = post.tags || []
-  const nodes = allPosts
-    .filter((p) => p.slug !== post.slug)
-    .map((p) => ({
-      slug: p.slug,
-      title: p.title,
-      tags: p.tags || [],
-      shared: (p.tags || []).filter((t) => postTags.includes(t)).length,
-    }))
-    .filter((n) => n.shared > 0)
-    .slice(0, 5)
+  const nodes = useMemo(() => {
+    return allPosts
+      .filter((p) => p.slug !== postSlug)
+      .map((p) => ({
+        slug: p.slug,
+        title: p.title,
+        tags: p.tags || [],
+        shared: (p.tags || []).filter((t) => normalizedPostTags.includes(t)).length,
+      }))
+      .filter((n) => n.shared > 0)
+      .slice(0, 5)
+  }, [allPosts, normalizedPostTags, postSlug])
 
   return (
     <StyledWrapper>
@@ -114,9 +127,9 @@ const RightRail = ({ recordMap, post }: Props) => {
             <Link
               key={p.slug}
               href={`/${p.slug}`}
-              className={`related-item${p.slug === post.slug ? " current" : ""}`}
+              className={`related-item${p.slug === postSlug ? " current" : ""}`}
             >
-              {p.slug === post.slug ? "▸ " : "· "}
+              {p.slug === postSlug ? "▸ " : "· "}
               {p.title.slice(0, 30)}{p.title.length > 30 ? "…" : ""}
             </Link>
           ))}
@@ -134,7 +147,23 @@ const RightRail = ({ recordMap, post }: Props) => {
         </div>
       )}
 
-      {nodes.length > 0 && post.slug !== "about" && (
+      {similar.length > 0 && (
+        <div className="section">
+          <div className="section-label">ai · similar</div>
+          {similar.map((s) => (
+            <div key={s.postId} className="similar-item">
+              <Link href={`/${s.slug}`} className="similar-title">
+                → {s.title.slice(0, 34)}{s.title.length > 34 ? "…" : ""}
+              </Link>
+              {s.rationale && (
+                <span className="similar-rationale">{s.rationale}</span>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {nodes.length > 0 && postSlug !== "about" && (
         <div className="section">
           <div className="section-label">graph</div>
           <div className="mini-graph">
@@ -168,7 +197,6 @@ const RightRail = ({ recordMap, post }: Props) => {
 }
 
 export default RightRail
-
 const StyledWrapper = styled.aside`
   position: sticky;
   top: 0;
@@ -235,6 +263,28 @@ const StyledWrapper = styled.aside`
       color: ${({ theme }) => theme.colors.editor.fg};
       font-weight: 500;
     }
+  }
+
+  .similar-item {
+    margin-bottom: 8px;
+  }
+
+  .similar-title {
+    display: block;
+    font-size: 11px;
+    color: ${({ theme }) => theme.colors.editor.accent3};
+    padding: 2px 0;
+    text-decoration: none;
+    &:hover { color: ${({ theme }) => theme.colors.editor.accent}; }
+  }
+
+  .similar-rationale {
+    display: block;
+    font-size: 10px;
+    color: ${({ theme }) => theme.colors.editor.fg3};
+    line-height: 1.4;
+    padding-left: 10px;
+    opacity: 0.75;
   }
 
   .mini-graph {

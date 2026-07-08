@@ -11,6 +11,7 @@ import { createServerQueryClient } from "src/libs/react-query"
 import { queryKey } from "src/constants/queryKey"
 import { dehydrate } from "@tanstack/react-query"
 import usePostQuery from "src/hooks/usePostQuery"
+import useTrackVisit from "src/hooks/useTrackVisit"
 import { FilterPostsOptions } from "src/libs/utils/notion/filterPosts"
 import { debugLog } from "src/libs/utils/logger"
 
@@ -189,6 +190,7 @@ export const getStaticProps: GetStaticProps = async (context) => {
 
 const DetailPage: NextPageWithLayout = () => {
   const post = usePostQuery()
+  useTrackVisit(post)
 
   if (!post) return <CustomError />
 

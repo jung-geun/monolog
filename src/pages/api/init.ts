@@ -51,7 +51,7 @@ export default async function handler(
     console.error("❌ ISR cache initialization failed:", err)
     return res.status(500).json({
       success: false,
-      error: err instanceof Error ? err.message : "Unknown error",
+      error: "failed to initialize cache",
     })
   }
 }

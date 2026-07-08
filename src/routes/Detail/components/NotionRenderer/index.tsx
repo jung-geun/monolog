@@ -11,6 +11,7 @@ import { useDatabaseQuery } from "src/hooks/useDatabasesQuery"
 import { useListItemColorEffect } from "./useListItemColorEffect"
 import { SafeBlock } from "./SafeBlock"
 import { useEffect, useMemo, useCallback } from "react"
+import { createProxyRequestUrl } from "src/libs/utils/image/proxyUtils"
 import { customMapImageUrl } from "src/libs/utils/notion/customMapImageUrl"
 import { unwrapBlock } from "src/libs/utils/notion/unwrapBlock"
 import {
@@ -186,6 +187,11 @@ const NotionRenderer: FC<Props> = ({ recordMap }) => {
   }, [idToSlug])
 
   const router = useRouter()
+  const refreshKatex = () => {
+    if (typeof window !== "undefined" && window.renderMathInElement && window.renderMathManually) {
+      window.renderMathManually()
+    }
+  }
 
   // The rewritten recordMap gives every internal link an `/slug` href. Some
   // react-notion-x renderers still emit `target="_blank" rel="noopener"`, which
@@ -288,17 +294,17 @@ const NotionRenderer: FC<Props> = ({ recordMap }) => {
   // because `_NotionRenderer` is a `ssr: false` dynamic import — the
   // .notion-page container is created after this useEffect first fires.
   useEffect(() => {
-    if (!recordMap || typeof window === 'undefined') return
+    if (!recordMap || typeof window === "undefined") return
     const enhance = () => {
       const imgs = document.querySelectorAll<HTMLImageElement>('img.notion-user')
       imgs.forEach((img) => {
-        if (img.parentElement?.classList.contains('notion-user-pill')) return
-        const name = img.getAttribute('alt') || ''
-        const pill = document.createElement('span')
-        pill.className = 'notion-user-pill'
-        const nameSpan = document.createElement('span')
-        nameSpan.className = 'notion-user-name'
-        nameSpan.textContent = name ? `@${name}` : ''
+        if (img.parentElement?.classList.contains("notion-user-pill")) return
+        const name = img.getAttribute("alt") || ""
+        const pill = document.createElement("span")
+        pill.className = "notion-user-pill"
+        const nameSpan = document.createElement("span")
+        nameSpan.className = "notion-user-name"
+        nameSpan.textContent = name ? `@${name}` : ""
         img.replaceWith(pill)
         pill.appendChild(img)
         if (name) pill.appendChild(nameSpan)
@@ -313,72 +319,83 @@ const NotionRenderer: FC<Props> = ({ recordMap }) => {
   // KaTeX math rendering effect - moved to top level to follow React Hooks rules
   useEffect(() => {
     // Only run on client side and when recordMap is available
-    if (!recordMap || typeof window === 'undefined') return
+    if (!recordMap || typeof window === "undefined") return
+
+    const maxWaitRounds = 6
+    let loadRound = 0
+    let initialMathTimer: ReturnType<typeof setTimeout> | null = null
+    let mathTimer: ReturnType<typeof setTimeout> | null = null
 
     // Check if KaTeX is available
     const checkAndRenderMath = () => {
-      if (!window.katex) {
-        if (process.env.NODE_ENV !== 'production') {
-          console.log('KaTeX: Not available, skipping math rendering')
+      if (!window.katex || !window.renderMathInElement) {
+        if (loadRound < maxWaitRounds) {
+          loadRound += 1
+          mathTimer = setTimeout(checkAndRenderMath, 250)
+        } else if (process.env.NODE_ENV !== "production") {
+          console.warn("KaTeX: Not available after retries; skipping math rendering")
         }
         return
       }
 
       // Look for inline math expressions that weren't rendered by Equation component
-      const notionPage = document.querySelector('.notion-page')
+      const notionPage = document.querySelector(".notion-page")
       if (!notionPage) return
 
       // Find all text content that might contain math delimiters
-      const allTextElements = notionPage.querySelectorAll('p, span, div')
+      const allTextElements = notionPage.querySelectorAll("p, span, div")
       let foundMath = false
 
-      allTextElements.forEach(element => {
-        const text = element.textContent || ''
+      allTextElements.forEach((element) => {
+        const text = element.textContent || ""
         // Check for unrendered math expressions
-        if ((text.includes('$') || text.includes('\\(') || text.includes('\\[')) &&
-          !element.querySelector('.katex') &&
-          !element.classList.contains('katex')) {
-
+        if (
+          (text.includes("$") || text.includes("\\(") || text.includes("\\[")) &&
+          !element.querySelector(".katex") &&
+          !element.classList.contains("katex")
+        ) {
           // Try to render math in this element
           try {
             window.renderMathInElement(element, {
               delimiters: [
-                { left: '$$', right: '$$', display: true },
-                { left: '$', right: '$', display: false },
-                { left: '\\[', right: '\\]', display: true },
-                { left: '\\(', right: '\\)', display: false }
+                { left: "$$", right: "$$", display: true },
+                { left: "$", right: "$", display: false },
+                { left: "\\[", right: "\\]", display: true },
+                { left: "\\(", right: "\\)", display: false },
               ],
-              throwOnError: false
+              throwOnError: false,
             })
             foundMath = true
           } catch (error) {
-            if (process.env.NODE_ENV !== 'production') {
-              console.warn('KaTeX: Failed to render math in element:', error)
+            if (process.env.NODE_ENV !== "production") {
+              console.warn("KaTeX: Failed to render math in element:", error)
             }
           }
         }
       })
 
-      if (process.env.NODE_ENV !== 'production') {
-        console.log(`KaTeX: ${foundMath ? 'Found and rendered math' : 'No unrendered math found'}`)
+      if (process.env.NODE_ENV !== "production") {
+        console.log(`KaTeX: ${foundMath ? "Found and rendered math" : "No unrendered math found"}`)
       }
     }
 
-    setTimeout(checkAndRenderMath, 1000)
-
-    let mathTimer: ReturnType<typeof setTimeout>
     const observer = new MutationObserver(() => {
-      clearTimeout(mathTimer)
+      if (mathTimer) {
+        clearTimeout(mathTimer)
+      }
       mathTimer = setTimeout(checkAndRenderMath, 500)
     })
 
-    const notionPage = document.querySelector('.notion-page') ?? document.body
+    initialMathTimer = setTimeout(checkAndRenderMath, 1000)
+    const notionPage = document.querySelector(".notion-page") ?? document.body
     observer.observe(notionPage, { childList: true, subtree: true })
 
     // Manual re-render function for debugging
     window.renderMathManually = checkAndRenderMath
 
     return () => {
+      if (initialMathTimer) clearTimeout(initialMathTimer)
+      if (mathTimer) clearTimeout(mathTimer)
       observer.disconnect()
       delete window.renderMathManually
     }
@@ -386,64 +403,71 @@ const NotionRenderer: FC<Props> = ({ recordMap }) => {
 
   // YouTube 라이트 로딩을 iframe으로 교체 및 오디오 블록 렌더링
   useEffect(() => {
-    if (!recordMap || typeof window === 'undefined') return
+    if (!recordMap || typeof window === "undefined") return
+
+    const pendingTimeouts = new Set<ReturnType<typeof setTimeout>>()
+    const trackTimeout = (timeoutId: ReturnType<typeof setTimeout>) => {
+      pendingTimeouts.add(timeoutId)
+      return timeoutId
+    }
 
     const replaceYouTubeLite = () => {
-      const ytLiteElements = document.querySelectorAll('.notion-yt-lite')
+      const ytLiteElements = document.querySelectorAll(".notion-yt-lite")
 
       ytLiteElements.forEach((element) => {
         // 이미 처리된 요소는 건너뜀
-        if (element.hasAttribute('data-yt-processed')) return
+        if (element.hasAttribute("data-yt-processed")) return
 
         // 썸네일에서 YouTube ID 추출
-        const img = element.querySelector('img.notion-yt-thumbnail')
+        const img = element.querySelector("img.notion-yt-thumbnail")
         if (!img) return
 
-        const src = img.getAttribute('src')
+        const src = img.getAttribute("src")
         if (!src) return
 
-        const match = src.match(/vi\/([^\/]+)\//)
+        const match = src.match(/vi\/([^/]+)\//)
         if (!match) return
 
         const videoId = match[1]
 
         // iframe 생성
-        const iframe = document.createElement('iframe')
+        const iframe = document.createElement("iframe")
         iframe.src = `https://www.youtube.com/embed/${videoId}`
-        iframe.style.cssText = 'width: 100%; height: 100%; border: none; position: absolute; top: 0; left: 0;'
-        iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture'
+        iframe.style.cssText = "width: 100%; height: 100%; border: none; position: absolute; top: 0; left: 0;"
+        iframe.allow = "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
         iframe.allowFullscreen = true
-        iframe.title = 'YouTube video'
+        iframe.title = "YouTube video"
 
         // 부모 요소 스타일 수정
         const parent = element.parentElement
         if (parent) {
-          parent.style.position = 'relative'
-          parent.style.paddingBottom = '56.25%'
-          parent.style.height = '0'
-          parent.style.width = 'auto'
-          parent.style.maxWidth = '100%'
-          parent.style.overflow = 'hidden'
-          parent.style.borderRadius = '4px'
-          parent.style.background = '#f1f1f1'
+          parent.style.position = "relative"
+          parent.style.paddingBottom = "56.25%"
+          parent.style.height = "0"
+          parent.style.width = "auto"
+          parent.style.maxWidth = "100%"
+          parent.style.overflow = "hidden"
+          parent.style.borderRadius = "4px"
+          parent.style.background = "#f1f1f1"
         }
 
         // 교체
         element.replaceWith(iframe)
-        element.setAttribute('data-yt-processed', 'true')
+        element.setAttribute("data-yt-processed", "true")
 
         // figure 요소 찾아서 제거하고 iframe만 남기기
-        setTimeout(() => {
-          const figure = iframe.closest('figure.notion-asset-wrapper-video')
+        const figureTimer = setTimeout(() => {
+          const figure = iframe.closest("figure.notion-asset-wrapper-video")
           if (figure) {
             const figureParent = figure.parentElement
             if (figureParent) {
               // 새로운 wrapper 생성
-              const wrapper = document.createElement('div')
-              wrapper.style.cssText = 'position: relative; width: 100%; max-width: 100%; padding-bottom: 56.25%; height: 0; overflow: hidden; border-radius: 4px; background: #f1f1f1; margin: 1rem 0;'
+              const wrapper = document.createElement("div")
+              wrapper.style.cssText =
+                "position: relative; width: 100%; max-width: 100%; padding-bottom: 56.25%; height: 0; overflow: hidden; border-radius: 4px; background: #f1f1f1; margin: 1rem 0;"
 
               // iframe 스타일 수정 (wrapper 내에서 absolute)
-              iframe.style.cssText = 'width: 100%; height: 100%; border: none; position: absolute; top: 0; left: 0;'
+              iframe.style.cssText = "width: 100%; height: 100%; border: none; position: absolute; top: 0; left: 0;"
 
               // wrapper에 iframe 추가
               wrapper.appendChild(iframe)
@@ -455,7 +479,9 @@ const NotionRenderer: FC<Props> = ({ recordMap }) => {
               figure.remove()
             }
           }
+          pendingTimeouts.delete(figureTimer)
         }, 100)
+        trackTimeout(figureTimer)
       })
     }
 
@@ -464,9 +490,9 @@ const NotionRenderer: FC<Props> = ({ recordMap }) => {
       // recordMap에서 audio 타입 블록 찾기
       Object.entries(recordMap.block).forEach(([blockId, blockData]) => {
         const blockValue = unwrapBlock(blockData)
-        if (blockValue?.type === 'audio') {
+        if (blockValue?.type === "audio") {
           const element = document.querySelector(`[data-block-id="${blockId}"]`)
-          if (!element || element.hasAttribute('data-audio-processed')) return
+          if (!element || element.hasAttribute("data-audio-processed")) return
           const format = (blockValue.format || {}) as any
           const properties = blockValue.properties || {}
 
@@ -489,57 +515,74 @@ const NotionRenderer: FC<Props> = ({ recordMap }) => {
           }
 
           if (audioUrl) {
-            const wrapper = document.createElement('div')
-            wrapper.className = 'notion-audio-wrapper'
-            wrapper.style.cssText = 'margin: 1rem 0;'
+            const wrapper = document.createElement("div")
+            wrapper.className = "notion-audio-wrapper"
+            wrapper.style.cssText = "margin: 1rem 0;"
 
-            const audioEl = document.createElement('audio')
+            const audioEl = document.createElement("audio")
             audioEl.controls = true
-            audioEl.preload = 'metadata'
-            audioEl.style.cssText = 'width: 100%; max-width: 100%;'
+            audioEl.preload = "metadata"
+            audioEl.style.cssText = "width: 100%; max-width: 100%;"
 
-            const sourceEl = document.createElement('source')
+            const sourceEl = document.createElement("source")
             sourceEl.src = audioUrl
 
             audioEl.appendChild(sourceEl)
             wrapper.appendChild(audioEl)
-
-            element.innerHTML = ''
+            element.innerHTML = ""
             element.appendChild(wrapper)
-            element.setAttribute('data-audio-processed', 'true')
+            element.setAttribute("data-audio-processed", "true")
 
-            if (process.env.NODE_ENV !== 'production') {
-              console.log('🎵 [Audio] Rendered audio block from recordMap:', blockId, audioUrl)
+            if (process.env.NODE_ENV !== "production") {
+              console.log("🎵 [Audio] Rendered audio block from recordMap:", blockId, audioUrl)
             }
           }
         }
       })
     }
 
-    setTimeout(replaceYouTubeLite, 500)
-    setTimeout(renderAudioBlocks, 500)
+    const initialReplaceTimeout = setTimeout(replaceYouTubeLite, 500)
+    const initialAudioTimeout = setTimeout(renderAudioBlocks, 500)
+    trackTimeout(initialReplaceTimeout)
+    trackTimeout(initialAudioTimeout)
 
-    let ytTimer: ReturnType<typeof setTimeout>
+    let ytTimer: ReturnType<typeof setTimeout> | null = null
     const observer = new MutationObserver(() => {
-      clearTimeout(ytTimer)
-      ytTimer = setTimeout(() => { replaceYouTubeLite(); renderAudioBlocks() }, 300)
+      if (ytTimer) {
+        clearTimeout(ytTimer)
+        pendingTimeouts.delete(ytTimer)
+      }
+      ytTimer = trackTimeout(
+        setTimeout(() => {
+          replaceYouTubeLite()
+          renderAudioBlocks()
+        }, 300)
+      )
     })
 
-    const notionPage = document.querySelector('.notion-page') ?? document.body
+    const notionPage = document.querySelector(".notion-page") ?? document.body
     observer.observe(notionPage, { childList: true, subtree: true })
 
     return () => {
       observer.disconnect()
+      if (ytTimer) {
+        clearTimeout(ytTimer)
+      }
+      for (const timeoutId of pendingTimeouts) {
+        clearTimeout(timeoutId)
+      }
+      pendingTimeouts.clear()
     }
   }, [recordMap])
 
+
   // Refresh expired image URLs on load failure
   useEffect(() => {
-    if (!recordMap || typeof window === 'undefined') return
+    if (!recordMap || typeof window === "undefined") return
 
     const refreshImageOnLoadError = async (img: HTMLImageElement, blockId: string) => {
       try {
-        if (process.env.NODE_ENV !== 'production') {
+        if (process.env.NODE_ENV !== "production") {
           console.log(`🔄 [ImageRefresh] Refreshing image for block ${blockId}`)
         }
 
@@ -550,80 +593,71 @@ const NotionRenderer: FC<Props> = ({ recordMap }) => {
 
         const data = await response.json()
         if (!data.url) {
-          throw new Error('No URL in response')
+          throw new Error("No URL in response")
         }
 
-        if (process.env.NODE_ENV !== 'production') {
+        if (process.env.NODE_ENV !== "production") {
           console.log(`✅ [ImageRefresh] Refreshed URL for block ${blockId}`)
         }
 
-        // Construct Notion proxy URL with fresh S3 URL
-        const notionProxyUrl = new URL('https://www.notion.so/image/' + encodeURIComponent(data.url))
-        notionProxyUrl.searchParams.set('cache', 'v2')
-        notionProxyUrl.searchParams.set('table', 'block')
-        notionProxyUrl.searchParams.set('id', blockId)
+        // Next/image commonly keeps a stale srcset; clear it so the browser
+        // reloads with the new proxied URL.
+        img.srcset = ""
+        img.removeAttribute("sizes")
 
-        const freshUrl = notionProxyUrl.toString()
-
-        // Update the image source
-        img.src = freshUrl
-
+        img.src = createProxyRequestUrl(data.url, {
+          blockId,
+          source: "notion-renderer",
+        })
       } catch (error) {
-        if (process.env.NODE_ENV !== 'production') {
+        if (process.env.NODE_ENV !== "production") {
           console.error(`❌ [ImageRefresh] Failed to refresh image for block ${blockId}:`, error)
         }
       }
     }
 
-    // Track blocks that have been attempted to refresh to avoid infinite loops
+    // Track blocks that have been attempted to refresh to avoid infinite loops.
     const refreshAttempts = new Set<string>()
 
     const handleImageError = (event: Event) => {
-      const img = event.target as HTMLImageElement
-      const container = img.closest('[data-block-id]')
+      const img = event.target as HTMLImageElement | null
+      if (!img || !(img instanceof HTMLImageElement)) return
+      if (!img.matches("img.notion-asset-wrapper-image, img.medium-zoom-image")) return
 
+      const container = img.closest("[data-block-id]")
       if (!container) return
 
-      const blockId = container.getAttribute('data-block-id')
+      const blockId = container.getAttribute("data-block-id")
       if (!blockId) return
 
-      // Skip if already attempted to refresh this block
       if (refreshAttempts.has(blockId)) {
-        if (process.env.NODE_ENV !== 'production') {
+        if (process.env.NODE_ENV !== "production") {
           console.log(`⏭️ [ImageRefresh] Already attempted to refresh block ${blockId}, skipping`)
         }
         return
       }
 
+      // Only refresh Notion/S3 images that are likely to have temporary signature expiry.
+      const currentSrc = img.currentSrc || img.src
+      if (
+        !currentSrc.includes("notion.so/image/") &&
+        !currentSrc.includes("amazonaws.com") &&
+        !currentSrc.includes("/api/image-proxy") &&
+        !currentSrc.includes("/_next/image")
+      ) return
+
       refreshAttempts.add(blockId)
 
-      // Check if this is a Notion proxy URL that might be expired
-      const currentSrc = img.src
-      if (currentSrc.includes('notion.so/image/') || currentSrc.includes('amazonaws.com')) {
-        if (process.env.NODE_ENV !== 'production') {
-          console.log(`⚠️ [ImageRefresh] Image load failed for block ${blockId}, attempting refresh`)
-        }
-        refreshImageOnLoadError(img, blockId)
+      if (process.env.NODE_ENV !== "production") {
+        console.log(`⚠️ [ImageRefresh] Image load failed for block ${blockId}, attempting refresh`)
       }
+
+      void refreshImageOnLoadError(img, blockId)
     }
 
-    const observer = new MutationObserver(() => {
-      const images = document.querySelectorAll('img.notion-asset-wrapper-image, img.medium-zoom-image')
-      images.forEach(img => {
-        img.removeEventListener('error', handleImageError)
-        img.addEventListener('error', handleImageError)
-      })
-    })
-
-    const notionPage = document.querySelector('.notion-page') ?? document.body
-    observer.observe(notionPage, { childList: true, subtree: true })
-
+    document.addEventListener("error", handleImageError, { capture: true })
     return () => {
-      observer.disconnect()
-      const images = document.querySelectorAll('img.notion-asset-wrapper-image, img.medium-zoom-image')
-      images.forEach(img => {
-        img.removeEventListener('error', handleImageError)
-      })
+      document.removeEventListener("error", handleImageError, { capture: true })
     }
   }, [recordMap])
 
@@ -648,10 +682,12 @@ const NotionRenderer: FC<Props> = ({ recordMap }) => {
       <Script
         src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"
         strategy="lazyOnload"
+        onLoad={refreshKatex}
       />
       <Script
         src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"
         strategy="lazyOnload"
+        onLoad={refreshKatex}
       />
       <_NotionRenderer
         darkMode={scheme === "dark"}

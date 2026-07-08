@@ -5,31 +5,48 @@ import {
   forceSimulation,
   forceLink,
   forceManyBody,
-  forceCenter,
   forceCollide,
   forceX,
   forceY,
+  forceRadial,
   type Simulation,
   type ForceManyBody,
   type ForceLink as ForceLinkType,
   SimulationNodeDatum,
   SimulationLinkDatum,
 } from "d3-force"
-import type { ForceX as ForceXType, ForceY as ForceYType } from "d3-force"
+import type { ForceX as ForceXType, ForceY as ForceYType, ForceRadial as ForceRadialType } from "d3-force"
+import { EdgeKind } from "src/types/notionGraph"
 import { drag, type D3DragEvent } from "d3-drag"
 import { select } from "d3-selection"
 import { zoom, zoomIdentity, type ZoomBehavior } from "d3-zoom"
 import useNotionGraphQuery from "src/hooks/useNotionGraphQuery"
+import useOntologyQuery from "src/hooks/useOntologyQuery"
 import { useRegisterChrome } from "src/layouts/RootLayout/EditorChrome/RouteChromeContext"
 import { GraphNode, SERIES_COLOR, TAG_COLOR } from "src/libs/utils/graph"
+import type { SemanticRelationKind } from "src/types/ontology"
 
 const W = 720
 const H = 520
 
-type SimLink = SimulationLinkDatum<GraphNode & SimulationNodeDatum> & { weight: number }
+type SimLink = SimulationLinkDatum<GraphNode & SimulationNodeDatum> & {
+  weight: number
+  type: EdgeKind
+  sameCategory: boolean
+}
+
+const SEMANTIC_EDGE_COLOR: Partial<Record<SemanticRelationKind, string>> = {
+  "similar-topic": "#888",
+  elaborates:      "#6ea8fe",
+  supports:        "#57cc99",
+  applies:         "#ffb347",
+  prerequisite:    "#ee5a1c",
+  contradicts:     "#e05c5c",
+}
 
 const Graph = () => {
   const graph = useNotionGraphQuery()
+  const { ontology } = useOntologyQuery()
 
   // nodes/edges/cats are pre-computed server-side; wrap in useMemo to stabilize references.
   const { nodes, edges, cats } = useMemo(
@@ -40,10 +57,16 @@ const Graph = () => {
 
   const [selectedIdx, setSelectedIdx] = useState(-1)
   const [hoverCat, setHoverCat] = useState<string | null>(null)
-  const [repulsion, setRepulsion] = useState(30)
-  const [centering, setCentering] = useState(0.04)
-  const [linkDistance, setLinkDistance] = useState(40)
-  const [linkStrength, setLinkStrength] = useState(1.0)
+  const [postRepulsion, setPostRepulsion] = useState(220)
+  const [hubRepulsion, setHubRepulsion] = useState(30)
+  const [hubRingRadius, setHubRingRadius] = useState(0.42)
+  const [hubLinkStrength, setHubLinkStrength] = useState(0.04)
+  const [linkDistance, setLinkDistance] = useState(44)
+
+  // Semantic overlay state
+  const [showSimilar, setShowSimilar] = useState(false)
+  const [showLogical, setShowLogical] = useState(false)
+  const [simThreshold, setSimThreshold] = useState(0.80)
 
   // Animation state
   const [isPlaying, setIsPlaying] = useState(false)
@@ -121,6 +144,29 @@ const Graph = () => {
     return set
   }, [selectedIdx, edges, nodes.length])
 
+  const nodeIdxByPostId = useMemo(() => {
+    const m = new Map<string, number>()
+    nodes.forEach((n, i) => m.set(n.id, i))
+    return m
+  }, [nodes])
+
+  const semanticLinks = useMemo(() => {
+    if (!ontology || (!showSimilar && !showLogical)) return []
+    return ontology.edges
+      .filter((e) =>
+        (showSimilar && e.kind === "similar-topic" && e.confidence >= simThreshold) ||
+        (showLogical && e.kind !== "similar-topic")
+      )
+      .flatMap((e) => {
+        const ai = nodeIdxByPostId.get(e.source)
+        const bi = nodeIdxByPostId.get(e.target)
+        if (ai === undefined || bi === undefined) return []
+        return [{ ai, bi, kind: e.kind, confidence: e.confidence }]
+      })
+  }, [ontology, showSimilar, showLogical, simThreshold, nodeIdxByPostId])
+
+  useEffect(() => { semanticLinksRef.current = semanticLinks }, [semanticLinks])
+
   const isNodeDimmed = (i: number, cat: string | undefined) => {
     if (focusNeighbors && !focusNeighbors.has(i)) return true
     return hoverCat !== null && hoverCat !== (cat ?? "")
@@ -153,6 +199,8 @@ const Graph = () => {
   const ringRefs = useRef<(SVGCircleElement | null)[]>([])
   const labelRefs = useRef<(SVGTextElement | null)[]>([])
   const lineRefs = useRef<(SVGLineElement | null)[]>([])
+  const overlayLineRefs = useRef<(SVGLineElement | null)[]>([])
+  const semanticLinksRef = useRef<{ ai: number; bi: number; kind: SemanticRelationKind; confidence: number }[]>([])
   const catLabelRefs = useRef<Record<string, SVGTextElement | null>>({})
   const nodesLayerRef = useRef<SVGGElement | null>(null)
 
@@ -163,6 +211,7 @@ const Graph = () => {
   const xForceRef = useRef<ForceXType<N> | null>(null)
   const yForceRef = useRef<ForceYType<N> | null>(null)
   const linkForceRef = useRef<ForceLinkType<N, SimLink> | null>(null)
+  const radialForceRef = useRef<ForceRadialType<N> | null>(null)
 
   // Animation refs
   const animIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -181,23 +230,35 @@ const Graph = () => {
       source: e.a,
       target: e.b,
       weight: e.weight,
+      type: e.type,
+      sameCategory: e.sameCategory,
     }))
 
-    const chargeF = forceManyBody().strength(-repulsion)
-    const xF = forceX<GraphNode & SimulationNodeDatum>(W / 2).strength(centering)
-    const yF = forceY<GraphNode & SimulationNodeDatum>(H / 2).strength(centering)
-    const linkF = forceLink<GraphNode & SimulationNodeDatum, SimLink>(links)
-      .id((_, i) => i)
-      .distance((d) => linkDistance / Math.max(1, Math.sqrt(d.weight)))
-      .strength((d) => Math.min(1, linkStrength * (0.2 + 0.15 * d.weight)))
+    const isHubLink = (d: SimLink) => d.type === "has-tag" || d.type === "in-series"
 
-    const sim = forceSimulation<GraphNode & SimulationNodeDatum>(nodes as (GraphNode & SimulationNodeDatum)[])
+    const chargeF = forceManyBody<N>().strength((node) =>
+      node.kind === "post" ? -220 : -30
+    )
+    const xF = forceX<N>(W / 2).strength((n) => (n.kind === "post" ? 0.01 : 0))
+    const yF = forceY<N>(H / 2).strength((n) => (n.kind === "post" ? 0.01 : 0))
+    const radialF = forceRadial<N>(Math.min(W, H) * 0.42, W / 2, H / 2)
+      .strength((node) => (node.kind === "post" ? 0 : 0.18))
+    const linkF = forceLink<N, SimLink>(links)
+      .id((_, i) => i)
+      .distance((d) =>
+        isHubLink(d) ? 110 : Math.max(20, linkDistance / Math.max(1, Math.log2(1 + d.weight)))
+      )
+      .strength((d) =>
+        isHubLink(d) ? hubLinkStrength : Math.min(0.6, 0.15 + 0.1 * d.weight)
+      )
+
+    const sim = forceSimulation<N>(nodes as N[])
       .force("link", linkF)
       .force("charge", chargeF)
-      .force("center", forceCenter(W / 2, H / 2))
+      .force("radial", radialF)
       .force("x", xF)
       .force("y", yF)
-      .force("collide", forceCollide(11))
+      .force("collide", forceCollide<N>((node) => (node.kind === "post" ? 14 : 7)))
       .alpha(1)
       .alphaDecay(0.03)
       .on("tick", () => {
@@ -236,6 +297,16 @@ const Graph = () => {
             el.setAttribute("y", String(cy - 20))
           }
         })
+        semanticLinksRef.current.forEach((sl, i) => {
+          const src = nodes[sl.ai], tgt = nodes[sl.bi]
+          const l = overlayLineRefs.current[i]
+          if (l && src && tgt) {
+            l.setAttribute("x1", String(src.x ?? 0))
+            l.setAttribute("y1", String(src.y ?? 0))
+            l.setAttribute("x2", String(tgt.x ?? 0))
+            l.setAttribute("y2", String(tgt.y ?? 0))
+          }
+        })
       })
 
     simRef.current = sim
@@ -243,6 +314,7 @@ const Graph = () => {
     xForceRef.current = xF
     yForceRef.current = yF
     linkForceRef.current = linkF
+    radialForceRef.current = radialF
 
     if (nodesLayerRef.current) {
       type DragEv = D3DragEvent<SVGGElement, GraphNode, GraphNode>
@@ -276,16 +348,27 @@ const Graph = () => {
   // Force parameter mutation when sliders change — no simulation restart
   useEffect(() => {
     if (!simRef.current || !chargeRef.current) return
-    chargeRef.current.strength(-repulsion)
-    xForceRef.current?.strength(centering)
-    yForceRef.current?.strength(centering)
+    chargeRef.current.strength((node: N) =>
+      node.kind === "post" ? -postRepulsion : -hubRepulsion
+    )
+    if (radialForceRef.current) {
+      radialForceRef.current.radius(Math.min(W, H) * hubRingRadius)
+    }
     if (linkForceRef.current) {
       linkForceRef.current
-        .distance((d: SimLink) => linkDistance / Math.max(1, Math.sqrt(d.weight)))
-        .strength((d: SimLink) => Math.min(1, linkStrength * (0.2 + 0.15 * d.weight)))
+        .distance((d: SimLink) =>
+          d.type === "has-tag" || d.type === "in-series"
+            ? 110
+            : Math.max(20, linkDistance / Math.max(1, Math.log2(1 + d.weight)))
+        )
+        .strength((d: SimLink) =>
+          d.type === "has-tag" || d.type === "in-series"
+            ? hubLinkStrength
+            : Math.min(0.6, 0.15 + 0.1 * d.weight)
+        )
     }
     simRef.current.alpha(0.5).restart()
-  }, [repulsion, centering, linkDistance, linkStrength])
+  }, [postRepulsion, hubRepulsion, hubRingRadius, hubLinkStrength, linkDistance])
 
   // Keep animRevealRef in sync (stale closure 방지)
   useEffect(() => { animRevealRef.current = animRevealCount ?? 0 }, [animRevealCount])
@@ -355,10 +438,11 @@ const Graph = () => {
   }
 
   const handleResetForce = () => {
-    setRepulsion(30)
-    setCentering(0.04)
-    setLinkDistance(40)
-    setLinkStrength(1.0)
+    setPostRepulsion(220)
+    setHubRepulsion(30)
+    setHubRingRadius(0.42)
+    setHubLinkStrength(0.04)
+    setLinkDistance(44)
   }
 
   const handlePlayAnim = useCallback(() => {
@@ -460,6 +544,24 @@ const Graph = () => {
                 )
               })}
 
+              {/* Semantic overlay edges */}
+              {semanticLinks.map((sl, i) => {
+                const src = nodes[sl.ai], tgt = nodes[sl.bi]
+                const color = SEMANTIC_EDGE_COLOR[sl.kind] ?? "#888"
+                return (
+                  <line
+                    key={`sem-${i}`}
+                    ref={(el) => { overlayLineRefs.current[i] = el }}
+                    x1={src?.x ?? 0} y1={src?.y ?? 0}
+                    x2={tgt?.x ?? 0} y2={tgt?.y ?? 0}
+                    stroke={color}
+                    strokeWidth={1}
+                    strokeOpacity={sl.kind === "similar-topic" ? 0.35 : Math.max(0.3, sl.confidence)}
+                    strokeDasharray={sl.kind === "similar-topic" ? "4 3" : sl.kind === "contradicts" ? "2 2" : undefined}
+                  />
+                )
+              })}
+
               <g ref={nodesLayerRef} className="nodes-layer">
                 {nodes.map((n, i) => {
                   const sz = n.kind === "post"
@@ -467,8 +569,7 @@ const Graph = () => {
                     : 4 + Math.sqrt(Math.max(n.degree, 1)) * 1.8
                   const isSelected = i === selectedIdx
                   const dim = isNodeDimmed(i, n.category)
-                  const showLabel =
-                    n.kind !== "post" || isSelected || hoverCat === n.category
+                  const labelEmphasized = isSelected || hoverCat === n.category
                   const isNodeRevealed = animRevealCount === null || nodeAppearRank[i] < animRevealCount
                   return (
                     <g
@@ -503,16 +604,15 @@ const Graph = () => {
                         fill={n.color}
                         opacity={isSelected ? 1 : 0.85}
                       />
-                      {showLabel && (
+                      {n.kind === "post" && (
                         <text
                           ref={(el) => { labelRefs.current[i] = el }}
                           x={n.x + sz + 4} y={n.y + 3}
                           className="node-label"
                           fill={n.color}
+                          opacity={!labelEmphasized ? 0.6 : 1}
                         >
-                          {n.kind !== "post"
-                            ? `#${n.title}`
-                            : n.title.length > 26 ? n.title.slice(0, 26) + "…" : n.title}
+                          {n.title.length > 26 ? n.title.slice(0, 26) + "…" : n.title}
                         </text>
                       )}
                     </g>
@@ -590,49 +690,91 @@ const Graph = () => {
                 ))}
               </div>
 
+              <div className="panel-label" style={{ marginTop: 20 }}>semantic overlay</div>
+              <div className="overlay-toggles">
+                <button
+                  type="button"
+                  className={`overlay-btn${showSimilar ? " active" : ""}`}
+                  onClick={() => setShowSimilar((v) => !v)}
+                >
+                  similar ≥{simThreshold.toFixed(2)}
+                </button>
+                <button
+                  type="button"
+                  className={`overlay-btn${showLogical ? " active" : ""}`}
+                  onClick={() => setShowLogical((v) => !v)}
+                >
+                  logical
+                </button>
+              </div>
+              {showSimilar && (
+                <div className="control-row">
+                  <label>
+                    threshold
+                    <span className="control-val">{simThreshold.toFixed(2)}</span>
+                  </label>
+                  <input
+                    type="range" min={0.70} max={0.95} step={0.01}
+                    value={simThreshold}
+                    onChange={(e) => setSimThreshold(Number(e.target.value))}
+                  />
+                </div>
+              )}
+
               <div className="panel-label" style={{ marginTop: 20 }}>controls</div>
               <div className="control-row">
                 <label>
-                  repulsion
-                  <span className="control-val">{repulsion}</span>
+                  post repulsion
+                  <span className="control-val">{postRepulsion}</span>
                 </label>
                 <input
-                  type="range" min={0} max={100} step={1}
-                  value={repulsion}
-                  onChange={(e) => setRepulsion(Number(e.target.value))}
+                  type="range" min={50} max={500} step={10}
+                  value={postRepulsion}
+                  onChange={(e) => setPostRepulsion(Number(e.target.value))}
                 />
               </div>
               <div className="control-row">
                 <label>
-                  centering
-                  <span className="control-val">{centering.toFixed(2)}</span>
+                  hub repulsion
+                  <span className="control-val">{hubRepulsion}</span>
                 </label>
                 <input
-                  type="range" min={0} max={0.2} step={0.01}
-                  value={centering}
-                  onChange={(e) => setCentering(Number(e.target.value))}
+                  type="range" min={0} max={100} step={5}
+                  value={hubRepulsion}
+                  onChange={(e) => setHubRepulsion(Number(e.target.value))}
                 />
               </div>
               <div className="control-row">
                 <label>
-                  link-dist
+                  hub radius
+                  <span className="control-val">{hubRingRadius.toFixed(2)}</span>
+                </label>
+                <input
+                  type="range" min={0.2} max={0.5} step={0.01}
+                  value={hubRingRadius}
+                  onChange={(e) => setHubRingRadius(Number(e.target.value))}
+                />
+              </div>
+              <div className="control-row">
+                <label>
+                  hub link
+                  <span className="control-val">{hubLinkStrength.toFixed(2)}</span>
+                </label>
+                <input
+                  type="range" min={0} max={0.3} step={0.01}
+                  value={hubLinkStrength}
+                  onChange={(e) => setHubLinkStrength(Number(e.target.value))}
+                />
+              </div>
+              <div className="control-row">
+                <label>
+                  post link dist
                   <span className="control-val">{linkDistance}</span>
                 </label>
                 <input
-                  type="range" min={10} max={200} step={5}
+                  type="range" min={20} max={120} step={4}
                   value={linkDistance}
                   onChange={(e) => setLinkDistance(Number(e.target.value))}
-                />
-              </div>
-              <div className="control-row">
-                <label>
-                  tension
-                  <span className="control-val">{linkStrength.toFixed(1)}</span>
-                </label>
-                <input
-                  type="range" min={0} max={3} step={0.1}
-                  value={linkStrength}
-                  onChange={(e) => setLinkStrength(Number(e.target.value))}
                 />
               </div>
               <div className="control-buttons">
@@ -931,6 +1073,29 @@ const StyledWrapper = styled.div`
     display: flex;
     gap: 6px;
     margin-top: 4px;
+  }
+
+  .overlay-toggles {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 8px;
+  }
+
+  .overlay-btn {
+    flex: 1;
+    padding: 3px 6px;
+    background: none;
+    border: 1px solid ${({ theme }) => theme.colors.editor.line};
+    color: ${({ theme }) => theme.colors.editor.fg3};
+    font-family: inherit;
+    font-size: 10px;
+    cursor: pointer;
+    letter-spacing: 0.3px;
+    &:hover { border-color: ${({ theme }) => theme.colors.editor.accent3}; color: ${({ theme }) => theme.colors.editor.fg}; }
+    &.active {
+      border-color: ${({ theme }) => theme.colors.editor.accent};
+      color: ${({ theme }) => theme.colors.editor.accent};
+    }
   }
 
   .control-btn {

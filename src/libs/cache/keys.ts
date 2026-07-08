@@ -9,7 +9,11 @@ const RM_VERSION = "v7"
 // so cached graphs are discarded and rebuilt with the new shape.
 const NG_VERSION = "v4"
 // Bump BG_VERSION when BuiltGraph schema changes (e.g. GraphNode/GraphEdge shape).
-const BG_VERSION = "v1"
+const BG_VERSION = "v2"
+// Bump EMB_VERSION when embedding model or dimensions change.
+const EMB_VERSION = "v1"
+// Bump ONT_VERSION when PostOntology/Entity/SemanticEdge schema changes.
+const ONT_VERSION = "v2"
 const OG_VERSION = "v2"
 // Bump POSTS_VERSION when TPost shape changes (e.g. new fields like lastEditedTime)
 // so FS-cached posts without the new field are discarded immediately.
@@ -27,4 +31,8 @@ export const keys = {
   notionGraph: (hash: string) => `notionGraph:${NG_VERSION}:${hash}`,
   builtGraph: (hash: string) => `builtGraph:${BG_VERSION}:${hash}`,
   comments: (slug: string) => `comments:${slug}`,
+  embedding: (postId: string, lastEdited: string) => `embedding:${EMB_VERSION}:${postId}:${lastEdited}`,
+  postOntology: (postId: string, lastEdited: string) => `postOntology:${ONT_VERSION}:${postId}:${lastEdited}`,
+  ontology: (postsHash: string) => `ontology:${ONT_VERSION}:${postsHash}`,
+  ontologyState: `ontologyState:${ONT_VERSION}`,
 }
