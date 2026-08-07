@@ -1,3 +1,37 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+@theme inline {
+  --color-ink: rgb(var(--c-ink) / 1);
+  --color-chrome: rgb(var(--c-chrome) / 1);
+  --color-card: rgb(var(--c-card) / 1);
+  --color-elevated: rgb(var(--c-elevated) / 1);
+  --color-sunken: rgb(var(--c-sunken) / 1);
+  --color-hairline: rgb(var(--c-hairline) / 1);
+  --color-mute: rgb(var(--c-mute) / 1);
+  --color-soft: rgb(var(--c-soft) / 1);
+  --color-strong: rgb(var(--c-strong) / 1);
+  --color-signal: rgb(var(--c-signal) / 1);
+  --color-signal-50: rgb(var(--c-signal-50) / 1);
+  --color-signal-200: rgb(var(--c-signal-200) / 1);
+  --color-signal-900: rgb(var(--c-signal-900) / 1);
+  --color-cs: rgb(var(--c-cs) / 1);
+  --color-cs-50: rgb(var(--c-cs-50) / 1);
+  --color-cs-200: rgb(var(--c-cs-200) / 1);
+  --color-cs-900: rgb(var(--c-cs-900) / 1);
+  --color-paper: rgb(var(--c-paper) / 1);
+  --color-paper-50: rgb(var(--c-paper-50) / 1);
+  --color-paper-200: rgb(var(--c-paper-200) / 1);
+  --color-paper-900: rgb(var(--c-paper-900) / 1);
+  --color-research: rgb(var(--c-research) / 1);
+  --color-research-50: rgb(var(--c-research-50) / 1);
+  --color-research-200: rgb(var(--c-research-200) / 1);
+  --color-research-900: rgb(var(--c-research-900) / 1);
+  --color-grass-1: rgb(var(--c-grass-1) / 1);
+  --color-grass-2: rgb(var(--c-grass-2) / 1);
+  --color-grass-3: rgb(var(--c-grass-3) / 1);
+  --color-grass-4: rgb(var(--c-grass-4) / 1);
+  --font-sans: "Pretendard Variable", Pretendard, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+}
