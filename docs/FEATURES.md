@@ -95,6 +95,8 @@ About 라우트는 다음 위젯들을 한 화면에 묶어 보여줍니다.
 - `forceSimulation` + `forceLink`(엣지 weight 기반 distance/strength) + `forceManyBody`(척력) + `forceX/Y`(중심 응집) + `forceCollide`(겹침 방지)
 - React state 없이 ref + `setAttribute`로 좌표 직접 업데이트 (100+ 노드 60fps 유지)
 - 카테고리 라벨이 매 tick centroid 위치로 자연 추종
+- SVG viewBox는 canvas `ResizeObserver`로 실제 viewport 크기를 따라가며, background grid는 d3 zoom transform을 공유해 줌·팬에 맞춰 간격과 위치가 함께 변함
+- 모든 graph edge는 source→target 방향의 arrowhead를 가지며, 선 끝은 양쪽 노드 원 경계에서 멈춰 노드 내부를 침범하지 않음
 
 ### 인터랙션
 - **노드 드래그** — d3-drag, 잡으면 따라오고 놓으면 시뮬레이션이 풀어줌. `clickDistance(4)`로 클릭 vs 드래그 자동 분리
@@ -103,6 +105,7 @@ About 라우트는 다음 위젯들을 한 화면에 묶어 보여줍니다.
 - **reset view / reset force** — 줌과 force를 독립적으로 초기화
 - **CONNECTED 클릭** — 우측 detail panel의 연결 글을 누르면 해당 노드로 selectedIdx 전환
 - **Semantic overlay** — `similar` 토글은 Qdrant 기반 `similar-topic` edge를 threshold로 필터링하고, `logical` 토글은 LLM ontology 관계(`elaborates` · `supports` · `contradicts` · `prerequisite` · `applies`)를 표시
+- **노드 hover/focus** — hover한 노드와 직접 연결된 edge는 밝기·굵기·ring으로 강조하고, 나머지 노드·label·edge는 감쇠
 
 ---
 

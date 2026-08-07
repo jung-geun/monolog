@@ -128,6 +128,7 @@ yarn dev            # or: npm run dev
 | `QDRANT_URL` | `http://localhost:6333` | 로컬 개발 또는 외부 Qdrant REST endpoint. Docker Compose `ontology` profile은 `docker-compose.yml`에서 컨테이너용 `http://qdrant:6333`을 직접 설정 |
 | `QDRANT_API_KEY` | — | 인증이 걸린 외부 Qdrant용 API key. 로컬/self-hosted Qdrant는 빈 값 |
 | `CACHE_NAMESPACE` | `monolog` | Redis 키 prefix. 동일 Redis를 staging·preview 등 여러 배포가 공유할 때 충돌 방지 |
+| `GRAPH_BUILD_TIMEOUT_MS` | `120000` | Notion graph complete-build 시간 제한(ms). 제한을 넘긴 partial graph는 Qdrant snapshot으로 저장하지 않음. 최대 `300000` |
 | `REVALIDATE_SECRET` | — | `/api/revalidate` · `/api/init` · `/api/cron/graph` 보호 토큰. GitHub Actions의 `REVALIDATE_SECRET` secret과 **동일 이름·동일 값**. (구 이름 `TOKEN_FOR_REVALIDATE`도 deprecated alias로 호환) |
 | `REVALIDATE_HOURS` | `6` | ISR 재생성 주기 (시간) |
 | `NEXT_PUBLIC_SITE_URL` | — | 절대 이미지 프록시 URL prefix |
@@ -180,11 +181,11 @@ curl "https://your-site.com/api/revalidate?secret=$REVALIDATE_SECRET"
 ## Docker
 
 ```bash
-# 기본 스택: blog + redis, Qdrant 없음
+# 기본 스택: blog + redis + qdrant
 docker compose up -d
 
-# 선택 기능 포함: blog + redis + qdrant (/ontology, Graph semantic overlay, RightRail ai · similar)
-docker compose --profile ontology up -d
+# 로컬 변경사항까지 다시 빌드해서 재시작
+docker compose up -d --build
 
 docker compose logs -f
 ```
@@ -203,7 +204,7 @@ docker compose logs -f
 
 ### Qdrant ontology/vector search (선택)
 
-Qdrant는 기본 `docker compose up -d`에서 뜨지 않습니다. `/ontology`, Graph semantic overlay, RightRail `ai · similar`를 쓰는 경우에만 `docker compose --profile ontology up -d`로 시작합니다. Compose 안의 `blog` 컨테이너는 `QDRANT_URL=http://qdrant:6333`을 사용합니다. 호스트에서 직접 개발할 때만 `.env`의 `QDRANT_URL=http://localhost:6333`을 사용합니다.
+Qdrant 컨테이너는 기본 `docker compose up -d`에 포함됩니다. `/ontology`, Graph semantic overlay, RightRail `ai · similar`는 이 Qdrant 인스턴스를 사용합니다. Compose 안의 `blog` 컨테이너는 `QDRANT_URL=http://qdrant:6333`을 사용하고, 호스트에서 직접 개발할 때만 `.env`의 `QDRANT_URL=http://localhost:6333`을 사용합니다.
 
 온톨로지 빌드/갱신:
 

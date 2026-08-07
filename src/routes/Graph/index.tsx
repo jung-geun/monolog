@@ -29,6 +29,46 @@ import type { SemanticRelationKind } from "src/types/ontology"
 const W = 720
 const H = 520
 
+type CanvasSize = {
+  width: number
+  height: number
+}
+
+type DirectedEdgeGeometry = {
+  x1: number
+  y1: number
+  x2: number
+  y2: number
+}
+
+function nodeRadius(node: GraphNode): number {
+  return node.kind === "post"
+    ? 4 + Math.sqrt(Math.max(node.readTime ?? 1, 1)) * 2
+    : 4 + Math.sqrt(Math.max(node.degree, 1)) * 1.8
+}
+
+function directedEdgeGeometry(source: GraphNode, target: GraphNode): DirectedEdgeGeometry {
+  const dx = target.x - source.x
+  const dy = target.y - source.y
+  const distance = Math.hypot(dx, dy)
+  if (distance === 0) {
+    return { x1: source.x, y1: source.y, x2: target.x, y2: target.y }
+  }
+
+  const usableDistance = Math.max(0, distance - 2)
+  const sourceOffset = Math.min(nodeRadius(source) + 2, usableDistance / 2)
+  const targetOffset = Math.min(nodeRadius(target) + 2, usableDistance - sourceOffset)
+  const unitX = dx / distance
+  const unitY = dy / distance
+
+  return {
+    x1: source.x + unitX * sourceOffset,
+    y1: source.y + unitY * sourceOffset,
+    x2: target.x - unitX * targetOffset,
+    y2: target.y - unitY * targetOffset,
+  }
+}
+
 type SimLink = SimulationLinkDatum<GraphNode & SimulationNodeDatum> & {
   weight: number
   type: EdgeKind
@@ -56,7 +96,9 @@ const Graph = () => {
   )
 
   const [selectedIdx, setSelectedIdx] = useState(-1)
+  const [hoveredIdx, setHoveredIdx] = useState(-1)
   const [hoverCat, setHoverCat] = useState<string | null>(null)
+  const [canvasSize, setCanvasSize] = useState<CanvasSize>({ width: W, height: H })
   const [postRepulsion, setPostRepulsion] = useState(220)
   const [hubRepulsion, setHubRepulsion] = useState(30)
   const [hubRingRadius, setHubRingRadius] = useState(0.42)
@@ -133,16 +175,18 @@ const Graph = () => {
     return { nodeAppearRank: rank, postCount: total }
   }, [nodes, edges])
 
-  // 클릭한 노드와 직접 연결된 노드 인덱스 Set (없으면 null)
+  const activeFocusIdx = hoveredIdx >= 0 ? hoveredIdx : selectedIdx
+
+  // Hover takes precedence while the pointer is over a node; a click remains focused after leave.
   const focusNeighbors = useMemo(() => {
-    if (selectedIdx < 0 || selectedIdx >= nodes.length) return null
-    const set = new Set<number>([selectedIdx])
+    if (activeFocusIdx < 0 || activeFocusIdx >= nodes.length) return null
+    const set = new Set<number>([activeFocusIdx])
     for (const e of edges) {
-      if (e.a === selectedIdx) set.add(e.b)
-      else if (e.b === selectedIdx) set.add(e.a)
+      if (e.a === activeFocusIdx) set.add(e.b)
+      else if (e.b === activeFocusIdx) set.add(e.a)
     }
     return set
-  }, [selectedIdx, edges, nodes.length])
+  }, [activeFocusIdx, edges, nodes.length])
 
   const nodeIdxByPostId = useMemo(() => {
     const m = new Map<string, number>()
@@ -202,7 +246,9 @@ const Graph = () => {
   const overlayLineRefs = useRef<(SVGLineElement | null)[]>([])
   const semanticLinksRef = useRef<{ ai: number; bi: number; kind: SemanticRelationKind; confidence: number }[]>([])
   const catLabelRefs = useRef<Record<string, SVGTextElement | null>>({})
+  const canvasRef = useRef<HTMLDivElement | null>(null)
   const nodesLayerRef = useRef<SVGGElement | null>(null)
+  const gridPatternRef = useRef<SVGPatternElement | null>(null)
 
   // Force instance refs for mutation without simulation restart
   type N = GraphNode & SimulationNodeDatum
@@ -222,6 +268,24 @@ const Graph = () => {
   const zoomRootRef = useRef<SVGGElement | null>(null)
   const zoomBehaviorRef = useRef<ZoomBehavior<SVGSVGElement, unknown> | null>(null)
 
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    const updateCanvasSize = () => {
+      const { width, height } = canvas.getBoundingClientRect()
+      if (width <= 0 || height <= 0) return
+      setCanvasSize((current) =>
+        current.width === width && current.height === height ? current : { width, height }
+      )
+    }
+
+    updateCanvasSize()
+    const observer = new ResizeObserver(updateCanvasSize)
+    observer.observe(canvas)
+    return () => observer.disconnect()
+  }, [])
+
   // Force-directed simulation
   useEffect(() => {
     if (!nodes.length) return
@@ -239,9 +303,13 @@ const Graph = () => {
     const chargeF = forceManyBody<N>().strength((node) =>
       node.kind === "post" ? -220 : -30
     )
-    const xF = forceX<N>(W / 2).strength((n) => (n.kind === "post" ? 0.01 : 0))
-    const yF = forceY<N>(H / 2).strength((n) => (n.kind === "post" ? 0.01 : 0))
-    const radialF = forceRadial<N>(Math.min(W, H) * 0.42, W / 2, H / 2)
+    const xF = forceX<N>(canvasSize.width / 2).strength((n) => (n.kind === "post" ? 0.01 : 0))
+    const yF = forceY<N>(canvasSize.height / 2).strength((n) => (n.kind === "post" ? 0.01 : 0))
+    const radialF = forceRadial<N>(
+      Math.min(canvasSize.width, canvasSize.height) * 0.42,
+      canvasSize.width / 2,
+      canvasSize.height / 2
+    )
       .strength((node) => (node.kind === "post" ? 0 : 0.18))
     const linkF = forceLink<N, SimLink>(links)
       .id((_, i) => i)
@@ -263,9 +331,7 @@ const Graph = () => {
       .alphaDecay(0.03)
       .on("tick", () => {
         nodes.forEach((n, i) => {
-          const sz = n.kind === "post"
-            ? 4 + Math.sqrt(Math.max(n.readTime ?? 1, 1)) * 2
-            : 4 + Math.sqrt(Math.max(n.degree, 1)) * 1.8
+          const sz = nodeRadius(n)
           circleRefs.current[i]?.setAttribute("cx", String(n.x))
           circleRefs.current[i]?.setAttribute("cy", String(n.y))
           ringRefs.current[i]?.setAttribute("cx", String(n.x))
@@ -280,10 +346,11 @@ const Graph = () => {
           const src = nodes[e.a], tgt = nodes[e.b]
           const l = lineRefs.current[i]
           if (l) {
-            l.setAttribute("x1", String(src.x))
-            l.setAttribute("y1", String(src.y))
-            l.setAttribute("x2", String(tgt.x))
-            l.setAttribute("y2", String(tgt.y))
+            const geometry = directedEdgeGeometry(src, tgt)
+            l.setAttribute("x1", String(geometry.x1))
+            l.setAttribute("y1", String(geometry.y1))
+            l.setAttribute("x2", String(geometry.x2))
+            l.setAttribute("y2", String(geometry.y2))
           }
         })
         cats.forEach((c) => {
@@ -343,7 +410,7 @@ const Graph = () => {
 
     return () => { sim.stop() }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [graph.generatedAt])
+  }, [graph.generatedAt, canvasSize.width, canvasSize.height])
 
   // Force parameter mutation when sliders change — no simulation restart
   useEffect(() => {
@@ -420,6 +487,7 @@ const Graph = () => {
         return !event.ctrlKey && event.button === 0
       })
       .on("zoom", (event) => {
+        gridPatternRef.current?.setAttribute("patternTransform", event.transform.toString())
         zoomRootRef.current?.setAttribute("transform", event.transform.toString())
       })
 
@@ -466,60 +534,87 @@ const Graph = () => {
     <StyledWrapper>
       <div className="graph-layout">
         {/* SVG canvas */}
-        <div className="canvas-area">
+        <div ref={canvasRef} className="canvas-area">
           <svg
             ref={svgRef}
-            viewBox={`0 0 ${W} ${H}`}
-            preserveAspectRatio="xMidYMid meet"
+            viewBox={`0 0 ${canvasSize.width} ${canvasSize.height}`}
+            preserveAspectRatio="none"
             className="graph-svg"
           >
             <defs>
-              <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse">
+              <pattern
+                ref={gridPatternRef}
+                id="grid"
+                width="32"
+                height="32"
+                patternUnits="userSpaceOnUse"
+              >
                 <path d="M 32 0 L 0 0 0 32" fill="none" stroke="currentColor" strokeWidth="1" />
               </pattern>
+              <marker
+                id="graph-arrowhead"
+                viewBox="0 0 8 8"
+                refX="8"
+                refY="4"
+                markerWidth="6"
+                markerHeight="6"
+                orient="auto"
+              >
+                <path d="M 0 0 L 8 4 L 0 8 z" fill="context-stroke" />
+              </marker>
             </defs>
 
+            <rect
+              width={canvasSize.width}
+              height={canvasSize.height}
+              fill="url(#grid)"
+              className="grid-bg"
+              onClick={() => setSelectedIdx(-1)}
+            />
+
             <g ref={zoomRootRef} className="zoom-root">
-              <rect
-                width={W} height={H} fill="url(#grid)" className="grid-bg"
-                onClick={() => setSelectedIdx(-1)}
-              />
 
               {edges.map((e, i) => {
                 const na = nodes[e.a], nb = nodes[e.b]
                 const dim = isEdgeDimmed(e, na.category, nb.category)
+                const isFocusedEdge =
+                  activeFocusIdx >= 0 && (e.a === activeFocusIdx || e.b === activeFocusIdx)
 
                 let stroke = "currentColor"
-                let opacity = 0.18
+                let opacity = dim ? 0.06 : 0.28
                 if (e.type === "has-tag") {
                   stroke = TAG_COLOR
-                  opacity = dim ? 0.03 : 0.3
+                  opacity = dim ? 0.06 : 0.38
                 } else if (e.type === "in-series") {
                   stroke = SERIES_COLOR
-                  opacity = dim ? 0.03 : 0.3
+                  opacity = dim ? 0.06 : 0.38
                 } else if (e.sameCategory) {
                   stroke = na.color
-                  opacity = dim ? 0.05 : 0.55
+                  opacity = dim ? 0.08 : 0.55
                 }
 
-                // During animation, hide edges until both endpoint nodes are revealed
                 const edgeRank = nodeAppearRank[e.a] > nodeAppearRank[e.b]
                   ? nodeAppearRank[e.a] : nodeAppearRank[e.b]
                 const isRevealed = animRevealCount === null || edgeRank < animRevealCount
-                const finalOpacity = isRevealed ? opacity : 0
+                const geometry = directedEdgeGeometry(na, nb)
+                const strokeWidth = Math.min(0.65 + e.weight * 0.3, 1.5)
 
                 return (
                   <line
                     key={i}
                     ref={(el) => { lineRefs.current[i] = el }}
-                    x1={na.x} y1={na.y}
-                    x2={nb.x} y2={nb.y}
+                    x1={geometry.x1}
+                    y1={geometry.y1}
+                    x2={geometry.x2}
+                    y2={geometry.y2}
                     stroke={stroke}
-                    strokeWidth={Math.min(e.weight * 0.6, 1.5)}
+                    strokeWidth={isFocusedEdge ? Math.max(strokeWidth, 1.8) : strokeWidth}
+                    strokeLinecap="round"
+                    markerEnd="url(#graph-arrowhead)"
                     className={`edge${e.sameCategory ? " same-cat" : ""}`}
                     style={{
-                      opacity: finalOpacity,
-                      transition: animRevealCount !== null ? "opacity 0.25s" : undefined,
+                      opacity: isRevealed ? (isFocusedEdge ? Math.max(opacity, 0.9) : opacity) : 0,
+                      transition: "opacity 0.2s, stroke-width 0.2s",
                     }}
                   />
                 )
@@ -564,12 +659,10 @@ const Graph = () => {
 
               <g ref={nodesLayerRef} className="nodes-layer">
                 {nodes.map((n, i) => {
-                  const sz = n.kind === "post"
-                    ? 4 + Math.sqrt(Math.max(n.readTime ?? 1, 1)) * 2
-                    : 4 + Math.sqrt(Math.max(n.degree, 1)) * 1.8
-                  const isSelected = i === selectedIdx
+                  const sz = nodeRadius(n)
+                  const isFocused = i === activeFocusIdx
                   const dim = isNodeDimmed(i, n.category)
-                  const labelEmphasized = isSelected || hoverCat === n.category
+                  const labelEmphasized = isFocused || hoverCat === n.category
                   const isNodeRevealed = animRevealCount === null || nodeAppearRank[i] < animRevealCount
                   return (
                     <g
@@ -580,37 +673,45 @@ const Graph = () => {
                         if (!isNodeRevealed) return
                         setSelectedIdx((prev) => (prev === i ? -1 : i))
                       }}
+                      onMouseEnter={() => {
+                        if (isNodeRevealed) setHoveredIdx(i)
+                      }}
+                      onMouseLeave={() => setHoveredIdx(-1)}
                       style={{
                         cursor: isNodeRevealed ? "pointer" : "default",
-                        // CSS class .node{opacity:0.78} 를 inline style로 덮어씌워야 함
-                        opacity: !isNodeRevealed ? 0 : dim ? 0.15 : undefined,
+                        opacity: !isNodeRevealed ? 0 : dim ? 0.12 : undefined,
                         pointerEvents: isNodeRevealed ? undefined : "none",
-                        transition: animRevealCount !== null ? "opacity 0.3s" : undefined,
+                        transition: "opacity 0.2s",
                       }}
                     >
-                      {isSelected && (
+                      {isFocused && (
                         <circle
                           ref={(el) => { ringRefs.current[i] = el }}
-                          cx={n.x} cy={n.y} r={sz + 5}
+                          cx={n.x}
+                          cy={n.y}
+                          r={sz + 5}
                           fill="none"
                           stroke={n.color}
-                          strokeWidth={1.5}
-                          opacity={0.55}
+                          strokeWidth={2.5}
+                          opacity={0.9}
                         />
                       )}
                       <circle
                         ref={(el) => { circleRefs.current[i] = el }}
-                        cx={n.x} cy={n.y} r={sz}
+                        cx={n.x}
+                        cy={n.y}
+                        r={sz}
                         fill={n.color}
-                        opacity={isSelected ? 1 : 0.85}
+                        opacity={isFocused ? 1 : 0.85}
                       />
                       {n.kind === "post" && (
                         <text
                           ref={(el) => { labelRefs.current[i] = el }}
-                          x={n.x + sz + 4} y={n.y + 3}
+                          x={n.x + sz + 4}
+                          y={n.y + 3}
                           className="node-label"
                           fill={n.color}
-                          opacity={!labelEmphasized ? 0.6 : 1}
+                          opacity={!labelEmphasized ? 0.45 : 1}
                         >
                           {n.title.length > 26 ? n.title.slice(0, 26) + "…" : n.title}
                         </text>
@@ -627,6 +728,8 @@ const Graph = () => {
             <span>edges: {edges.length}</span>
             <span className="sep">|</span>
             <span>○ post · ◆ tag · ◇ series</span>
+            <span className="sep">|</span>
+            <span title="Arrow points from the source post to the linked or classified node">→ direction</span>
           </div>
         </div>
 
@@ -861,17 +964,14 @@ const StyledWrapper = styled.div`
   }
 
   .graph-svg {
+    display: block;
     width: 100%;
     height: 100%;
+    color: ${({ theme }) => theme.colors.editor.fg3};
 
     .grid-bg {
       color: ${({ theme }) => theme.colors.editor.line};
-      opacity: 0.4;
-    }
-
-    .edge {
-      stroke: ${({ theme }) => theme.colors.editor.line2};
-      opacity: 0.55;
+      opacity: 0.18;
     }
 
     .cluster-label {

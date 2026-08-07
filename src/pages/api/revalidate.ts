@@ -1,3 +1,4 @@
+import { randomUUID } from "crypto"
 import type { NextApiRequest, NextApiResponse } from "next"
 import { getPosts } from "../../apis"
 import type { TPost } from "../../types"
@@ -6,6 +7,79 @@ import { getNotionGraph } from "src/apis/notion-client/getNotionGraph"
 import { refreshGraphSnapshotInQdrant } from "src/apis/notion-client/graphSnapshot"
 import { cacheStore } from "src/libs/cache"
 import { verifyRevalidateToken } from "src/libs/utils/auth/verifyToken"
+
+type WarmLabel = "sitemap" | "notion-graph"
+
+type WarmResult = {
+  label: WarmLabel
+  status: number | null
+  ok: boolean
+  durationMs: number
+}
+
+function getInternalOrigin(req: NextApiRequest): string {
+  const host =
+    typeof req.headers.host === "string" && req.headers.host.length > 0
+      ? req.headers.host
+      : `127.0.0.1:${process.env.PORT ?? "3000"}`
+  const forwardedProtoHeader = req.headers["x-forwarded-proto"]
+  const forwardedProto =
+    typeof forwardedProtoHeader === "string"
+      ? forwardedProtoHeader.split(",")[0]?.trim()
+      : undefined
+  const isLocalHost =
+    host === "localhost" ||
+    host.startsWith("localhost:") ||
+    host.startsWith("127.") ||
+    host === "0.0.0.0" ||
+    host.startsWith("0.0.0.0:") ||
+    host.startsWith("[::1]")
+  const proto = forwardedProto || (isLocalHost ? "http" : "https")
+  return `${proto}://${host}`
+}
+
+async function warmPath(
+  origin: string,
+  path: string,
+  label: WarmLabel,
+  requestId: string
+): Promise<WarmResult> {
+  const startedAt = Date.now()
+  const url = `${origin}${path}`
+
+  try {
+    const response = await fetch(url)
+    const result: WarmResult = {
+      label,
+      status: response.status,
+      ok: response.ok,
+      durationMs: Date.now() - startedAt,
+    }
+
+    if (response.ok) {
+      console.info("[revalidate] warm completed", { requestId, url, ...result })
+    } else {
+      console.warn("[revalidate] warm returned non-2xx", { requestId, url, ...result })
+    }
+
+    return result
+  } catch (err) {
+    console.error("[revalidate] warm failed", {
+      requestId,
+      label,
+      url,
+      durationMs: Date.now() - startedAt,
+      error: err,
+    })
+    return {
+      label,
+      status: null,
+      ok: false,
+      durationMs: Date.now() - startedAt,
+    }
+  }
+}
+
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
@@ -13,56 +87,90 @@ export default async function handler(
   if (!verifyRevalidateToken(req)) {
     return res.status(401).json({ message: "Invalid token" })
   }
+
+  const requestId = randomUUID().slice(0, 8)
   const { path } = req.query
 
   try {
     if (path && typeof path === "string") {
       await res.revalidate(path)
+      console.info("[revalidate] path completed", { requestId, path })
       return res.json({ revalidated: true })
     }
 
-    // 전체 revalidate: 즉시 응답 후 background에서 처리 (Nginx timeout 회피)
-    res.json({ revalidated: true, status: 'processing' })
+    console.info("[revalidate] accepted", { requestId, mode: "full" })
+    res.json({ revalidated: true, status: "processing" })
 
     setImmediate(async () => {
       const startedAt = Date.now()
-      console.info('[revalidate] background started')
+      console.info("[revalidate] background started", { requestId })
+
       try {
         await cacheStore.clear()
+        console.info("[revalidate] cache cleared", { requestId })
+
         const posts = await getPosts({ bypassCache: true })
         const notionGraph = await getNotionGraph({ bypassCache: true })
         const builtGraph = await getBuiltGraph({ bypassCache: true, notionGraph })
+        console.info("[revalidate] content prepared", {
+          requestId,
+          posts: posts.length,
+          partialGraph: notionGraph.partial === true,
+          nodes: builtGraph.nodes.length,
+          edges: builtGraph.edges.length,
+        })
+
         await refreshGraphSnapshotInQdrant({
           posts,
           notionGraph,
           builtGraph,
           bypassCache: true,
         })
-        const revalidateRequests = [
-          res.revalidate('/'),
-          res.revalidate('/graph'),
-          ...posts.map((row: TPost) => res.revalidate(`/${row.slug}`)),
-        ]
-        await Promise.all(revalidateRequests)
+        if (notionGraph.partial === true) {
+          console.warn("[revalidate] graph snapshot skipped for partial graph", {
+            requestId,
+          })
+        } else {
+          console.info("[revalidate] graph snapshot refreshed", { requestId })
+        }
 
-        const host = req.headers.host
-        const proto = (req.headers['x-forwarded-proto'] as string) || 'https'
-        try {
-          await fetch(`${proto}://${host}/sitemap.xml`)
-        } catch (sitemapErr) {
-          console.error('[revalidate] failed to warm sitemap cache:', sitemapErr)
-        }
-        try {
-          await fetch(`${proto}://${host}/graphs/notion-graph.json`)
-        } catch (graphErr) {
-          console.error('[revalidate] failed to warm notion-graph cache:', graphErr)
-        }
-        console.info('[revalidate] background completed', { posts: posts.length, durationMs: Date.now() - startedAt })
+        const pathsToRevalidate = [
+          "/",
+          "/graph",
+          ...posts.map((row: TPost) => `/${row.slug}`),
+        ]
+        await Promise.all(pathsToRevalidate.map((currentPath) => res.revalidate(currentPath)))
+        console.info("[revalidate] isr paths revalidated", {
+          requestId,
+          count: pathsToRevalidate.length,
+        })
+
+        const origin = getInternalOrigin(req)
+        const warmResults = await Promise.all([
+          warmPath(origin, "/sitemap.xml", "sitemap", requestId),
+          warmPath(origin, "/graphs/notion-graph.json", "notion-graph", requestId),
+        ])
+
+        console.info("[revalidate] background completed", {
+          requestId,
+          posts: posts.length,
+          partialGraph: notionGraph.partial === true,
+          durationMs: Date.now() - startedAt,
+          warmResults,
+        })
       } catch (err) {
-        console.error('[revalidate] background failed:', err)
+        console.error("[revalidate] background failed", {
+          requestId,
+          durationMs: Date.now() - startedAt,
+          error: err,
+        })
       }
     })
   } catch (err) {
+    console.error("[revalidate] request failed before background start", {
+      requestId,
+      error: err,
+    })
     return res.status(500).send("Error revalidating")
   }
 }

@@ -148,6 +148,14 @@ describe("qdrantGraphStore", () => {
       ],
     })
   })
+  it("continues to upsert when another worker creates the snapshot collection first", async () => {
+    mockClient.createCollection.mockRejectedValue({ status: 409 })
+
+    await expect(upsertGraphSnapshot("hash-a", notionGraph, builtGraph)).resolves.toBeUndefined()
+
+    expect(mockClient.upsert).toHaveBeenCalledTimes(1)
+  })
+
 
   it("skips createCollection when the snapshot collection already exists", async () => {
     mockClient.getCollections.mockResolvedValue({
@@ -205,6 +213,20 @@ describe("qdrantGraphStore", () => {
       "hash-a"
     )
   })
+  it("treats a missing snapshot collection as a cache miss without warning", async () => {
+    mockClient.retrieve.mockRejectedValue({
+      status: 404,
+      data: {
+        status: {
+          error: "Not found: Collection `post_graph_snapshots` doesn't exist!",
+        },
+      },
+    })
+
+    await expect(getGraphSnapshot("hash-a")).resolves.toBeNull()
+    expect(warnLog).not.toHaveBeenCalled()
+  })
+
 
   it("returns null when retrieve fails and logs a warning", async () => {
     const err = new Error("qdrant unavailable")

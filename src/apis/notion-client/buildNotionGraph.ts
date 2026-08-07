@@ -11,7 +11,13 @@ const MAX_RETRIES = 5
 const MAX_CONTEXTS = 3
 const CONTEXT_LIMIT = 120
 const CONCURRENCY = 4
-const GRAPH_BUILD_TIMEOUT_MS = 25_000
+const DEFAULT_GRAPH_BUILD_TIMEOUT_MS = 120_000
+const MAX_GRAPH_BUILD_TIMEOUT_MS = 300_000
+const configuredGraphBuildTimeoutMs = Number(process.env.GRAPH_BUILD_TIMEOUT_MS)
+const GRAPH_BUILD_TIMEOUT_MS =
+  Number.isFinite(configuredGraphBuildTimeoutMs) && configuredGraphBuildTimeoutMs > 0
+    ? Math.min(Math.floor(configuredGraphBuildTimeoutMs), MAX_GRAPH_BUILD_TIMEOUT_MS)
+    : DEFAULT_GRAPH_BUILD_TIMEOUT_MS
 
 async function notionRequest<T>(fn: () => Promise<T>): Promise<T> {
   let delay = 250

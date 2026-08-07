@@ -27,17 +27,50 @@ export type GraphSnapshot = {
 function isGraphSnapshotStoreEnabled(): boolean {
   return Boolean(process.env.QDRANT_URL)
 }
+function isMissingSnapshotCollectionError(err: unknown): boolean {
+  if (!err || typeof err !== "object") return false
+
+  let status: unknown
+  if ("status" in err) status = err.status
+  if (status === 404) return true
+
+  let detail: unknown
+  if ("data" in err) {
+    const data = err.data
+    if (data && typeof data === "object" && "status" in data) {
+      const nestedStatus = data.status
+      if (nestedStatus && typeof nestedStatus === "object" && "error" in nestedStatus) {
+        detail = nestedStatus.error
+      }
+    }
+  }
+
+  return (
+    typeof detail === "string" &&
+    detail.includes(`Collection \`${GRAPH_SNAPSHOT_COLLECTION}\` doesn't exist!`)
+  )
+}
+function isSnapshotCollectionCreationConflict(err: unknown): boolean {
+  if (!err || typeof err !== "object" || !("status" in err)) return false
+  return err.status === 409
+}
+
+
 
 async function ensureGraphSnapshotCollection(): Promise<void> {
   const client = getQdrantClient()
   const { collections } = await client.getCollections()
   if (collections.some((collection) => collection.name === GRAPH_SNAPSHOT_COLLECTION)) return
 
-  await client.createCollection(GRAPH_SNAPSHOT_COLLECTION, {
-    vectors: { size: 1, distance: "Dot" },
-    on_disk_payload: true,
-    timeout: 5,
-  })
+  try {
+    await client.createCollection(GRAPH_SNAPSHOT_COLLECTION, {
+      vectors: { size: 1, distance: "Dot" },
+      on_disk_payload: true,
+      timeout: 5,
+    })
+  } catch (err) {
+    if (!isSnapshotCollectionCreationConflict(err)) throw err
+  }
 }
 
 export async function getGraphSnapshot(graphHash: string): Promise<GraphSnapshot | null> {
@@ -76,6 +109,7 @@ export async function getGraphSnapshot(graphHash: string): Promise<GraphSnapshot
       builtGraph: payload.builtGraph,
     }
   } catch (err) {
+    if (isMissingSnapshotCollectionError(err)) return null
     warnLog("[qdrantGraphStore] failed to read graph snapshot:", err)
     return null
   }
