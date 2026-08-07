@@ -194,12 +194,10 @@ docker compose logs -f
 
 | 태그 | 트리거 |
 |---|---|
-| `latest` + `vX.Y.Z` + `vX.Y` + `vX` | git 태그 `v*` push |
-| `nightly` | `main` 브랜치 push |
-| `dev` | `dev` 브랜치 push |
-| `pr-<n>` | PR (build only, no push) |
+| `latest` | `main` 브랜치 push 또는 git 태그 `v*` push |
+| `X.Y.Z` | git 태그 `vX.Y.Z` push |
 
-- 멀티 아키: `linux/amd64`, `linux/arm64`
+- 아키텍처: `linux/amd64`
 - SLSA build provenance attestation 자동 첨부
 
 ### Qdrant ontology/vector search (선택)

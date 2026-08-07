@@ -3,13 +3,9 @@ name: Docker Build and Push
 on:
   push:
     branches:
-      - dev
+      - main
     tags:
       - 'v*'
-  pull_request:
-    branches:
-      - main
-      - dev
 
 env:
   REGISTRY: ghcr.io
@@ -50,10 +46,8 @@ jobs:
           if [ "$REF_TYPE" = "tag" ]; then
             VERSION="${REF_NAME#v}"
             echo "value=${IMAGE}:${VERSION},${IMAGE}:latest" >> "$GITHUB_OUTPUT"
-          elif [ "$REF" = "refs/heads/dev" ]; then
-            echo "value=${IMAGE}:dev" >> "$GITHUB_OUTPUT"
           else
-            echo "value=${IMAGE}:pr-test" >> "$GITHUB_OUTPUT"
+            echo "value=${IMAGE}:latest" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Extract OCI labels
@@ -75,11 +69,11 @@ jobs:
         uses: docker/build-push-action@v7
         with:
           context: .
-          push: ${{ github.event_name != 'pull_request' }}
+          push: true
           tags: ${{ steps.tags.outputs.value }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=registry,ref=ghcr.io/jung-geun/monolog:buildcache
-          cache-to: ${{ github.event_name != 'pull_request' && 'type=registry,ref=ghcr.io/jung-geun/monolog:buildcache,mode=max' || '' }}
+          cache-to: type=registry,ref=ghcr.io/jung-geun/monolog:buildcache,mode=max
           platforms: linux/amd64
 
       - name: Stop temp keepalive
@@ -87,7 +81,6 @@ jobs:
         run: kill "$KEEPALIVE_PID" 2>/dev/null || true
 
       - name: Generate artifact attestation
-        if: github.event_name != 'pull_request'
         uses: actions/attest-build-provenance@v4
         with:
           subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
@@ -95,5 +88,4 @@ jobs:
           push-to-registry: false
 
       - name: Output image tags
-        if: github.event_name != 'pull_request'
         run: echo "Pushed tags ${{ steps.tags.outputs.value }}"

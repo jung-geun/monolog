@@ -50,19 +50,14 @@ This project provides Docker images via GitHub Container Registry. According to 
 
 | Tag | Description | When Generated |
 |-----|-------------|----------------|
-| `latest` | Official release version | When `v*` tag is pushed (e.g., v1.0.0) |
-| `dev` | Development branch version | When `dev` branch is pushed |
-| `nightly` | Latest development version | When `main`/`master` branch is pushed |
+| `latest` | Current production image | When `main` is pushed, or a `v*` release tag is pushed |
+| `X.Y.Z` | Versioned release image | When its `vX.Y.Z` tag is pushed |
 
 ### Additional Tags
 
-When Semver tags are pushed (e.g., `v1.2.3`):
-- `1.2.3` - Full version
-- `1.2` - Minor version
-- `1` - Major version
-
-When Pull Requests are created:
-- `pr-{number}` - Tag corresponding to PR number (e.g., `pr-42`)
+When a Semver tag is pushed (for example, `v1.2.3`), the workflow publishes:
+- `1.2.3` — full release version
+- `latest` — current release image
 
 ## 📖 Getting Started
 
@@ -162,11 +157,6 @@ The docker-compose configuration includes:
 # Run latest version
 docker run -d -p 3000:3000 --env-file .env --restart unless-stopped ghcr.io/jung-geun/monolog:latest
 
-# Run development version
-docker run -d -p 3000:3000 --env-file .env --restart unless-stopped ghcr.io/jung-geun/monolog:dev
-
-# Run nightly version
-docker run -d -p 3000:3000 --env-file .env --restart unless-stopped ghcr.io/jung-geun/monolog:nightly
 ```
 
 After running, you can check the blog at http://localhost:3000.
