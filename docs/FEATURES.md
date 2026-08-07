@@ -104,6 +104,7 @@ About 라우트는 다음 위젯들을 한 화면에 묶어 보여줍니다.
 - **실시간 force 슬라이더** — `repulsion` (charge 강도) · `centering` (중심 인력 강도). 시뮬레이션 재생성 없이 force 파라미터만 mutation + `sim.alpha(0.5).restart()`로 부드러운 재배치
 - **reset view / reset force** — 줌과 force를 독립적으로 초기화
 - **CONNECTED 클릭** — 우측 detail panel의 연결 글을 누르면 해당 노드로 selectedIdx 전환
+- **CONNECTED hover/focus** — 우측 연결 항목에 마우스를 올리거나 키보드 focus하면 해당 graph node와 직접 연결된 edge를 좌측 canvas에서 동일하게 강조
 - **Semantic overlay** — `similar` 토글은 Qdrant 기반 `similar-topic` edge를 threshold로 필터링하고, `logical` 토글은 LLM ontology 관계(`elaborates` · `supports` · `contradicts` · `prerequisite` · `applies`)를 표시
 - **노드 hover/focus** — hover한 노드와 직접 연결된 edge는 밝기·굵기·ring으로 강조하고, 나머지 노드·label·edge는 감쇠
 

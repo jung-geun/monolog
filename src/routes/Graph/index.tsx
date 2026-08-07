@@ -767,6 +767,10 @@ const Graph = () => {
                   key={`${idx}-${node.id}`}
                   type="button"
                   className="connected-item"
+                  onMouseEnter={() => setHoveredIdx(idx)}
+                  onMouseLeave={() => setHoveredIdx(-1)}
+                  onFocus={() => setHoveredIdx(idx)}
+                  onBlur={() => setHoveredIdx(-1)}
                   onClick={() => setSelectedIdx(idx)}
                 >
                   <div className="connected-title">→ {node.title.slice(0, 30)}{node.title.length > 30 ? "…" : ""}</div>
