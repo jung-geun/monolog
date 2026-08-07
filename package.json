@@ -42,7 +42,7 @@
     "katex": "^0.16.25",
     "lru-cache": "^11.3.6",
     "mermaid": "^11.16.1",
-    "next": "^16.2.6",
+    "next": "^16.3.0",
     "notion-types": "^7.10.0",
     "notion-utils": "^7.10.0",
     "openai": "^5.23.2",
@@ -54,7 +54,7 @@
     "zod": "^4.4.3"
   },
   "resolutions": {
-    "postcss": "^8.5.14",
+    "postcss": "^8.5.23",
     "uuid": "^14.0.0"
   },
   "devDependencies": {
@@ -76,7 +76,7 @@
     "eslint-config-next": "^16.2.6",
     "jest": "^30.4.2",
     "jest-environment-jsdom": "^30.4.1",
-    "postcss": "^8.5.14",
+    "postcss": "^8.5.23",
     "prettier": "^3.8.3",
     "tailwindcss": "^3",
     "typescript": "^6.0.3",
