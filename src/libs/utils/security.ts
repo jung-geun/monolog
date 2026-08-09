@@ -1,15 +1,27 @@
+import { timingSafeEqual } from "crypto"
+import { isIP } from "net"
 import type { NextApiRequest } from "next"
 import { LRUCache } from "lru-cache"
 import { ipHash } from "src/libs/utils/comments/hash"
 
+function hasTrustedProxySecret(req: NextApiRequest): boolean {
+  const expected = process.env.TRUSTED_PROXY_SECRET
+  const actual = req.headers["x-monolog-proxy-secret"]
+  if (!expected || typeof actual !== "string") return false
+
+  const expectedBuffer = Buffer.from(expected)
+  const actualBuffer = Buffer.from(actual)
+  return expectedBuffer.length === actualBuffer.length && timingSafeEqual(expectedBuffer, actualBuffer)
+}
+
 export function getIp(req: NextApiRequest): string {
-  const hops = parseInt(process.env.TRUSTED_PROXY_HOPS ?? "0", 10)
-  if (hops > 0) {
+  const hops = Number(process.env.TRUSTED_PROXY_HOPS ?? "0")
+  if (Number.isSafeInteger(hops) && hops > 0 && hasTrustedProxySecret(req)) {
     const forwarded = req.headers["x-forwarded-for"]
     if (typeof forwarded === "string") {
-      const ips = forwarded.split(",").map((s) => s.trim())
-      const idx = ips.length - hops - 1
-      if (idx >= 0 && ips[idx]) return ips[idx]
+      const ips = forwarded.split(",").map((ip) => ip.trim())
+      const index = ips.length - hops
+      if (index >= 0 && isIP(ips[index])) return ips[index]
     }
   }
   return req.socket?.remoteAddress ?? "unknown"

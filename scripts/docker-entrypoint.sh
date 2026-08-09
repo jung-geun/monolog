@@ -1,6 +1,26 @@
 #!/bin/sh
 set -e
 
+SERVER_PID=
+
+forward_signal() {
+  signal=$1
+  echo "docker-entrypoint: forwarding $signal to node" >&2
+
+  if [ -n "$SERVER_PID" ]; then
+    kill -"$signal" "$SERVER_PID" 2>/dev/null || true
+    set +e
+    wait "$SERVER_PID"
+    status=$?
+    exit "$status"
+  fi
+
+  exit 0
+}
+
+trap 'forward_signal TERM' TERM
+trap 'forward_signal INT' INT
+
 echo "🚀 Starting Next.js server..."
 
 # Start Next.js standalone server in background
@@ -23,7 +43,11 @@ while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
 done
 
 if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
-  echo "⚠️ Server did not become ready in time, skipping init"
+  echo "⚠️ Server did not become ready in time; terminating node" >&2
+  kill -TERM "$SERVER_PID" 2>/dev/null || true
+  set +e
+  wait "$SERVER_PID"
+  exit 1
 else
   # Initialize ISR cache if NOTION_DATASOURCE_ID is available
   if [ -n "$NOTION_DATASOURCE_ID" ]; then
@@ -36,9 +60,12 @@ else
     INIT_COUNT=0
 
     while [ $INIT_COUNT -lt $INIT_RETRIES ]; do
-      INIT_RESPONSE=$(curl -s -w "\n%{http_code}" \
+      if ! INIT_RESPONSE=$(curl -s --connect-timeout 2 --max-time 5 -w "\n%{http_code}" \
         -H "Authorization: Bearer ${REVALIDATE_SECRET:-${TOKEN_FOR_REVALIDATE}}" \
-        "$INIT_URL" 2>&1)
+        -H "X-Forwarded-Proto: http" \
+        "$INIT_URL" 2>&1); then
+        :
+      fi
       HTTP_CODE=$(echo "$INIT_RESPONSE" | tail -n 1)
       BODY=$(echo "$INIT_RESPONSE" | head -n -1)
 
@@ -65,5 +92,7 @@ fi
 
 echo "🎯 Server is running. Waiting for requests..."
 
-# Wait for the server process
-wait $SERVER_PID
+# Wait for the server process without set -e discarding its status.
+set +e
+wait "$SERVER_PID"
+exit $?

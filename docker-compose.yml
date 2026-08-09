@@ -1,4 +1,6 @@
 services:
+
+
   blog:
     image: ghcr.io/jung-geun/monolog:latest
     build:
@@ -6,17 +8,16 @@ services:
       dockerfile: Dockerfile
     container_name: blog
     ports:
-      - "3000:3000"
+      - "${BLOG_BIND_ADDRESS:?set the HAProxy-reachable Mac address}:3000:3000"
     env_file:
       - .env
     environment:
       NODE_ENV: production
-      NOTION_TOKEN: ${NOTION_TOKEN:-COPY_YOUR_NOTION_TOKEN_HERE}
-      NOTION_DATASOURCE_ID: ${NOTION_DATASOURCE_ID:-COPY_YOUR_NOTION_DATASOURCE_ID_HERE}
-      NEXT_PUBLIC_GOOGLE_MEASUREMENT_ID: ${NEXT_PUBLIC_GOOGLE_MEASUREMENT_ID:-COPY_YOUR_GOOGLE_MEASUREMENT_ID_HERE}
-      # Must match the REVALIDATE_SECRET GitHub Actions secret
-      REVALIDATE_SECRET: ${REVALIDATE_SECRET:-GENERATE_RANDOM_STRING_AND_PUT_HERE}
-      REVALIDATE_HOURS: ${REVALIDATE_HOURS:-1}
+      NOTION_TOKEN: ${NOTION_TOKEN:?required}
+      NOTION_DATASOURCE_ID: ${NOTION_DATASOURCE_ID:?required}
+      REVALIDATE_SECRET: ${REVALIDATE_SECRET:?required}
+      TRUSTED_PROXY_HOPS: "1"
+      TRUSTED_PROXY_SECRET: ${TRUSTED_PROXY_SECRET:?required}
       REDIS_URL: redis://redis:6379
       QDRANT_URL: http://qdrant:6333
     depends_on:
@@ -25,6 +26,11 @@ services:
       qdrant:
         condition: service_healthy
     restart: unless-stopped
+    logging:
+      driver: local
+      options:
+        max-size: 10m
+        max-file: '3'
     volumes:
       - logs-data:/app/logs
       - image-cache:/app/.image-cache
@@ -39,6 +45,11 @@ services:
     image: redis:7-alpine
     container_name: blog-redis
     restart: unless-stopped
+    logging:
+      driver: local
+      options:
+        max-size: 10m
+        max-file: '3'
     volumes:
       - redis-data:/data
     healthcheck:
@@ -51,18 +62,15 @@ services:
     image: qdrant/qdrant:v1.18.0
     container_name: blog-qdrant
     restart: unless-stopped
+    logging:
+      driver: local
+      options:
+        max-size: 10m
+        max-file: '3'
     volumes:
       - qdrant-storage:/qdrant/storage
-    ports:
-      - "6333:6333"
     healthcheck:
-      test:
-        [
-          "CMD",
-          "bash",
-          "-ec",
-          "exec 3<>/dev/tcp/127.0.0.1/6333 && printf 'GET /healthz HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && grep -q '200 OK' <&3",
-        ]
+      test: ["CMD", "bash", "-c", ":> /dev/tcp/127.0.0.1/6333"]
       interval: 15s
       timeout: 5s
       retries: 5

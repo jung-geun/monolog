@@ -2,9 +2,8 @@ node_modules/
 logs/
 .tmp_ts_build/
 .next/
-.env
-.env.local
-.env.*.local
+.env*
+!.env.example
 .git/
 .github/
 .notion-cache/

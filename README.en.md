@@ -82,84 +82,80 @@ When a Semver tag is pushed (for example, `v1.2.3`), the workflow publishes:
 | `NEXT_PUBLIC_NAVER_SITE_VERIFICATION` | Optional | For Naver Search Advisor plugin |
 | `NEXT_PUBLIC_UTTERANCES_REPO` | Optional | For Utterances plugin |
 
-## 🐳 Docker Local Execution
+## 🐳 Docker Compose deployment
 
-You can run it locally using Docker. Docker Compose is recommended for easier management.
+The production path is a native local Docker build. It runs the dynamic Next.js application, Redis, and Qdrant on the Mac mini; only the `blog` service is reachable by HAProxy.
 
-### Environment Variables for Docker
+### Required Compose inputs
 
-| Variable Name | Required | Description |
-|---------------|----------|-------------|
-| `NOTION_TOKEN` | Required | Notion integration token |
-| `NOTION_DATASOURCE_ID` | Required | Notion data_source ID |
-| `NEXT_PUBLIC_GOOGLE_MEASUREMENT_ID` | Optional | For Google Analytics plugin |
-| `REVALIDATE_HOURS` | Optional | Revalidation interval in hours (default: 1) |
-| `REVALIDATE_SECRET` | Optional | Token for revalidation API security — must match the `REVALIDATE_SECRET` GitHub Actions secret |
-| `REDIS_URL` | Optional | Redis connection URL for L2 cache (e.g. `redis://localhost:6379`) |
-| `ANTHROPIC_API_KEY` | Optional | Enables ontology entity/relation extraction for `/ontology`, graph semantic overlay, and RightRail `ai · similar` |
-| `OPENAI_API_KEY` | Optional | Enables `text-embedding-3-small` embeddings stored in Qdrant for vector search |
-| `QDRANT_URL` | Optional | Recommended for persisted graph snapshots; also used by ontology/vector search. `docker-compose.yml` sets `http://qdrant:6333` for the Compose `blog` service. If missing or unreachable, graph reads fall back to rebuild/cache without persisted snapshots. |
-| `QDRANT_API_KEY` | Optional | API key for authenticated remote Qdrant; leave empty for local/self-hosted Qdrant |
-
-### Create Environment Variable File
-
-First, create a `.env` file:
+Copy the template, then fill every enabled integration:
 
 ```bash
-NOTION_TOKEN=your_notion_token
-NOTION_DATASOURCE_ID=your_notion_datasource_id
-NEXT_PUBLIC_GOOGLE_MEASUREMENT_ID=your_measurement_id  # Optional
-REVALIDATE_HOURS=1
-REVALIDATE_SECRET=your_random_string     # Generate a secure random string
-REDIS_URL=redis://localhost:6379         # Optional — Redis connection for L2 cache
+cp .env.example .env
+openssl rand -hex 32 # use this for TRUSTED_PROXY_SECRET and independent comment/visitor salts
 ```
-Optional ontology/vector search variables:
+
+| Variable | Required | Description |
+|---|---|---|
+| `BLOG_BIND_ADDRESS` | Yes | DHCP-reserved Mac LAN address reachable from the separate HAProxy host. Use `127.0.0.1` only when HAProxy is native on the Mac. |
+| `NOTION_TOKEN` | Yes | Notion integration token |
+| `NOTION_DATASOURCE_ID` | Yes | Notion posts `data_source` ID |
+| `REVALIDATE_SECRET` | Yes | Must match the GitHub Actions revalidation secret |
+| `TRUSTED_PROXY_SECRET` | Yes | Shared secret that HAProxy overwrites into `X-Monolog-Proxy-Secret` |
+| `NEXT_PUBLIC_SITE_URL` | Yes | `https://blog.pieroot.xyz`; compiled into the native image |
+| `REVALIDATE_HOURS` | Yes | ISR interval; default template value is `1` |
+| `NOTION_COMMENTS_DATASOURCE_ID`, `COMMENT_HASH_SALT` | When comments enabled | Comment data source and independent pseudonym salt |
+| `NOTION_VISIT_STATS_DATASOURCE_ID`, `VISITOR_HASH_SALT` | When visitor stats enabled | Visit data source and independent visitor salt |
+| `ANTHROPIC_API_KEY`, `OPENAI_API_KEY` | When ontology/vector build enabled | Optional ontology extraction and embedding credentials |
+
+`TRUSTED_PROXY_HOPS` is fixed to `1` inside Compose. Redis and Qdrant are private Compose services; do not set their public URLs in `.env`.
+
+### Mac mini and HAProxy setup
+
+1. Create a dedicated standard `monolog` macOS account, install current Docker Desktop there, clone this repository, create `.env`, and run the commands below from that checkout.
+2. Give both the Mac mini and HAProxy host DHCP reservations. Set `BLOG_BIND_ADDRESS` to the Mac's reserved LAN address.
+3. Configure the existing HAProxy backend to that explicit address and port. Preserve `Host`, set `X-Forwarded-Proto: https`, enable `option forwardfor`, and **overwrite** `X-Monolog-Proxy-Secret` with the exact `TRUSTED_PROXY_SECRET` from the Mac `.env`. Never forward a client-provided value for that header.
+4. HAProxy remains the TLS owner and the single trusted hop for `blog.pieroot.xyz`. Do not publish Qdrant or add another TLS proxy.
+5. This unattended-recovery policy deliberately removes macOS at-rest disk encryption: disable FileVault, enable automatic login for `monolog`, enable Docker Desktop startup at login, prevent automatic system sleep while the display is off, and enable restart after power failure. Retaining or re-enabling FileVault requires manual unlock/login after every reboot.
+6. Point the GitHub revalidation workflow's `REVALIDATE_URL` secret to `https://blog.pieroot.xyz`; its `REVALIDATE_SECRET` must equal the Mac `.env` value.
+
+If pre-existing `logs-data` or `image-cache` volumes are root-owned, preserve them and repair ownership once before startup:
 
 ```bash
-# Enables /ontology, Graph semantic overlay, RightRail ai · similar,
-# and persisted graph snapshots in Qdrant
-ANTHROPIC_API_KEY=your_anthropic_api_key
-OPENAI_API_KEY=your_openai_api_key
-QDRANT_URL=http://localhost:6333
-QDRANT_API_KEY=
+docker compose run --rm --user root --entrypoint chown blog -R 1001:1001 /app/logs /app/.image-cache
 ```
 
-### Using docker-compose (Recommended)
-
-Docker Compose provides an easy way to manage the container with automatic restart, health checks, and log persistence.
+### Operations
 
 ```bash
-# Normal blog stack: blog + redis + qdrant
-docker compose up -d
+# Validate required interpolation without starting services.
+make config
 
-# View logs
-docker compose logs -f
+# Native local build; waits for blog, Redis, and Qdrant health checks.
+make up
 
-# Stop
-docker compose down
+# Inspect stack state or follow bounded container logs.
+make ps
+make logs
 
-# Rebuild and restart the stack
-docker compose up -d --build
+# Recreate without deleting named volumes, or stop the stack.
+make restart
+make down
 ```
 
-The docker-compose configuration includes:
-- Automatic restart unless manually stopped
-- Health checks for blog, Redis, and Qdrant
-- Log persistence via volume (`logs-data`)
-- Image cache persistence via volume (`image-cache`)
-- Redis L2 cache persistence via volume (`redis-data`)
-- Qdrant storage via volume (`qdrant-storage`), powering persisted graph snapshots plus `/ontology`, graph semantic overlay, and RightRail `ai · similar`
-- Port mapping to 3000
+`make down` intentionally never removes volumes. Back up Redis RDB data and Qdrant snapshots to an existing off-machine destination before treating this Mac as the sole durable ontology/vector store.
 
-### Running Docker Directly
+### Production checks
+
+After HAProxy is configured, verify the direct bound origin and public TLS route:
 
 ```bash
-# Run latest version
-docker run -d -p 3000:3000 --env-file .env --restart unless-stopped ghcr.io/jung-geun/monolog:latest
-
+set -a; . ./.env; set +a
+curl -fsS "http://${BLOG_BIND_ADDRESS}:3000/" -o /dev/null
+curl -fsSI https://blog.pieroot.xyz/
+curl -fsS -H "Authorization: Bearer ${REVALIDATE_SECRET}" \
+  "http://${BLOG_BIND_ADDRESS}:3000/api/revalidate?path=/"
 ```
-
-After running, you can check the blog at http://localhost:3000.
 
 ## ❓ FAQ
 
@@ -184,7 +180,7 @@ After running, you can check the blog at http://localhost:3000.
 
    **Q5: The Docker container won't run.**
 
-   A5: Make sure `NOTION_TOKEN` and `NOTION_DATASOURCE_ID` are correctly set in the `.env` file. For comments, use `NOTION_COMMENTS_DATASOURCE_ID` (the data_source ID, not the database ID). Also check Docker logs: `docker logs <container_id>` or `docker-compose logs -f`
+   A5: Make sure `NOTION_TOKEN`, `NOTION_DATASOURCE_ID`, `REVALIDATE_SECRET`, `TRUSTED_PROXY_SECRET`, and `BLOG_BIND_ADDRESS` are set in `.env`. For comments, use `NOTION_COMMENTS_DATASOURCE_ID` (the data_source ID, not the database ID). Validate interpolation with `make config`, then inspect the stack with `make logs`.
 
    If you encounter other issues, feel free to register them in GitHub Issues. It helps other users too!
 

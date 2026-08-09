@@ -37,7 +37,6 @@ public/sitemap.xml
 /.firebase
 .tmp_ts_build/
 logs/
-docker-compose.override.yml
 tsconfig.tsbuildinfo
 
 # Notion page cache (L2 filesystem cache)
