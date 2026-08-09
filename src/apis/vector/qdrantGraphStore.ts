@@ -5,7 +5,8 @@ import { getQdrantClient } from "./qdrantClient"
 
 export const GRAPH_SNAPSHOT_COLLECTION = "post_graph_snapshots"
 export const GRAPH_SNAPSHOT_POINT_ID = "00000000-0000-4000-8000-000000000001"
-export const GRAPH_SNAPSHOT_SCHEMA_VERSION = "v1"
+// v2 invalidates snapshots positioned with pre-degree-radius collision spacing.
+export const GRAPH_SNAPSHOT_SCHEMA_VERSION = "v2"
 
 export type GraphSnapshotPayload = {
   kind: "notion-graph-snapshot"

@@ -23,7 +23,14 @@ import { zoom, zoomIdentity, type ZoomBehavior } from "d3-zoom"
 import useNotionGraphQuery from "src/hooks/useNotionGraphQuery"
 import useOntologyQuery from "src/hooks/useOntologyQuery"
 import { useRegisterChrome } from "src/layouts/RootLayout/EditorChrome/RouteChromeContext"
-import { GraphNode, SERIES_COLOR, TAG_COLOR } from "src/libs/utils/graph"
+import {
+  GraphNode,
+  NODE_LABEL_GAP,
+  SERIES_COLOR,
+  TAG_COLOR,
+  nodeCollisionRadiusForDegree,
+  nodeRadiusForDegree,
+} from "src/libs/utils/graph"
 import type { SemanticRelationKind } from "src/types/ontology"
 
 const W = 720
@@ -41,11 +48,6 @@ type DirectedEdgeGeometry = {
   y2: number
 }
 
-function nodeRadius(node: GraphNode): number {
-  return node.kind === "post"
-    ? 4 + Math.sqrt(Math.max(node.readTime ?? 1, 1)) * 2
-    : 4 + Math.sqrt(Math.max(node.degree, 1)) * 1.8
-}
 
 function directedEdgeGeometry(source: GraphNode, target: GraphNode): DirectedEdgeGeometry {
   const dx = target.x - source.x
@@ -56,8 +58,8 @@ function directedEdgeGeometry(source: GraphNode, target: GraphNode): DirectedEdg
   }
 
   const usableDistance = Math.max(0, distance - 2)
-  const sourceOffset = Math.min(nodeRadius(source) + 2, usableDistance / 2)
-  const targetOffset = Math.min(nodeRadius(target) + 2, usableDistance - sourceOffset)
+  const sourceOffset = Math.min(nodeRadiusForDegree(source.degree) + 2, usableDistance / 2)
+  const targetOffset = Math.min(nodeRadiusForDegree(target.degree) + 2, usableDistance - sourceOffset)
   const unitX = dx / distance
   const unitY = dy / distance
 
@@ -326,19 +328,19 @@ const Graph = () => {
       .force("radial", radialF)
       .force("x", xF)
       .force("y", yF)
-      .force("collide", forceCollide<N>((node) => (node.kind === "post" ? 14 : 7)))
+      .force("collide", forceCollide<N>((node) => nodeCollisionRadiusForDegree(node.degree)))
       .alpha(1)
       .alphaDecay(0.03)
       .on("tick", () => {
         nodes.forEach((n, i) => {
-          const sz = nodeRadius(n)
+const sz = nodeRadiusForDegree(n.degree)
           circleRefs.current[i]?.setAttribute("cx", String(n.x))
           circleRefs.current[i]?.setAttribute("cy", String(n.y))
           ringRefs.current[i]?.setAttribute("cx", String(n.x))
           ringRefs.current[i]?.setAttribute("cy", String(n.y))
           const lbl = labelRefs.current[i]
           if (lbl) {
-            lbl.setAttribute("x", String(n.x + sz + 4))
+            lbl.setAttribute("x", String(n.x + sz + NODE_LABEL_GAP))
             lbl.setAttribute("y", String(n.y + 3))
           }
         })
@@ -659,8 +661,8 @@ const Graph = () => {
 
               <g ref={nodesLayerRef} className="nodes-layer">
                 {nodes.map((n, i) => {
-                  const sz = nodeRadius(n)
-                  const isFocused = i === activeFocusIdx
+const sz = nodeRadiusForDegree(n.degree)
+const isFocused = i === activeFocusIdx
                   const dim = isNodeDimmed(i, n.category)
                   const labelEmphasized = isFocused || hoverCat === n.category
                   const isNodeRevealed = animRevealCount === null || nodeAppearRank[i] < animRevealCount
@@ -689,7 +691,7 @@ const Graph = () => {
                           ref={(el) => { ringRefs.current[i] = el }}
                           cx={n.x}
                           cy={n.y}
-                          r={sz + 5}
+r={nodeCollisionRadiusForDegree(n.degree)}
                           fill="none"
                           stroke={n.color}
                           strokeWidth={2.5}
@@ -707,7 +709,7 @@ const Graph = () => {
                       {n.kind === "post" && (
                         <text
                           ref={(el) => { labelRefs.current[i] = el }}
-                          x={n.x + sz + 4}
+x={n.x + sz + NODE_LABEL_GAP}
                           y={n.y + 3}
                           className="node-label"
                           fill={n.color}

@@ -8,8 +8,9 @@ const RM_VERSION = "v7"
 // Bump NG_VERSION when NotionGraph schema changes (e.g. new edge types, node fields)
 // so cached graphs are discarded and rebuilt with the new shape.
 const NG_VERSION = "v4"
-// Bump BG_VERSION when BuiltGraph schema changes (e.g. GraphNode/GraphEdge shape).
-const BG_VERSION = "v2"
+// Bump BG_VERSION when built layout semantics change as well as its serialized shape.
+// v3 uses degree-derived collision spacing for all graph nodes.
+const BG_VERSION = "v3"
 // Bump EMB_VERSION when embedding model or dimensions change.
 const EMB_VERSION = "v1"
 // Bump ONT_VERSION when PostOntology/Entity/SemanticEdge schema changes.

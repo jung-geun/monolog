@@ -8,7 +8,7 @@ import {
   forceRadial,
 } from "d3-force"
 import { cacheStore, keys } from "src/libs/cache"
-import { buildGraph } from "src/libs/utils/graph"
+import { buildGraph, nodeCollisionRadiusForDegree } from "src/libs/utils/graph"
 import type { GraphNode, GraphEdge } from "src/libs/utils/graph"
 import type { NotionGraph } from "src/types/notionGraph"
 import { computePostsGraphHash } from "./graphHash"
@@ -68,7 +68,7 @@ function runSimulationSync(nodes: GraphNode[], edges: GraphEdge[]): void {
     )
     .force("x", forceX<N>(W / 2).strength((n) => (n.kind === "post" ? 0.01 : 0)))
     .force("y", forceY<N>(H / 2).strength((n) => (n.kind === "post" ? 0.01 : 0)))
-    .force("collide", forceCollide<N>((node) => (node.kind === "post" ? 14 : 7)))
+    .force("collide", forceCollide<N>((node) => nodeCollisionRadiusForDegree(node.degree)))
     .stop()
     .tick(400)
 }

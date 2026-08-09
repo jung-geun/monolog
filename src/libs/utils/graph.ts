@@ -47,6 +47,20 @@ const PALETTE = [
 export const TAG_COLOR = "#2e8b57"    // Sea green — post 팔레트(moss #8da874)와 충돌 없는 짙은 녹색
 export const SERIES_COLOR = "#8e44ad" // Wisteria — 짙은 보라, post 팔레트(mauve/periwinkle)와 명확히 구분
 
+const MIN_NODE_RADIUS = 5
+const MAX_NODE_RADIUS = 22
+const DEGREE_RADIUS_FACTOR = 2.5
+const NODE_RING_GAP = 5
+export const NODE_LABEL_GAP = 4
+
+export const nodeRadiusForDegree = (degree: number): number => {
+  const normalizedDegree = Number.isFinite(degree) ? Math.max(degree, 0) : 0
+  return Math.min(MAX_NODE_RADIUS, MIN_NODE_RADIUS + Math.sqrt(normalizedDegree) * DEGREE_RADIUS_FACTOR)
+}
+
+export const nodeCollisionRadiusForDegree = (degree: number): number =>
+  nodeRadiusForDegree(degree) + NODE_RING_GAP
+
 const seed = (n: number) => ((n * 9301 + 49297) % 233280) / 233280
 
 export const colorForNode = (node: { kind: string; category?: string }, allCats: string[]): string => {
@@ -85,20 +99,13 @@ export const buildGraph = (
     }
   })
 
-  // degree 사전 계산 (tag/series hub 크기용)
-  const degreeMap = new Map<string, number>()
-  for (const e of graph.edges) {
-    degreeMap.set(e.source, (degreeMap.get(e.source) ?? 0) + 1)
-    degreeMap.set(e.target, (degreeMap.get(e.target) ?? 0) + 1)
-  }
-
   // Initial positions: small random spread near centre — force simulation will settle from here.
   const nodes: GraphNode[] = graph.nodes.map((n, i) => {
     const base = {
       kind: n.kind,
       id: n.id,
       title: n.title,
-      degree: degreeMap.get(n.id) ?? 0,
+      degree: 0,
       x: width / 2 + (seed(i * 2) - 0.5) * 200,
       y: height / 2 + (seed(i * 2 + 1) - 0.5) * 200,
       color: colorForNode(n, cats),
@@ -118,7 +125,6 @@ export const buildGraph = (
   })
 
   const idToIdx = new Map(graph.nodes.map((n, i) => [n.id, i]))
-
   const edges: GraphEdge[] = graph.edges.flatMap((e) => {
     const a = idToIdx.get(e.source)
     const b = idToIdx.get(e.target)
@@ -128,6 +134,11 @@ export const buildGraph = (
       na.kind === "post" && nb.kind === "post" && na.category === nb.category
     return [{ a, b, type: e.type, weight: e.weight, sameCategory }]
   })
+
+  for (const edge of edges) {
+    nodes[edge.a].degree += 1
+    nodes[edge.b].degree += 1
+  }
 
   return { nodes, edges, cats, catCenters }
 }

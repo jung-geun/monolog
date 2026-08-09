@@ -5,6 +5,8 @@
 import { createHash } from "crypto"
 import type { TPosts } from "src/types"
 import type { NotionGraph } from "src/types/notionGraph"
+import { forceCollide } from "d3-force"
+import { nodeCollisionRadiusForDegree } from "src/libs/utils/graph"
 
 jest.mock("src/apis/notion-client/getPosts", () => ({
   getPosts: jest.fn(),
@@ -90,7 +92,6 @@ function expectedGraphHash(currentPosts: TPosts): string {
     .map((post) => `${post.id}:${post.lastEditedTime ?? post.createdTime}`)
     .sort()
     .join("|")
-
   return createHash("sha1").update(signature).digest("hex").slice(0, 16)
 }
 
@@ -111,6 +112,13 @@ describe("getBuiltGraph", () => {
     expect(getNotionGraph).not.toHaveBeenCalled()
     expect(result.generatedAt).toBe(notionGraph.generatedAt)
     expect(result.nodes).toHaveLength(1)
+  })
+
+  it("uses degree-derived collision spacing in the server layout", async () => {
+    await getBuiltGraph({ bypassCache: true, notionGraph })
+
+    const collisionRadius = (forceCollide as jest.Mock).mock.calls[0][0] as (node: { degree: number }) => number
+    expect(collisionRadius({ degree: 4 })).toBe(nodeCollisionRadiusForDegree(4))
   })
 
   it("writes non-partial bypass builds through cacheStore.set", async () => {
