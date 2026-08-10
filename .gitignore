@@ -44,3 +44,4 @@ tsconfig.tsbuildinfo
 # Image BLOB disk cache (mounted as Docker volume in production)
 .image-cache/
 .gstack/
+/docker-compose.override.yml
