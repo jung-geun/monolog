@@ -4,9 +4,11 @@ import styled from "@emotion/styled"
 import { ExtendedRecordMap } from "notion-types"
 import { uuidToId } from "notion-utils"
 import { unwrapBlock } from "src/libs/utils/notion/unwrapBlock"
+import { getNotionRichTextPlainText } from "src/libs/utils/notion/richText"
 import usePostsQuery from "src/hooks/usePostsQuery"
 import useSimilarPostsQuery from "src/hooks/useSimilarPostsQuery"
 import { TPost } from "src/types"
+import PostEgoGraph from "./PostEgoGraph"
 
 type TocEntry = { id: string; text: string; level: number }
 
@@ -15,7 +17,7 @@ type Props = {
   post: TPost
 }
 
-const extractToc = (recordMap: ExtendedRecordMap | null): TocEntry[] => {
+export const extractToc = (recordMap: ExtendedRecordMap | null): TocEntry[] => {
   if (!recordMap) return []
   const toc: TocEntry[] = []
   for (const [id, boxed] of Object.entries(recordMap.block)) {
@@ -23,7 +25,7 @@ const extractToc = (recordMap: ExtendedRecordMap | null): TocEntry[] => {
     if (!block) continue
     const type = block.type
     if (type === "header" || type === "sub_header" || type === "sub_sub_header") {
-      const text = block.properties?.title?.[0]?.[0] || ""
+      const text = getNotionRichTextPlainText(block.properties?.title)
       if (text) {
         toc.push({
           id: uuidToId(id),
@@ -41,14 +43,9 @@ const RightRail = ({ recordMap, post }: Props) => {
   const allPosts = usePostsQuery()
   const { similar } = useSimilarPostsQuery(post.id, 5)
   const toc = useMemo(() => extractToc(recordMap), [recordMap])
-  const postTags = useMemo(() => post.tags || [], [post.tags])
   const postSlug = post.slug
   const postCategory = post.category?.[0]
   const seriesName = post.series?.[0]
-  const normalizedPostTags = useMemo(
-    () => [...new Set(postTags)],
-    [postTags]
-  )
 
   useEffect(() => {
     const scrollEl = document.querySelector(".scroll-area")
@@ -83,21 +80,10 @@ const RightRail = ({ recordMap, post }: Props) => {
       : []
   }, [allPosts, seriesName])
 
-  const nodes = useMemo(() => {
-    return allPosts
-      .filter((p) => p.slug !== postSlug)
-      .map((p) => ({
-        slug: p.slug,
-        title: p.title,
-        tags: p.tags || [],
-        shared: (p.tags || []).filter((t) => normalizedPostTags.includes(t)).length,
-      }))
-      .filter((n) => n.shared > 0)
-      .slice(0, 5)
-  }, [allPosts, normalizedPostTags, postSlug])
 
   return (
     <StyledWrapper>
+      <PostEgoGraph post={post} />
       {toc.length > 0 && (
         <div className="section">
           <div className="section-label">outline</div>
@@ -163,35 +149,6 @@ const RightRail = ({ recordMap, post }: Props) => {
         </div>
       )}
 
-      {nodes.length > 0 && postSlug !== "about" && (
-        <div className="section">
-          <div className="section-label">graph</div>
-          <div className="mini-graph">
-            <svg viewBox="0 0 200 110" width="100%" height="100%">
-              <title>{post.title}</title>
-              {nodes.map((n, i) => {
-                const angle = (i / nodes.length) * Math.PI * 2
-                const x = Math.round((100 + Math.cos(angle) * 65) * 100) / 100
-                const y = Math.round((55 + Math.sin(angle) * 40) * 100) / 100
-                return (
-                  <g key={n.slug}>
-                    <line
-                      x1={100} y1={55} x2={x} y2={y}
-                      stroke="currentColor" strokeWidth={n.shared * 0.6}
-                      style={{ color: "var(--line2, #cfcbb8)", opacity: 0.6 }}
-                    />
-                    <a href={`/${n.slug}`} style={{ cursor: "pointer" }}>
-                      <title>{n.title}</title>
-                      <circle cx={x} cy={y} r={5} className="graph-node" style={{ fill: "var(--fg3, #888a80)" }} />
-                    </a>
-                  </g>
-                )
-              })}
-              <circle cx={100} cy={55} r={7} style={{ fill: "var(--accent, #ee5a1c)" }} />
-            </svg>
-          </div>
-        </div>
-      )}
     </StyledWrapper>
   )
 }
@@ -287,23 +244,6 @@ const StyledWrapper = styled.aside`
     opacity: 0.75;
   }
 
-  .mini-graph {
-    height: 110px;
-    border: 1px solid ${({ theme }) => theme.colors.editor.line};
-    background: ${({ theme }) => theme.colors.editor.bg};
-    color: ${({ theme }) => theme.colors.editor.line2};
-
-    --line2: ${({ theme }) => theme.colors.editor.line2};
-    --fg3: ${({ theme }) => theme.colors.editor.fg3};
-    --accent: ${({ theme }) => theme.colors.editor.accent};
-
-    .graph-node {
-      transition: fill 0.15s ease, r 0.15s ease;
-    }
-    a:hover .graph-node {
-      fill: var(--accent) !important;
-    }
-  }
 
   @media (max-width: ${({ theme }) => theme.variables.breakpoint}px) {
     display: none;
