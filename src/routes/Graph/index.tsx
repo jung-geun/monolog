@@ -24,12 +24,15 @@ import useNotionGraphQuery from "src/hooks/useNotionGraphQuery"
 import useOntologyQuery from "src/hooks/useOntologyQuery"
 import { useRegisterChrome } from "src/layouts/RootLayout/EditorChrome/RouteChromeContext"
 import {
+  diamondPath,
   GraphNode,
+  GraphNodeShape,
   NODE_LABEL_GAP,
   SERIES_COLOR,
   TAG_COLOR,
   nodeCollisionRadiusForDegree,
   nodeRadiusForDegree,
+  nodeShapeForKind,
 } from "src/libs/utils/graph"
 import type { SemanticRelationKind } from "src/types/ontology"
 
@@ -48,6 +51,25 @@ type DirectedEdgeGeometry = {
   y2: number
 }
 
+type NodeShapeElement = SVGCircleElement | SVGPathElement
+
+
+function positionNodeShape(
+  element: NodeShapeElement | null,
+  shape: GraphNodeShape,
+  x: number,
+  y: number,
+  radius: number
+): void {
+  if (!element) return
+  if (shape === "circle") {
+    element.setAttribute("cx", String(x))
+    element.setAttribute("cy", String(y))
+    return
+  }
+  element.setAttribute("d", diamondPath(x, y, radius))
+}
+
 
 function directedEdgeGeometry(source: GraphNode, target: GraphNode): DirectedEdgeGeometry {
   const dx = target.x - source.x
@@ -58,10 +80,19 @@ function directedEdgeGeometry(source: GraphNode, target: GraphNode): DirectedEdg
   }
 
   const usableDistance = Math.max(0, distance - 2)
-  const sourceOffset = Math.min(nodeRadiusForDegree(source.degree) + 2, usableDistance / 2)
-  const targetOffset = Math.min(nodeRadiusForDegree(target.degree) + 2, usableDistance - sourceOffset)
+  const sourceRadius = nodeRadiusForDegree(source.degree)
+  const targetRadius = nodeRadiusForDegree(target.degree)
   const unitX = dx / distance
   const unitY = dy / distance
+  const sourceBoundary = nodeShapeForKind(source.kind) === "circle"
+    ? sourceRadius
+    : sourceRadius / (Math.abs(unitX) + Math.abs(unitY))
+  const targetBoundary = nodeShapeForKind(target.kind) === "circle"
+    ? targetRadius
+    : targetRadius / (Math.abs(unitX) + Math.abs(unitY))
+  const sourceOffset = Math.min(sourceBoundary + 2, usableDistance / 2)
+  const targetOffset = Math.min(targetBoundary + 2, usableDistance - sourceOffset)
+
 
   return {
     x1: source.x + unitX * sourceOffset,
@@ -241,8 +272,8 @@ const Graph = () => {
   useRegisterChrome("graph.md", statusItems)
 
   // DOM refs for direct coordinate updates during simulation tick
-  const circleRefs = useRef<(SVGCircleElement | null)[]>([])
-  const ringRefs = useRef<(SVGCircleElement | null)[]>([])
+  const nodeShapeRefs = useRef<(NodeShapeElement | null)[]>([])
+  const ringRefs = useRef<(NodeShapeElement | null)[]>([])
   const labelRefs = useRef<(SVGTextElement | null)[]>([])
   const lineRefs = useRef<(SVGLineElement | null)[]>([])
   const overlayLineRefs = useRef<(SVGLineElement | null)[]>([])
@@ -333,11 +364,16 @@ const Graph = () => {
       .alphaDecay(0.03)
       .on("tick", () => {
         nodes.forEach((n, i) => {
-const sz = nodeRadiusForDegree(n.degree)
-          circleRefs.current[i]?.setAttribute("cx", String(n.x))
-          circleRefs.current[i]?.setAttribute("cy", String(n.y))
-          ringRefs.current[i]?.setAttribute("cx", String(n.x))
-          ringRefs.current[i]?.setAttribute("cy", String(n.y))
+          const sz = nodeRadiusForDegree(n.degree)
+          const shape = nodeShapeForKind(n.kind)
+          positionNodeShape(nodeShapeRefs.current[i], shape, n.x, n.y, sz)
+          positionNodeShape(
+            ringRefs.current[i],
+            shape,
+            n.x,
+            n.y,
+            nodeCollisionRadiusForDegree(n.degree)
+          )
           const lbl = labelRefs.current[i]
           if (lbl) {
             lbl.setAttribute("x", String(n.x + sz + NODE_LABEL_GAP))
@@ -473,7 +509,6 @@ const sz = nodeRadiusForDegree(n.degree)
         animIntervalRef.current = null
       }
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isPlaying, animSpeed, postCount])
 
   // Zoom/pan behavior — mounted once, cleaned up on unmount
@@ -661,8 +696,9 @@ const sz = nodeRadiusForDegree(n.degree)
 
               <g ref={nodesLayerRef} className="nodes-layer">
                 {nodes.map((n, i) => {
-const sz = nodeRadiusForDegree(n.degree)
-const isFocused = i === activeFocusIdx
+                  const sz = nodeRadiusForDegree(n.degree)
+                  const shape = nodeShapeForKind(n.kind)
+                  const isFocused = i === activeFocusIdx
                   const dim = isNodeDimmed(i, n.category)
                   const labelEmphasized = isFocused || hoverCat === n.category
                   const isNodeRevealed = animRevealCount === null || nodeAppearRank[i] < animRevealCount
@@ -687,29 +723,51 @@ const isFocused = i === activeFocusIdx
                       }}
                     >
                       {isFocused && (
+                        shape === "circle" ? (
+                          <circle
+                            ref={(el) => { ringRefs.current[i] = el }}
+                            cx={n.x}
+                            cy={n.y}
+                            r={nodeCollisionRadiusForDegree(n.degree)}
+                            fill="none"
+                            stroke={n.color}
+                            strokeWidth={2.5}
+                            opacity={0.9}
+                          />
+                        ) : (
+                          <path
+                            ref={(el) => { ringRefs.current[i] = el }}
+                            d={diamondPath(n.x, n.y, nodeCollisionRadiusForDegree(n.degree))}
+                            fill="none"
+                            stroke={n.color}
+                            strokeWidth={2.5}
+                            opacity={0.9}
+                          />
+                        )
+                      )}
+                      {shape === "circle" ? (
                         <circle
-                          ref={(el) => { ringRefs.current[i] = el }}
+                          ref={(el) => { nodeShapeRefs.current[i] = el }}
                           cx={n.x}
                           cy={n.y}
-r={nodeCollisionRadiusForDegree(n.degree)}
-                          fill="none"
-                          stroke={n.color}
-                          strokeWidth={2.5}
-                          opacity={0.9}
+                          r={sz}
+                          fill={n.color}
+                          opacity={isFocused ? 1 : 0.85}
+                        />
+                      ) : (
+                        <path
+                          ref={(el) => { nodeShapeRefs.current[i] = el }}
+                          d={diamondPath(n.x, n.y, sz)}
+                          fill={shape === "filled-diamond" ? n.color : "transparent"}
+                          stroke={shape === "outline-diamond" ? n.color : undefined}
+                          strokeWidth={shape === "outline-diamond" ? 1.5 : undefined}
+                          opacity={isFocused ? 1 : 0.85}
                         />
                       )}
-                      <circle
-                        ref={(el) => { circleRefs.current[i] = el }}
-                        cx={n.x}
-                        cy={n.y}
-                        r={sz}
-                        fill={n.color}
-                        opacity={isFocused ? 1 : 0.85}
-                      />
                       {n.kind === "post" && (
                         <text
                           ref={(el) => { labelRefs.current[i] = el }}
-x={n.x + sz + NODE_LABEL_GAP}
+                          x={n.x + sz + NODE_LABEL_GAP}
                           y={n.y + 3}
                           className="node-label"
                           fill={n.color}
@@ -729,19 +787,188 @@ x={n.x + sz + NODE_LABEL_GAP}
             <span>nodes: {nodes.length}</span>
             <span>edges: {edges.length}</span>
             <span className="sep">|</span>
-            <span>○ post · ◆ tag · ◇ series</span>
+            <span>● post · ◆ tag · ◇ series</span>
             <span className="sep">|</span>
             <span title="Arrow points from the source post to the linked or classified node">→ direction</span>
           </div>
+
+          <div className={`floating-controls${selected ? " drawer-open" : ""}`}>
+            <details className="control-popover">
+              <summary>graph controls</summary>
+              <div className="control-popover-body">
+                <div className="panel-label">filter</div>
+                <div className="cat-filters">
+                  {cats.map((c) => (
+                    <span
+                      key={c}
+                      className={`cat-chip${hoverCat === c ? " active" : ""}`}
+                      style={{
+                        color: catColors[c],
+                        borderColor: hoverCat === c ? catColors[c] : undefined,
+                        background: hoverCat === c ? `${catColors[c]}1f` : undefined,
+                      }}
+                      onMouseEnter={() => setHoverCat(c)}
+                      onMouseLeave={() => setHoverCat(null)}
+                    >
+                      <span className="dot" style={{ background: catColors[c] }} />#{c}
+                    </span>
+                  ))}
+                </div>
+
+                <div className="panel-label section-label">semantic overlay</div>
+                <div className="overlay-toggles">
+                  <button
+                    type="button"
+                    className={`overlay-btn${showSimilar ? " active" : ""}`}
+                    onClick={() => setShowSimilar((v) => !v)}
+                  >
+                    similar ≥{simThreshold.toFixed(2)}
+                  </button>
+                  <button
+                    type="button"
+                    className={`overlay-btn${showLogical ? " active" : ""}`}
+                    onClick={() => setShowLogical((v) => !v)}
+                  >
+                    logical
+                  </button>
+                </div>
+                {showSimilar && (
+                  <div className="control-row">
+                    <label>
+                      threshold
+                      <span className="control-val">{simThreshold.toFixed(2)}</span>
+                    </label>
+                    <input
+                      type="range" min={0.70} max={0.95} step={0.01}
+                      value={simThreshold}
+                      onChange={(e) => setSimThreshold(Number(e.target.value))}
+                    />
+                  </div>
+                )}
+
+                <div className="panel-label section-label">layout</div>
+                <div className="control-row">
+                  <label>
+                    post repulsion
+                    <span className="control-val">{postRepulsion}</span>
+                  </label>
+                  <input
+                    type="range" min={50} max={500} step={10}
+                    value={postRepulsion}
+                    onChange={(e) => setPostRepulsion(Number(e.target.value))}
+                  />
+                </div>
+                <div className="control-row">
+                  <label>
+                    hub repulsion
+                    <span className="control-val">{hubRepulsion}</span>
+                  </label>
+                  <input
+                    type="range" min={0} max={100} step={5}
+                    value={hubRepulsion}
+                    onChange={(e) => setHubRepulsion(Number(e.target.value))}
+                  />
+                </div>
+                <div className="control-row">
+                  <label>
+                    hub radius
+                    <span className="control-val">{hubRingRadius.toFixed(2)}</span>
+                  </label>
+                  <input
+                    type="range" min={0.2} max={0.5} step={0.01}
+                    value={hubRingRadius}
+                    onChange={(e) => setHubRingRadius(Number(e.target.value))}
+                  />
+                </div>
+                <div className="control-row">
+                  <label>
+                    hub link
+                    <span className="control-val">{hubLinkStrength.toFixed(2)}</span>
+                  </label>
+                  <input
+                    type="range" min={0} max={0.3} step={0.01}
+                    value={hubLinkStrength}
+                    onChange={(e) => setHubLinkStrength(Number(e.target.value))}
+                  />
+                </div>
+                <div className="control-row">
+                  <label>
+                    post link dist
+                    <span className="control-val">{linkDistance}</span>
+                  </label>
+                  <input
+                    type="range" min={20} max={120} step={4}
+                    value={linkDistance}
+                    onChange={(e) => setLinkDistance(Number(e.target.value))}
+                  />
+                </div>
+                <div className="control-buttons">
+                  <button type="button" className="control-btn" onClick={handleResetView}>
+                    reset view
+                  </button>
+                  <button type="button" className="control-btn" onClick={handleResetForce}>
+                    reset force
+                  </button>
+                </div>
+
+                <div className="panel-label section-label">timeline</div>
+                <div className="anim-progress">
+                  <div
+                    className="anim-bar"
+                    style={{
+                      width: animRevealCount === null
+                        ? "100%"
+                        : `${(animRevealCount / Math.max(postCount, 1)) * 100}%`,
+                    }}
+                  />
+                  <span className="anim-label">
+                    {animRevealCount === null
+                      ? `${postCount} / ${postCount} posts`
+                      : `${animRevealCount} / ${postCount} posts`}
+                  </span>
+                </div>
+                <div className="control-row timeline-speed">
+                  <label>
+                    speed
+                    <span className="control-val">{animSpeed} posts/s</span>
+                  </label>
+                  <input
+                    type="range" min={1} max={50} step={1}
+                    value={animSpeed}
+                    onChange={(e) => setAnimSpeed(Number(e.target.value))}
+                  />
+                </div>
+                <div className="control-buttons">
+                  <button
+                    type="button"
+                    className={`control-btn${isPlaying ? " active" : ""}`}
+                    onClick={handlePlayAnim}
+                  >
+                    {isPlaying ? "⏸ pause" : "▶ play"}
+                  </button>
+                  <button type="button" className="control-btn" onClick={handleResetAnim}>
+                    ■ reset
+                  </button>
+                </div>
+              </div>
+            </details>
+          </div>
         </div>
 
-        {/* Detail panel */}
-        <div className="detail-panel">
-          {!selected && (
-            <div className="panel-empty">노드를 클릭하면 정보가 표시됩니다</div>
-          )}
+        <aside
+          className={`detail-panel${selected ? " is-open" : ""}`}
+          aria-hidden={!selected}
+        >
           {selected && (
             <>
+              <button
+                type="button"
+                className="detail-close"
+                onClick={() => setSelectedIdx(-1)}
+                aria-label="Close node details"
+              >
+                ×
+              </button>
               <div className="panel-label">
                 {selectedKind === "post" ? "selected" : selectedKind}
               </div>
@@ -761,10 +988,8 @@ x={n.x + sz + NODE_LABEL_GAP}
                 </>
               )}
 
-              <div className="panel-label" style={{ marginTop: 20 }}>
-                connected ({connectedNodes.length})
-              </div>
-              {connectedNodes.slice(0, 5).map(({ idx, node, via }) => (
+              <div className="panel-label section-label">connected ({connectedNodes.length})</div>
+              {connectedNodes.map(({ idx, node, via }) => (
                 <button
                   key={`${idx}-${node.id}`}
                   type="button"
@@ -779,164 +1004,9 @@ x={n.x + sz + NODE_LABEL_GAP}
                   <div className="connected-via">via {via}</div>
                 </button>
               ))}
-
-              <div className="panel-label" style={{ marginTop: 20 }}>filter</div>
-              <div className="cat-filters">
-                {cats.map((c) => (
-                  <span
-                    key={c}
-                    className={`cat-chip${hoverCat === c ? " active" : ""}`}
-                    style={{
-                      color: catColors[c],
-                      borderColor: hoverCat === c ? catColors[c] : undefined,
-                      background: hoverCat === c ? `${catColors[c]}1f` : undefined,
-                    }}
-                    onMouseEnter={() => setHoverCat(c)}
-                    onMouseLeave={() => setHoverCat(null)}
-                  >
-                    <span className="dot" style={{ background: catColors[c] }} />#{c}
-                  </span>
-                ))}
-              </div>
-
-              <div className="panel-label" style={{ marginTop: 20 }}>semantic overlay</div>
-              <div className="overlay-toggles">
-                <button
-                  type="button"
-                  className={`overlay-btn${showSimilar ? " active" : ""}`}
-                  onClick={() => setShowSimilar((v) => !v)}
-                >
-                  similar ≥{simThreshold.toFixed(2)}
-                </button>
-                <button
-                  type="button"
-                  className={`overlay-btn${showLogical ? " active" : ""}`}
-                  onClick={() => setShowLogical((v) => !v)}
-                >
-                  logical
-                </button>
-              </div>
-              {showSimilar && (
-                <div className="control-row">
-                  <label>
-                    threshold
-                    <span className="control-val">{simThreshold.toFixed(2)}</span>
-                  </label>
-                  <input
-                    type="range" min={0.70} max={0.95} step={0.01}
-                    value={simThreshold}
-                    onChange={(e) => setSimThreshold(Number(e.target.value))}
-                  />
-                </div>
-              )}
-
-              <div className="panel-label" style={{ marginTop: 20 }}>controls</div>
-              <div className="control-row">
-                <label>
-                  post repulsion
-                  <span className="control-val">{postRepulsion}</span>
-                </label>
-                <input
-                  type="range" min={50} max={500} step={10}
-                  value={postRepulsion}
-                  onChange={(e) => setPostRepulsion(Number(e.target.value))}
-                />
-              </div>
-              <div className="control-row">
-                <label>
-                  hub repulsion
-                  <span className="control-val">{hubRepulsion}</span>
-                </label>
-                <input
-                  type="range" min={0} max={100} step={5}
-                  value={hubRepulsion}
-                  onChange={(e) => setHubRepulsion(Number(e.target.value))}
-                />
-              </div>
-              <div className="control-row">
-                <label>
-                  hub radius
-                  <span className="control-val">{hubRingRadius.toFixed(2)}</span>
-                </label>
-                <input
-                  type="range" min={0.2} max={0.5} step={0.01}
-                  value={hubRingRadius}
-                  onChange={(e) => setHubRingRadius(Number(e.target.value))}
-                />
-              </div>
-              <div className="control-row">
-                <label>
-                  hub link
-                  <span className="control-val">{hubLinkStrength.toFixed(2)}</span>
-                </label>
-                <input
-                  type="range" min={0} max={0.3} step={0.01}
-                  value={hubLinkStrength}
-                  onChange={(e) => setHubLinkStrength(Number(e.target.value))}
-                />
-              </div>
-              <div className="control-row">
-                <label>
-                  post link dist
-                  <span className="control-val">{linkDistance}</span>
-                </label>
-                <input
-                  type="range" min={20} max={120} step={4}
-                  value={linkDistance}
-                  onChange={(e) => setLinkDistance(Number(e.target.value))}
-                />
-              </div>
-              <div className="control-buttons">
-                <button type="button" className="control-btn" onClick={handleResetView}>
-                  reset view
-                </button>
-                <button type="button" className="control-btn" onClick={handleResetForce}>
-                  reset force
-                </button>
-              </div>
-
-              <div className="panel-label" style={{ marginTop: 20 }}>timeline</div>
-              <div className="anim-progress">
-                <div
-                  className="anim-bar"
-                  style={{
-                    width: animRevealCount === null
-                      ? "100%"
-                      : `${(animRevealCount / Math.max(postCount, 1)) * 100}%`,
-                  }}
-                />
-                <span className="anim-label">
-                  {animRevealCount === null
-                    ? `${postCount} / ${postCount} posts`
-                    : `${animRevealCount} / ${postCount} posts`}
-                </span>
-              </div>
-              <div className="control-row" style={{ marginTop: 6 }}>
-                <label>
-                  speed
-                  <span className="control-val">{animSpeed} posts/s</span>
-                </label>
-                <input
-                  type="range" min={1} max={50} step={1}
-                  value={animSpeed}
-                  onChange={(e) => setAnimSpeed(Number(e.target.value))}
-                />
-              </div>
-              <div className="control-buttons">
-                <button
-                  type="button"
-                  className={`control-btn${isPlaying ? " active" : ""}`}
-                  onClick={handlePlayAnim}
-                >
-                  {isPlaying ? "⏸ pause" : "▶ play"}
-                </button>
-                <button type="button" className="control-btn" onClick={handleResetAnim}>
-                  ■ reset
-                </button>
-              </div>
             </>
           )}
-        </div>
+        </aside>
       </div>
     </StyledWrapper>
   )
@@ -952,20 +1022,16 @@ const StyledWrapper = styled.div`
   overflow: hidden;
 
   .graph-layout {
+    position: relative;
     flex: 1;
-    display: grid;
-    grid-template-columns: 1fr 280px;
     min-height: 0;
-
-    @media (max-width: ${({ theme }) => theme.variables.breakpoint}px) {
-      grid-template-columns: 1fr;
-    }
+    isolation: isolate;
   }
 
   .canvas-area {
     position: relative;
+    height: 100%;
     background: ${({ theme }) => theme.colors.editor.bg};
-    border-right: 1px solid ${({ theme }) => theme.colors.editor.line};
     overflow: hidden;
   }
 
@@ -1033,25 +1099,150 @@ const StyledWrapper = styled.div`
     .sep { color: ${({ theme }) => theme.colors.editor.fg4}; }
   }
 
-  .detail-panel {
+  .floating-controls {
+    position: absolute;
+    top: 14px;
+    right: 16px;
+    z-index: 4;
+    font-family: var(--font-mono, monospace);
+    transition: right 0.22s ease, opacity 0.18s ease, visibility 0s linear;
+
+    &.drawer-open {
+      right: 336px;
+    }
+  }
+
+  .control-popover {
+    width: 244px;
     background: ${({ theme }) => theme.colors.editor.bg2};
+    border: 1px solid ${({ theme }) => theme.colors.editor.line};
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.12);
+
+    summary {
+      list-style: none;
+      padding: 7px 10px;
+      color: ${({ theme }) => theme.colors.editor.fg2};
+      font-size: 10px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      cursor: pointer;
+      user-select: none;
+
+      &::-webkit-details-marker { display: none; }
+      &::after {
+        content: "+";
+        float: right;
+        color: ${({ theme }) => theme.colors.editor.accent3};
+      }
+    }
+
+    &[open] summary {
+      border-bottom: 1px solid ${({ theme }) => theme.colors.editor.line};
+      &::after { content: "−"; }
+    }
+
+    summary:focus-visible {
+      outline: 1px solid ${({ theme }) => theme.colors.editor.accent};
+      outline-offset: -1px;
+    }
+  }
+
+  .control-popover-body {
+    max-height: min(620px, calc(100vh - 92px));
+    overflow-y: auto;
+    padding: 10px;
+    scrollbar-width: thin;
+  }
+
+  .detail-panel {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 5;
+    width: 320px;
+    box-sizing: border-box;
     padding: 18px;
+    background: ${({ theme }) => theme.colors.editor.bg2};
+    border-left: 1px solid ${({ theme }) => theme.colors.editor.line};
+    box-shadow: -12px 0 24px rgba(0, 0, 0, 0.1);
     font-family: var(--font-mono, monospace);
     font-size: 12px;
     overflow-y: auto;
     scrollbar-width: none;
+    pointer-events: none;
+    visibility: hidden;
+    opacity: 0;
+    transform: translateX(100%);
+    transition: transform 0.24s ease, opacity 0.18s ease, visibility 0s linear 0.24s;
+
     &::-webkit-scrollbar { display: none; }
 
-    @media (max-width: ${({ theme }) => theme.variables.breakpoint}px) {
-      display: none;
+    &.is-open {
+      pointer-events: auto;
+      visibility: visible;
+      opacity: 1;
+      transform: translateX(0);
+      transition-delay: 0s;
     }
   }
 
-  .panel-empty {
-    font-size: 12px;
+  .detail-close {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: 1px solid ${({ theme }) => theme.colors.editor.line};
+    background: ${({ theme }) => theme.colors.editor.bg};
     color: ${({ theme }) => theme.colors.editor.fg3};
-    padding: 16px 0;
-    opacity: 0.6;
+    font: 16px/1 var(--font-mono, monospace);
+    cursor: pointer;
+
+    &:hover {
+      border-color: ${({ theme }) => theme.colors.editor.accent};
+      color: ${({ theme }) => theme.colors.editor.accent};
+    }
+
+    &:focus-visible {
+      outline: 1px solid ${({ theme }) => theme.colors.editor.accent};
+      outline-offset: 2px;
+    }
+  }
+
+  @media (max-width: ${({ theme }) => theme.variables.breakpoint}px) {
+    .floating-controls,
+    .floating-controls.drawer-open {
+      right: 10px;
+    }
+
+    .floating-controls.drawer-open {
+      pointer-events: none;
+      visibility: hidden;
+      opacity: 0;
+      transition: right 0.22s ease, opacity 0.18s ease, visibility 0s linear 0.18s;
+    }
+
+    .detail-panel {
+      width: min(320px, calc(100% - 20px));
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .floating-controls,
+    .floating-controls.drawer-open,
+    .detail-panel {
+      transition: none;
+    }
+  }
+
+  .section-label {
+    margin-top: 16px;
+  }
+
+  .timeline-speed {
+    margin-top: 6px;
   }
 
   .panel-label {
@@ -1061,6 +1252,7 @@ const StyledWrapper = styled.div`
     letter-spacing: 1.5px;
     margin-bottom: 8px;
   }
+
 
   .selected-title {
     font-size: 18px;

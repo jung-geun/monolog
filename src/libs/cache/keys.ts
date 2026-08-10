@@ -9,8 +9,8 @@ const RM_VERSION = "v7"
 // so cached graphs are discarded and rebuilt with the new shape.
 const NG_VERSION = "v4"
 // Bump BG_VERSION when built layout semantics change as well as its serialized shape.
-// v3 uses degree-derived collision spacing for all graph nodes.
-const BG_VERSION = "v3"
+// v4 expands degree-derived collision spacing for the larger hub-node radius scale.
+const BG_VERSION = "v4"
 // Bump EMB_VERSION when embedding model or dimensions change.
 const EMB_VERSION = "v1"
 // Bump ONT_VERSION when PostOntology/Entity/SemanticEdge schema changes.

@@ -1,4 +1,9 @@
-import { buildGraph, nodeCollisionRadiusForDegree, nodeRadiusForDegree } from "src/libs/utils/graph"
+import {
+  buildGraph,
+  nodeCollisionRadiusForDegree,
+  nodeRadiusForDegree,
+  nodeShapeForKind,
+} from "src/libs/utils/graph"
 import type { NotionGraph } from "src/types/notionGraph"
 
 const graph: NotionGraph = {
@@ -29,10 +34,14 @@ const graph: NotionGraph = {
 }
 
 describe("nodeRadiusForDegree", () => {
-  it("uses a monotonic, bounded radius for connected edges", () => {
+  it("dramatically differentiates sparse nodes from high-degree hubs", () => {
     expect(nodeRadiusForDegree(0)).toBe(5)
-    expect(nodeRadiusForDegree(46)).toBeLessThan(22)
-    expect(nodeRadiusForDegree(47)).toBe(22)
+    expect(nodeRadiusForDegree(1)).toBeCloseTo(8.25)
+    expect(nodeRadiusForDegree(4)).toBeCloseTo(14.852)
+    expect(nodeRadiusForDegree(8)).toBeCloseTo(22.154)
+    expect(nodeRadiusForDegree(19)).toBeCloseTo(39.268)
+    expect(nodeRadiusForDegree(22)).toBeLessThan(44)
+    expect(nodeRadiusForDegree(23)).toBe(44)
     expect(nodeRadiusForDegree(-5)).toBe(nodeRadiusForDegree(0))
     expect(nodeRadiusForDegree(Number.NaN)).toBe(nodeRadiusForDegree(0))
     expect(nodeRadiusForDegree(Number.POSITIVE_INFINITY)).toBe(nodeRadiusForDegree(0))
@@ -46,6 +55,14 @@ describe("nodeRadiusForDegree", () => {
   it("reserves enough collision space for a selected-node ring", () => {
     expect(nodeCollisionRadiusForDegree(4)).toBeGreaterThan(nodeRadiusForDegree(4))
     expect(nodeCollisionRadiusForDegree(10_000)).toBe(nodeRadiusForDegree(10_000) + 5)
+  })
+})
+
+describe("nodeShapeForKind", () => {
+  it("maps each node kind to its canvas shape", () => {
+    expect(nodeShapeForKind("post")).toBe("circle")
+    expect(nodeShapeForKind("tag")).toBe("filled-diamond")
+    expect(nodeShapeForKind("series")).toBe("outline-diamond")
   })
 })
 

@@ -191,6 +191,29 @@ describe("qdrantGraphStore", () => {
     })
   })
 
+  it("treats a snapshot with the previous radius scale as a cache miss", async () => {
+    mockClient.retrieve.mockResolvedValue([
+      {
+        payload: {
+          kind: "notion-graph-snapshot",
+          schemaVersion: "v2",
+          graphHash: "hash-a",
+          generatedAt: builtGraph.generatedAt,
+          postCount: 1,
+          edgeCount: notionGraph.edges.length,
+          notionGraph,
+          builtGraph,
+        },
+      },
+    ])
+
+    await expect(getGraphSnapshot("hash-a")).resolves.toBeNull()
+    expect(warnLog).toHaveBeenCalledWith(
+      "[qdrantGraphStore] graph snapshot schema mismatch",
+      "v2"
+    )
+  })
+
   it("returns null for a stale stored graph hash", async () => {
     mockClient.retrieve.mockResolvedValue([
       {

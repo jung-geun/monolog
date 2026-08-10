@@ -70,6 +70,5 @@ LABEL org.opencontainers.image.licenses="MIT"
 USER nextjs
 
 VOLUME ["/app/logs"]
-EXPOSE 3000
 
 ENTRYPOINT ["./docker-entrypoint.sh"]

@@ -24,12 +24,103 @@ export type GraphNode = {
   index?: number
 }
 
+export type GraphNodeShape = "circle" | "filled-diamond" | "outline-diamond"
+
+export function nodeShapeForKind(kind: GraphNode["kind"]): GraphNodeShape {
+  switch (kind) {
+    case "post":
+      return "circle"
+    case "tag":
+      return "filled-diamond"
+    case "series":
+      return "outline-diamond"
+  }
+}
+
 export type GraphEdge = {
   a: number
   b: number
   type: EdgeKind
   weight: number
   sameCategory: boolean
+}
+
+export type PostEgoNeighbor = {
+  node: GraphNode
+  edges: GraphEdge[]
+  totalWeight: number
+}
+
+export type PostEgoGraph = {
+  center: GraphNode
+  neighbors: PostEgoNeighbor[]
+}
+
+const isGraphNodeKind = (kind: unknown): kind is GraphNode["kind"] =>
+  kind === "post" || kind === "tag" || kind === "series"
+
+export const diamondPath = (x: number, y: number, radius: number): string =>
+  `M ${x} ${y - radius} L ${x + radius} ${y} L ${x} ${y + radius} L ${x - radius} ${y} Z`
+
+export const getPostEgoGraph = (
+  nodes: GraphNode[],
+  edges: GraphEdge[],
+  postId: string
+): PostEgoGraph | null => {
+  const centerIndex = nodes.findIndex(
+    (node) => node?.kind === "post" && node.id === postId
+  )
+  if (centerIndex < 0) return null
+
+  const center = nodes[centerIndex]
+  const neighbors = new Map<string, PostEgoNeighbor>()
+
+  for (const edge of edges) {
+    if (
+      !Number.isInteger(edge.a) ||
+      !Number.isInteger(edge.b) ||
+      edge.a < 0 ||
+      edge.b < 0 ||
+      edge.a >= nodes.length ||
+      edge.b >= nodes.length ||
+      edge.a === edge.b
+    ) {
+      continue
+    }
+
+    const oppositeIndex = edge.a === centerIndex
+      ? edge.b
+      : edge.b === centerIndex
+        ? edge.a
+        : null
+    if (oppositeIndex == null) continue
+
+    const opposite = nodes[oppositeIndex]
+    if (
+      !opposite ||
+      !isGraphNodeKind(opposite.kind) ||
+      typeof opposite.id !== "string"
+    ) {
+      continue
+    }
+
+    const existing = neighbors.get(opposite.id)
+    const totalWeight = Number.isFinite(edge.weight) && edge.weight > 0
+      ? edge.weight
+      : 0
+    if (existing) {
+      existing.edges.push(edge)
+      existing.totalWeight += totalWeight
+    } else {
+      neighbors.set(opposite.id, {
+        node: opposite,
+        edges: [edge],
+        totalWeight,
+      })
+    }
+  }
+
+  return { center, neighbors: [...neighbors.values()] }
 }
 
 // Limited palette tuned to the editor theme (warm earth + muted accents).
@@ -48,14 +139,18 @@ export const TAG_COLOR = "#2e8b57"    // Sea green — post 팔레트(moss #8da8
 export const SERIES_COLOR = "#8e44ad" // Wisteria — 짙은 보라, post 팔레트(mauve/periwinkle)와 명확히 구분
 
 const MIN_NODE_RADIUS = 5
-const MAX_NODE_RADIUS = 22
-const DEGREE_RADIUS_FACTOR = 2.5
+const MAX_NODE_RADIUS = 44
+const DEGREE_RADIUS_FACTOR = 3.25
+const DEGREE_RADIUS_EXPONENT = 0.8
 const NODE_RING_GAP = 5
 export const NODE_LABEL_GAP = 4
 
 export const nodeRadiusForDegree = (degree: number): number => {
   const normalizedDegree = Number.isFinite(degree) ? Math.max(degree, 0) : 0
-  return Math.min(MAX_NODE_RADIUS, MIN_NODE_RADIUS + Math.sqrt(normalizedDegree) * DEGREE_RADIUS_FACTOR)
+  return Math.min(
+    MAX_NODE_RADIUS,
+    MIN_NODE_RADIUS + Math.pow(normalizedDegree, DEGREE_RADIUS_EXPONENT) * DEGREE_RADIUS_FACTOR
+  )
 }
 
 export const nodeCollisionRadiusForDegree = (degree: number): number =>
