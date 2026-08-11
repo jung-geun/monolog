@@ -151,7 +151,7 @@ describe("qdrantGraphStore", () => {
   it("continues to upsert when another worker creates the snapshot collection first", async () => {
     mockClient.createCollection.mockRejectedValue({ status: 409 })
 
-    await expect(upsertGraphSnapshot("hash-a", notionGraph, builtGraph)).resolves.toBeUndefined()
+    await expect(upsertGraphSnapshot("hash-a", notionGraph, builtGraph)).resolves.toBe(true)
 
     expect(mockClient.upsert).toHaveBeenCalledTimes(1)
   })
@@ -168,7 +168,7 @@ describe("qdrantGraphStore", () => {
     expect(mockClient.upsert).toHaveBeenCalledTimes(1)
   })
 
-  it("returns the stored notionGraph and builtGraph only when kind, schema, and hash match", async () => {
+  it("returns a schema-valid stored snapshot regardless of its source hash", async () => {
     mockClient.retrieve.mockResolvedValue([
       {
         payload: {
@@ -184,7 +184,7 @@ describe("qdrantGraphStore", () => {
       },
     ])
 
-    await expect(getGraphSnapshot("hash-a")).resolves.toEqual({
+    await expect(getGraphSnapshot()).resolves.toEqual({
       graphHash: "hash-a",
       notionGraph,
       builtGraph,
@@ -207,14 +207,14 @@ describe("qdrantGraphStore", () => {
       },
     ])
 
-    await expect(getGraphSnapshot("hash-a")).resolves.toBeNull()
+    await expect(getGraphSnapshot()).resolves.toBeNull()
     expect(warnLog).toHaveBeenCalledWith(
       "[qdrantGraphStore] graph snapshot schema mismatch",
       "v2"
     )
   })
 
-  it("returns null for a stale stored graph hash", async () => {
+  it("returns a stale stored graph so callers can serve it while refreshing", async () => {
     mockClient.retrieve.mockResolvedValue([
       {
         payload: {
@@ -230,11 +230,11 @@ describe("qdrantGraphStore", () => {
       },
     ])
 
-    await expect(getGraphSnapshot("hash-b")).resolves.toBeNull()
-    expect(warnLog).toHaveBeenCalledWith(
-      "[qdrantGraphStore] graph snapshot hash mismatch",
-      "hash-a"
-    )
+    await expect(getGraphSnapshot()).resolves.toMatchObject({
+      graphHash: "hash-a",
+      builtGraph,
+    })
+    expect(warnLog).not.toHaveBeenCalled()
   })
   it("treats a missing snapshot collection as a cache miss without warning", async () => {
     mockClient.retrieve.mockRejectedValue({
@@ -246,7 +246,7 @@ describe("qdrantGraphStore", () => {
       },
     })
 
-    await expect(getGraphSnapshot("hash-a")).resolves.toBeNull()
+    await expect(getGraphSnapshot()).resolves.toBeNull()
     expect(warnLog).not.toHaveBeenCalled()
   })
 
@@ -255,7 +255,7 @@ describe("qdrantGraphStore", () => {
     const err = new Error("qdrant unavailable")
     mockClient.retrieve.mockRejectedValue(err)
 
-    await expect(getGraphSnapshot("hash-a")).resolves.toBeNull()
+    await expect(getGraphSnapshot()).resolves.toBeNull()
     expect(warnLog).toHaveBeenCalledWith(
       "[qdrantGraphStore] failed to read graph snapshot:",
       err

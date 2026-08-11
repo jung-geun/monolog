@@ -82,6 +82,8 @@ When a Semver tag is pushed (for example, `v1.2.3`), the workflow publishes:
 | `NEXT_PUBLIC_NAVER_SITE_VERIFICATION` | Optional | For Naver Search Advisor plugin |
 | `NEXT_PUBLIC_UTTERANCES_REPO` | Optional | For Utterances plugin |
 
+`NEXT_PUBLIC_GOOGLE_MEASUREMENT_ID`, `NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION`, and `NEXT_PUBLIC_NAVER_SITE_VERIFICATION` are read when the container starts, not when the image is built. Supply only public values through `--env-file` or Compose `env_file`; omit them to run with Analytics and verification tags disabled.
+
 ## 🐳 Docker Compose deployment
 
 The production path is a native local Docker build. It runs the dynamic Next.js application, Redis, and Qdrant on the Mac mini; only the `blog` service is reachable by HAProxy.

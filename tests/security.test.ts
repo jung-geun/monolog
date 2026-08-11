@@ -3,12 +3,13 @@
  */
 
 import type { NextApiRequest } from "next"
+import { getInternalOrigin, getIp } from "src/libs/utils/security"
 import { getRequestIp } from "src/libs/utils/image/proxyServer"
-import { getIp } from "src/libs/utils/security"
 
 const REMOTE_ADDRESS = "172.18.0.2"
 const originalHops = process.env.TRUSTED_PROXY_HOPS
 const originalSecret = process.env.TRUSTED_PROXY_SECRET
+const originalPort = process.env.PORT
 
 function request(headers: Record<string, string> = {}, remoteAddress = REMOTE_ADDRESS): NextApiRequest {
   return {
@@ -25,9 +26,32 @@ function setProxyConfig(hops: string | undefined, secret: string | undefined): v
   else process.env.TRUSTED_PROXY_SECRET = secret
 }
 
+function setPort(port: string | undefined): void {
+  if (port === undefined) delete process.env.PORT
+  else process.env.PORT = port
+}
+
 afterEach(() => {
   setProxyConfig(originalHops, originalSecret)
+  setPort(originalPort)
 })
+
+describe("getInternalOrigin", () => {
+  it("uses loopback and the default port when PORT is missing", () => {
+    setPort(undefined)
+
+    expect(getInternalOrigin()).toBe("http://127.0.0.1:3000")
+  })
+
+  it("uses only a valid configured port", () => {
+    setPort("3411")
+    expect(getInternalOrigin()).toBe("http://127.0.0.1:3411")
+
+    setPort("invalid")
+    expect(getInternalOrigin()).toBe("http://127.0.0.1:3000")
+  })
+})
+
 
 describe("getIp", () => {
   it("ignores spoofed X-Forwarded-For when proxy trust is disabled", () => {

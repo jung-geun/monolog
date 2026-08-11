@@ -63,9 +63,9 @@ Docker entrypoint가 `next start` 후 자동으로 `/api/init`을 호출해 포�
 ```bash
 git clone https://github.com/jung-geun/monolog.git
 cd monolog
-pnpm install                 # or: npm install
+yarn install
 cp .env.example .env         # NOTION_TOKEN · NOTION_DATASOURCE_ID 필수
-pnpm dev                     # or: npm run dev
+yarn dev
 ```
 
 Notion DB는 [**monolog blog assets**](https://www.notion.so/pieroot/blog-assets-35a067c015d080a0bf17d3a0dffb3784) 페이지를 본인 워크스페이스로 **Duplicate** 해서 사용합니다. 전체 셋업 가이드(환경 변수 · Notion 스키마 · Docker · API 엔드포인트)는 [`docs/USAGE.md`](docs/USAGE.md)를 참고하세요.

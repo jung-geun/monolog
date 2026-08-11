@@ -27,13 +27,13 @@ const Frontmatter = ({ title, date, category, tags, readTime }: Props) => (
 export default Frontmatter
 
 const StyledWrapper = styled.div`
-  font-family: var(--font-mono, monospace);
+  font-family: var(--font-mono, "JetBrains Mono", monospace);
   font-size: 13px;
-  color: ${({ theme }) => theme.colors.editor.fg3};
+  color: var(--color-mute, rgb(var(--c-mute)));
   margin-bottom: 24px;
-  line-height: 1.7;
+  line-height: 1.6;
 
   .key {
-    color: ${({ theme }) => theme.colors.editor.accent3};
+    color: var(--color-signal, rgb(var(--c-signal)));
   }
 `

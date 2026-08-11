@@ -1,32 +1,17 @@
 import Feed from "src/routes/Feed"
 import { CONFIG } from "../../site.config"
 import { NextPageWithLayout } from "../types"
-import { getPosts } from "../apis"
+import { getPosts } from "src/apis/notion-client/getPosts"
 import MetaConfig from "src/components/MetaConfig"
 import { createServerQueryClient } from "src/libs/react-query"
-import { queryKey } from "src/constants/queryKey"
+import { assertFeedNotEmpty, prefetchFeedPosts } from "src/libs/react-query/prefetchFeedPosts"
 import { GetStaticProps } from "next"
 import { dehydrate } from "@tanstack/react-query"
-import { filterPosts } from "src/libs/utils/notion"
 
 export const getStaticProps: GetStaticProps = async () => {
   const queryClient = createServerQueryClient()
-  const allPosts = await getPosts()
-  const posts = filterPosts(allPosts, {
-    acceptStatus: ["Public"],
-    acceptType: ["Post", "Paper"],
-  })
-
-  if (posts.length === 0 && process.env.NEXT_PHASE !== "phase-production-build") {
-    throw new Error("getPosts returned 0 posts — preserving previous static HTML")
-  }
-
-  await queryClient.prefetchQuery({
-    queryKey: queryKey.posts(),
-    queryFn: () => posts,
-    staleTime: 10 * 60 * 1000, // 10분 동안 fresh 유지
-    gcTime: 60 * 60 * 1000, // 1시간 동안 캐시 보관
-  })
+  const posts = await prefetchFeedPosts(queryClient, await getPosts())
+  assertFeedNotEmpty(posts)
 
   return {
     props: {

@@ -178,8 +178,8 @@ Docker 컨테이너 entrypoint가 `next start` 후 자동으로 `/api/init`을 �
 수동 워밍:
 
 ```bash
-npm run warm:graph   # /graphs/notion-graph.json 호출
-curl "https://your-site.com/api/init?secret=$REVALIDATE_SECRET"
+yarn warm:graph  # /graphs/notion-graph.json 호출
+curl -H "Authorization: Bearer $REVALIDATE_SECRET" "https://your-site.com/api/init"
 ```
 
 ---

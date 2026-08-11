@@ -6,6 +6,13 @@ module.exports = {
   experimental: {
     turbopackSourceMaps: false,
   },
+  async rewrites() {
+    return {
+      beforeFiles: [],
+      afterFiles: [{ source: "/:slug\\.md", destination: "/api/markdown/:slug" }],
+      fallback: [],
+    }
+  },
   async headers() {
     // CSP — Report-Only 모드로 시작. 브라우저 콘솔에서 위반 사항 모니터링 후
     // 안정되면 헤더 키를 'Content-Security-Policy'로 바꿔 enforce로 전환.
@@ -31,7 +38,13 @@ module.exports = {
       { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
       { key: 'Content-Security-Policy-Report-Only', value: csp },
     ]
-    return [{ source: '/:path*', headers: securityHeaders }]
+    return [
+      {
+        source: "/runtime-config.js",
+        headers: [{ key: "Cache-Control", value: "no-store, max-age=0" }],
+      },
+      { source: "/:path*", headers: securityHeaders },
+    ]
   },
   images: {
     localPatterns: [

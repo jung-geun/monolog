@@ -9,7 +9,7 @@ monolog 셋업·운영 가이드. 프로젝트 개요와 차별점은 [`README.m
 ```bash
 git clone https://github.com/jung-geun/monolog.git
 cd monolog
-yarn install        # or: npm install
+yarn install
 
 cp .env.example .env
 # 필수:
@@ -22,7 +22,7 @@ cp .env.example .env
 #   NOTION_VISIT_STATS_DATASOURCE_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 #   VISITOR_HASH_SALT=$(openssl rand -hex 32)
 
-yarn dev            # or: npm run dev
+yarn dev
 ```
 
 `http://localhost:3000`에서 확인합니다.
@@ -129,7 +129,7 @@ yarn dev            # or: npm run dev
 | `QDRANT_API_KEY` | — | 인증이 걸린 외부 Qdrant용 API key. 로컬/self-hosted Qdrant는 빈 값 |
 | `CACHE_NAMESPACE` | `monolog` | Redis 키 prefix. 동일 Redis를 staging·preview 등 여러 배포가 공유할 때 충돌 방지 |
 | `GRAPH_BUILD_TIMEOUT_MS` | `120000` | Notion graph complete-build 시간 제한(ms). 제한을 넘긴 partial graph는 Qdrant snapshot으로 저장하지 않음. 최대 `300000` |
-| `REVALIDATE_SECRET` | — | `/api/revalidate` · `/api/init` · `/api/cron/graph` 보호 토큰. GitHub Actions의 `REVALIDATE_SECRET` secret과 **동일 이름·동일 값**. (구 이름 `TOKEN_FOR_REVALIDATE`도 deprecated alias로 호환) |
+| `REVALIDATE_SECRET` | — | `/api/revalidate` · `/api/init` · `/api/cron/graph` 보호용 Bearer 토큰. GitHub Actions의 `REVALIDATE_SECRET` secret과 **동일 이름·동일 값**. |
 | `REVALIDATE_HOURS` | `6` | ISR 재생성 주기 (시간) |
 | `NEXT_PUBLIC_SITE_URL` | — | 절대 이미지 프록시 URL prefix |
 | `TRUSTED_PROXY_HOPS` | `0` | 앞단 프록시 hop 수 — `0`이면 XFF 무시, `1`이면 Nginx·LB 1단 신뢰 |
@@ -138,6 +138,8 @@ yarn dev            # or: npm run dev
 | `NEXT_PUBLIC_NAVER_SITE_VERIFICATION` | — | Naver Search Advisor |
 | `NEXT_PUBLIC_UTTERANCES_REPO` | — | Utterances 댓글 (`user/repo`) |
 | `SLACK_WEBHOOK` | — | image-proxy 실패 Slack 알림 |
+
+`NEXT_PUBLIC_GOOGLE_MEASUREMENT_ID`, `NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION`, `NEXT_PUBLIC_NAVER_SITE_VERIFICATION`는 이미지 빌드 시점이 아니라 컨테이너 시작 시 주입됩니다. 공개 값만 넣고, `docker run --env-file .env …` 또는 Compose의 `env_file`로 설정한 뒤 컨테이너를 재시작하세요. 값이 없으면 Analytics와 검증 메타 태그는 비활성화되며 앱은 정상 실행됩니다.
 
 ### GitHub Actions Secrets (워크플로우 전용)
 
@@ -156,8 +158,8 @@ yarn dev            # or: npm run dev
 
 | Path | 인증 | 용도 |
 |---|---|---|
-| `GET /api/revalidate?secret=...&path=...` | `REVALIDATE_SECRET` | ISR 재검증 + 캐시 wipe. `path` 생략 시 전체 페이지를 background 처리하고 즉시 `{"revalidated":true,"status":"processing"}` 반환 |
-| `GET /api/init?secret=...` | `REVALIDATE_SECRET` | 컨테이너 시작 시 ISR 워밍 |
+| `GET /api/revalidate?path=...` | `Authorization: Bearer $REVALIDATE_SECRET` | ISR 재검증 + 캐시 wipe. `path` 생략 시 전체 페이지를 background 처리하고 즉시 `{"revalidated":true,"status":"processing"}` 반환 |
+| `GET /api/init` | `Authorization: Bearer $REVALIDATE_SECRET` | 컨테이너 시작 시 ISR 워밍 |
 | `POST /api/cron/ontology` | `REVALIDATE_SECRET` Bearer | LLM ontology, Qdrant embeddings, semantic graph edges, RightRail `ai · similar` 데이터를 생성/갱신. `?force=1`이면 캐시 우회 |
 | `GET /api/similar?postId=<id-or-slug>&limit=5` | 없음 | Qdrant 기반 `ai · similar` 글 목록 반환. ontology embedding이 아직 없으면 `202` |
 | `GET /api/image-proxy?id=<uuid>&kind=s3` | 없음 (allow-list) | Notion S3 이미지 프록시 (안정 URL) |
@@ -173,7 +175,7 @@ yarn dev            # or: npm run dev
 
 ```bash
 # 수동 전체 ISR 갱신
-curl "https://your-site.com/api/revalidate?secret=$REVALIDATE_SECRET"
+curl -H "Authorization: Bearer $REVALIDATE_SECRET" "https://your-site.com/api/revalidate"
 ```
 
 ---
@@ -213,6 +215,16 @@ curl -X POST "https://your-site.com/api/cron/ontology" \
 
 ```bash
 docker run -d -p 3000:3000 --env-file .env ghcr.io/jung-geun/monolog:latest
+```
+
+예시 (`NEXT_PUBLIC_*` 값은 공개 값이며 이미지에 다시 빌드할 필요가 없습니다):
+
+```bash
+docker run -d -p 3000:3000 \
+  --env-file .env \
+  -e NEXT_PUBLIC_GOOGLE_MEASUREMENT_ID=G-XXXXXXXXXX \
+  -e NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION=verification-token \
+  ghcr.io/jung-geun/monolog:latest
 ```
 
 ### Redis 캐시 (선택)
@@ -257,16 +269,16 @@ volumes:
 ## 스크립트
 
 ```bash
-npm run dev           # 개발 서버 (next dev --webpack)
-npm run build         # 프로덕션 빌드 (next build --webpack)
-npm run start         # 빌드 결과 실행
-npm run type-check    # TypeScript strict 검사
-npm run lint          # ESLint
-npm run test          # Jest 단위 테스트
-npm run test:integration # 통합 테스트
-npm run test:all      # Jest 전체 (unit + integration)
-npm run test:watch
-npm run test:coverage
+yarn dev              # 개발 서버 (next dev --webpack)
+yarn build            # 프로덕션 빌드 (next build --webpack)
+yarn start            # 빌드 결과 실행
+yarn type-check       # TypeScript strict 검사
+yarn lint             # ESLint
+yarn test             # Jest 단위 테스트
+yarn test:integration # 통합 테스트
+yarn test:all         # Jest 전체 (unit + integration)
+yarn test:watch
+yarn test:coverage
 ```
 
 ---

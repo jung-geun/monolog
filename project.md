@@ -331,7 +331,7 @@ Next.js Pages → Layout → Routes → Components → Styled Components
 필수 환경 변수:
 - `NOTION_TOKEN`: Notion Internal Integration 토큰
 - `NOTION_DATASOURCE_ID`: 글 DB의 `data_source` ID (UUID with hyphens)
-- `REVALIDATE_SECRET`: `/api/revalidate`, `/api/init`, `/api/cron/graph` 요청 보호 토큰 (`TOKEN_FOR_REVALIDATE` deprecated alias로 호환)
+- `REVALIDATE_SECRET`: `/api/revalidate`, `/api/init`, `/api/cron/graph` 요청 보호용 Bearer 토큰
 
 댓글 기능을 사용하는 경우 아래 변수도 필요:
 - `NOTION_COMMENTS_DATASOURCE_ID`: 댓글 DB의 `data_source` ID (UUID with hyphens)
@@ -368,16 +368,16 @@ Next.js Pages → Layout → Routes → Components → Styled Components
 
 ```bash
 # 의존성 설치
-npm install
+yarn install
 
 # 개발 서버 실행
-npm run dev
+yarn dev
 
 # 프로덕션 빌드
-npm run build
+yarn build
 
 # 프로덕션 서버 실행
-npm start
+yarn start
 ```
 
 ## 테스트 및 CI/CD
@@ -390,25 +390,25 @@ npm start
 ### 주요 테스트 명령어
 ```bash
 # 전체 테스트 실행
-npm run test:all
+yarn test:all
 
 # 단위 테스트
-npm run test
+yarn test
 
 # 통합 테스트
-npm run test:integration
+yarn test:integration
 
 # 테스트 watchers 모드로 실행
-npm run test:watch
+yarn test:watch
 
 # 커버리지 리포트 생성
-npm run test:coverage
+yarn test:coverage
 
 # 타입 체크
-npm run type-check
+yarn type-check
 
 # 린트 체크
-npm run lint
+yarn lint
 ```
 
 ### GitHub Actions 워크플로우

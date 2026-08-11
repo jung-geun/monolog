@@ -5,9 +5,14 @@ import Graph from "src/routes/Graph"
 import { createServerQueryClient } from "src/libs/react-query"
 import { GetStaticProps } from "next"
 import { dehydrate } from "@tanstack/react-query"
+import { getPosts } from "src/apis/notion-client/getPosts"
+import { assertFeedNotEmpty, prefetchFeedPosts } from "src/libs/react-query/prefetchFeedPosts"
 
 export const getStaticProps: GetStaticProps = async () => {
   const queryClient = createServerQueryClient()
+  const posts = await prefetchFeedPosts(queryClient, await getPosts())
+  assertFeedNotEmpty(posts)
+
   return {
     props: { dehydratedState: dehydrate(queryClient) },
     revalidate: CONFIG.revalidateTime,

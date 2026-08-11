@@ -74,7 +74,7 @@ async function ensureGraphSnapshotCollection(): Promise<void> {
   }
 }
 
-export async function getGraphSnapshot(graphHash: string): Promise<GraphSnapshot | null> {
+export async function getGraphSnapshot(): Promise<GraphSnapshot | null> {
   if (!isGraphSnapshotStoreEnabled()) return null
 
   try {
@@ -99,13 +99,9 @@ export async function getGraphSnapshot(graphHash: string): Promise<GraphSnapshot
       warnLog("[qdrantGraphStore] graph snapshot schema mismatch", payload.schemaVersion)
       return null
     }
-    if (payload.graphHash !== graphHash) {
-      warnLog("[qdrantGraphStore] graph snapshot hash mismatch", payload.graphHash)
-      return null
-    }
 
     return {
-      graphHash,
+      graphHash: payload.graphHash,
       notionGraph: payload.notionGraph,
       builtGraph: payload.builtGraph,
     }
@@ -120,8 +116,8 @@ export async function upsertGraphSnapshot(
   graphHash: string,
   notionGraph: NotionGraph,
   builtGraph: BuiltGraph
-): Promise<void> {
-  if (!isGraphSnapshotStoreEnabled()) return
+): Promise<boolean> {
+  if (!isGraphSnapshotStoreEnabled()) return false
 
   await ensureGraphSnapshotCollection()
 
@@ -142,4 +138,5 @@ export async function upsertGraphSnapshot(
     timeout: 10,
     points: [{ id: GRAPH_SNAPSHOT_POINT_ID, vector: [1], payload }],
   })
+  return true
 }

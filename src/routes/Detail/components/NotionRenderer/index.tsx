@@ -668,7 +668,7 @@ const NotionRenderer: FC<Props> = ({ recordMap }) => {
         <div style={{
           padding: '2rem',
           textAlign: 'center',
-          color: 'var(--theme-colors-gray11)'
+          color: 'var(--color-mute, rgb(var(--c-mute)))'
         }}>
           <p>콘텐츠를 불러오는 중 문제가 발생했습니다.</p>
           <p>잠시 후 다시 시도해주세요.</p>
@@ -715,6 +715,77 @@ const NotionRenderer: FC<Props> = ({ recordMap }) => {
 export default NotionRenderer
 
 const StyledWrapper = styled.div`
+  --fg-color: var(--color-ink, rgb(var(--c-ink)));
+  font-family: var(--font-sans, "Pretendard Variable", Pretendard, system-ui, sans-serif);
+  color: var(--color-ink, rgb(var(--c-ink)));
+
+  /* Base Notion text & link styling */
+  .notion-text, .notion-page-content {
+    color: var(--color-ink, rgb(var(--c-ink)));
+    line-height: 1.7;
+  }
+
+  .notion-link, a.notion-link {
+    color: var(--color-signal, rgb(var(--c-signal))) !important;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    text-decoration-color: rgb(var(--c-signal) / 0.4);
+    transition: text-decoration-color 0.15s ease;
+
+    &:hover {
+      text-decoration-color: var(--color-signal, rgb(var(--c-signal)));
+    }
+  }
+
+  /* Notion headings */
+  .notion-h1, .notion-h2, .notion-h3 {
+    color: var(--color-strong, rgb(var(--c-strong)));
+    font-family: var(--font-sans, "Pretendard Variable", Pretendard, system-ui, sans-serif);
+    letter-spacing: -0.02em;
+  }
+
+  /* Card surfaces: callout, bookmark, quote */
+  .notion-callout {
+    border-radius: 12px !important;
+    border: 1px solid var(--color-hairline, rgb(var(--c-hairline))) !important;
+    background-color: var(--color-sunken, rgb(var(--c-sunken))) !important;
+  }
+
+  .notion-bookmark {
+    border-radius: 12px !important;
+    border: 1px solid var(--color-hairline, rgb(var(--c-hairline))) !important;
+    background-color: var(--color-card, rgb(var(--c-card))) !important;
+    color: var(--color-ink, rgb(var(--c-ink))) !important;
+    transition: border-color 0.15s ease;
+
+    &:hover {
+      border-color: var(--color-soft, rgb(var(--c-soft))) !important;
+    }
+  }
+
+  .notion-bookmark-title {
+    color: var(--color-strong, rgb(var(--c-strong))) !important;
+  }
+
+  .notion-bookmark-description {
+    color: var(--color-mute, rgb(var(--c-mute))) !important;
+  }
+
+  .notion-bookmark-link-text {
+    color: var(--color-signal, rgb(var(--c-signal))) !important;
+  }
+
+  .notion-quote {
+    border-left: 3px solid var(--color-signal, rgb(var(--c-signal))) !important;
+    padding-left: 1em !important;
+    margin: 1em 0 !important;
+    color: var(--color-strong, rgb(var(--c-strong))) !important;
+  }
+
+  .notion-hr {
+    border-color: var(--color-hairline, rgb(var(--c-hairline))) !important;
+  }
+
   /* // TODO: why render? */
   .notion-collection-page-properties {
     display: none !important;
@@ -830,10 +901,10 @@ const StyledWrapper = styled.div`
   
   /* Notion color classes - Light mode */
   .notion-default {
-    color: var(--theme-colors-gray12);
+    color: var(--color-ink, rgb(var(--c-ink)));
   }
   .notion-gray {
-    color: var(--theme-colors-gray9);
+    color: var(--color-mute, rgb(var(--c-mute)));
   }
   .notion-brown {
     color: #9f6b53;
@@ -865,7 +936,7 @@ const StyledWrapper = styled.div`
     background-color: transparent;
   }
   .notion-gray_background {
-    background-color: var(--theme-colors-gray4);
+    background-color: var(--color-sunken, rgb(var(--c-sunken)));
   }
   .notion-brown_background {
     background-color: #f3e9e7;
@@ -916,16 +987,16 @@ const StyledWrapper = styled.div`
   &.dark .notion-red_background { background-color: #594141; }
 
   /* Notion database item colors (tags, etc) */
-  .notion-item-default { background-color: rgba(206, 205, 202, 0.5); color: var(--fg-color); }
-  .notion-item-gray { background-color: rgba(155, 154, 151, 0.4); color: var(--fg-color); }
-  .notion-item-brown { background-color: rgba(140, 46, 0, 0.2); color: var(--fg-color); }
-  .notion-item-orange { background-color: rgba(245, 93, 0, 0.2); color: var(--fg-color); }
-  .notion-item-yellow { background-color: rgba(233, 168, 0, 0.2); color: var(--fg-color); }
-  .notion-item-green { background-color: rgba(0, 135, 107, 0.2); color: var(--fg-color); }
-  .notion-item-blue { background-color: rgba(0, 120, 223, 0.2); color: var(--fg-color); }
-  .notion-item-purple { background-color: rgba(103, 36, 222, 0.2); color: var(--fg-color); }
-  .notion-item-pink { background-color: rgba(221, 0, 129, 0.2); color: var(--fg-color); }
-  .notion-item-red { background-color: rgba(255, 0, 26, 0.2); color: var(--fg-color); }
+  .notion-item-default { background-color: rgba(206, 205, 202, 0.5); color: var(--color-ink, rgb(var(--c-ink))); }
+  .notion-item-gray { background-color: rgba(155, 154, 151, 0.4); color: var(--color-ink, rgb(var(--c-ink))); }
+  .notion-item-brown { background-color: rgba(140, 46, 0, 0.2); color: var(--color-ink, rgb(var(--c-ink))); }
+  .notion-item-orange { background-color: rgba(245, 93, 0, 0.2); color: var(--color-ink, rgb(var(--c-ink))); }
+  .notion-item-yellow { background-color: rgba(233, 168, 0, 0.2); color: var(--color-ink, rgb(var(--c-ink))); }
+  .notion-item-green { background-color: rgba(0, 135, 107, 0.2); color: var(--color-ink, rgb(var(--c-ink))); }
+  .notion-item-blue { background-color: rgba(0, 120, 223, 0.2); color: var(--color-ink, rgb(var(--c-ink))); }
+  .notion-item-purple { background-color: rgba(103, 36, 222, 0.2); color: var(--color-ink, rgb(var(--c-ink))); }
+  .notion-item-pink { background-color: rgba(221, 0, 129, 0.2); color: var(--color-ink, rgb(var(--c-ink))); }
+  .notion-item-red { background-color: rgba(255, 0, 26, 0.2); color: var(--color-ink, rgb(var(--c-ink))); }
 
   &.dark .notion-item-default { background-color: rgba(206, 205, 202, 0.5); }
   &.dark .notion-item-gray { background-color: rgba(151, 154, 155, 0.5); }
@@ -1008,7 +1079,7 @@ const StyledWrapper = styled.div`
   .notion-asset-caption {
     text-align: center;
     font-size: 0.875em;
-    color: rgb(var(--c-mute, 102 104 94));
+    color: rgb(var(--c-mute, 97 93 89));
     margin-top: 0.5rem;
   }
 

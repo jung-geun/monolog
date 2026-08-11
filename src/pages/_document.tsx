@@ -1,8 +1,13 @@
 import Document, { Html, Head, Main, NextScript } from "next/document"
+import Script from "next/script"
 import { CONFIG } from "site.config"
+import { getRuntimePublicConfigFromEnvironment } from "src/libs/runtimeConfigServer"
 
 class MyDocument extends Document {
   render() {
+    const { googleSiteVerification, naverSiteVerification } =
+      getRuntimePublicConfigFromEnvironment()
+
     return (
       <Html lang={CONFIG.lang}>
         <Head>
@@ -21,24 +26,18 @@ class MyDocument extends Document {
             title="RSS 2.0"
             href="/rss.xml"
           ></link>
-
-          {/* google search console */}
-          {CONFIG.googleSearchConsole.enable === true && (
-            <>
-              <meta
-                name="google-site-verification"
-                content={CONFIG.googleSearchConsole.config.siteVerification}
-              />
-            </>
+          <Script src="/runtime-config.js" strategy="beforeInteractive" />
+          {googleSiteVerification && (
+            <meta
+              name="google-site-verification"
+              content={googleSiteVerification}
+            />
           )}
-          {/* naver search advisor */}
-          {CONFIG.naverSearchAdvisor.enable === true && (
-            <>
-              <meta
-                name="naver-site-verification"
-                content={CONFIG.naverSearchAdvisor.config.siteVerification}
-              />
-            </>
+          {naverSiteVerification && (
+            <meta
+              name="naver-site-verification"
+              content={naverSiteVerification}
+            />
           )}
         </Head>
         <body>

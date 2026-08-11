@@ -31,6 +31,7 @@ jest.mock("src/libs/utils/logger", () => ({
 import {
   readGraphSnapshotFromQdrant,
   refreshGraphSnapshotInQdrant,
+  refreshStaleGraphSnapshotInQdrant,
 } from "src/apis/notion-client/graphSnapshot"
 import { getBuiltGraph } from "src/apis/notion-client/getBuiltGraph"
 import { getNotionGraph } from "src/apis/notion-client/getNotionGraph"
@@ -120,20 +121,53 @@ beforeEach(() => {
 })
 
 describe("graphSnapshot", () => {
-  it("computes the posts hash, queries Qdrant with it, and returns only snapshot.builtGraph", async () => {
+  it("returns a matching snapshot without rebuilding it", async () => {
     ;(getGraphSnapshot as jest.Mock).mockResolvedValue({
-      graphHash: "ignored-by-reader",
+      graphHash: expectedGraphHash(posts),
       notionGraph,
       builtGraph,
     })
 
-    await expect(readGraphSnapshotFromQdrant(posts)).resolves.toBe(builtGraph)
-    expect(getGraphSnapshot).toHaveBeenCalledWith(expectedGraphHash(posts))
+    await expect(readGraphSnapshotFromQdrant(posts)).resolves.toEqual({
+      builtGraph,
+      isStale: false,
+    })
+    expect(getGraphSnapshot).toHaveBeenCalledWith()
     expect(getPosts).not.toHaveBeenCalled()
   })
 
-  it("persists the supplied notionGraph and builtGraph under the current posts hash", async () => {
+  it("marks a valid snapshot as stale when posts have changed", async () => {
+    ;(getGraphSnapshot as jest.Mock).mockResolvedValue({
+      graphHash: "stale-hash",
+      notionGraph,
+      builtGraph,
+    })
+
+    await expect(readGraphSnapshotFromQdrant(posts)).resolves.toEqual({
+      builtGraph,
+      isStale: true,
+    })
+  })
+
+  it("deduplicates concurrent stale snapshot refreshes", async () => {
+    const pendingNotionGraph = new Promise<NotionGraph>((resolve) => {
+      ;(getNotionGraph as jest.Mock).mockImplementationOnce(async () => resolve(notionGraph))
+    })
+    ;(getBuiltGraph as jest.Mock).mockResolvedValue(builtGraph)
     ;(upsertGraphSnapshot as jest.Mock).mockResolvedValue(undefined)
+
+    refreshStaleGraphSnapshotInQdrant(posts)
+    refreshStaleGraphSnapshotInQdrant(posts)
+
+    await pendingNotionGraph
+    await Promise.resolve()
+
+    expect(getNotionGraph).toHaveBeenCalledTimes(1)
+    expect(getNotionGraph).toHaveBeenCalledWith({ bypassCache: true })
+  })
+
+  it("persists the supplied notionGraph and builtGraph under the current posts hash", async () => {
+    ;(upsertGraphSnapshot as jest.Mock).mockResolvedValue(true)
 
     const result = await refreshGraphSnapshotInQdrant({
       posts,
@@ -151,10 +185,23 @@ describe("graphSnapshot", () => {
       graphHash: expectedGraphHash(posts),
       notionGraph,
       builtGraph,
+      persisted: true,
+      needsRetry: false,
     })
     expect(getPosts).not.toHaveBeenCalled()
     expect(getNotionGraph).not.toHaveBeenCalled()
     expect(getBuiltGraph).not.toHaveBeenCalled()
+  })
+
+  it("does not retry a complete graph when the snapshot store is disabled", async () => {
+    ;(upsertGraphSnapshot as jest.Mock).mockResolvedValue(false)
+
+    await expect(
+      refreshGraphSnapshotInQdrant({ posts, notionGraph, builtGraph })
+    ).resolves.toMatchObject({
+      persisted: false,
+      needsRetry: false,
+    })
   })
 
   it("returns partial snapshots without persisting them to Qdrant", async () => {
@@ -174,6 +221,8 @@ describe("graphSnapshot", () => {
       graphHash: expectedGraphHash(posts),
       notionGraph: partialNotionGraph,
       builtGraph,
+      persisted: false,
+      needsRetry: true,
     })
   })
 
@@ -195,6 +244,8 @@ describe("graphSnapshot", () => {
       graphHash: expectedGraphHash(posts),
       notionGraph,
       builtGraph,
+      persisted: false,
+      needsRetry: true,
     })
   })
 })

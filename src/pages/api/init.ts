@@ -2,6 +2,7 @@ import { NextApiRequest, NextApiResponse } from "next"
 import { getPosts } from "../../apis"
 import { TPost } from "../../types"
 import { verifyRevalidateToken } from "src/libs/utils/auth/verifyToken"
+import { getInternalOrigin } from "src/libs/utils/security"
 
 export default async function handler(
   req: NextApiRequest,
@@ -31,10 +32,7 @@ export default async function handler(
 
     // 4. Warm sitemap cache
     try {
-      const host = req.headers.host
-      const proto = (req.headers["x-forwarded-proto"] as string) || "https"
-      const sitemapUrl = `${proto}://${host}/sitemap.xml`
-      await fetch(sitemapUrl)
+      await fetch(`${getInternalOrigin()}/sitemap.xml`)
       console.log("✅ Warmed sitemap cache")
     } catch (sitemapErr) {
       console.error("⚠️ Failed to warm sitemap cache:", sitemapErr)

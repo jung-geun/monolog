@@ -1,6 +1,20 @@
+import { dehydrate } from "@tanstack/react-query"
+import { GetStaticProps } from "next"
 import type { NextPageWithLayout } from "src/types"
+import { getPosts } from "src/apis/notion-client/getPosts"
 import MetaConfig from "src/components/MetaConfig"
+import { createServerQueryClient } from "src/libs/react-query"
+import { prefetchFeedPosts } from "src/libs/react-query/prefetchFeedPosts"
 import { CONFIG } from "site.config"
+
+export const getStaticProps: GetStaticProps = async () => {
+  const queryClient = createServerQueryClient()
+  await prefetchFeedPosts(queryClient, await getPosts())
+
+  return {
+    props: { dehydratedState: dehydrate(queryClient) },
+  }
+}
 
 const NotFoundPage: NextPageWithLayout = () => (
   <>

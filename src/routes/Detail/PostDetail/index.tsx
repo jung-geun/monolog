@@ -11,7 +11,6 @@ import CommentBox from "./CommentBox"
 import Frontmatter from "src/components/Frontmatter"
 import ReadingProgress from "./ReadingProgress"
 import RightRail from "./RightRail"
-import LineNumberGutter from "src/layouts/RootLayout/EditorChrome/LineNumberGutter"
 import { useRegisterChrome } from "src/layouts/RootLayout/EditorChrome/RouteChromeContext"
 import { CONFIG } from "site.config"
 import ActivityHeatmap from "src/routes/Detail/PageDetail/components/ActivityHeatmap"
@@ -42,7 +41,6 @@ const PostDetail: React.FC = () => {
       <StyledWrapper>
         <div className="scroll-area">
           <div className="content-grid content-grid--about">
-            <LineNumberGutter count={80} />
             <div className="body">
               {/* YAML frontmatter */}
               <div className="font-mono text-[13px] space-y-0.5 mb-6">
@@ -88,7 +86,6 @@ const PostDetail: React.FC = () => {
 
       <div className="scroll-area">
         <div className="content-grid">
-          <LineNumberGutter count={120} />
           <div className="body">
             {data.thumbnail && (
               <div className="hero-thumb">
@@ -146,7 +143,7 @@ const StyledWrapper = styled.div`
 
   .content-grid {
     display: grid;
-    grid-template-columns: ${({ theme }) => theme.variables.gutterWidth}px 1fr 240px;
+    grid-template-columns: 1fr 240px;
     min-height: 100%;
 
     @media (max-width: ${({ theme }) => theme.variables.breakpoint}px) {
@@ -154,7 +151,7 @@ const StyledWrapper = styled.div`
     }
 
     &--about {
-      grid-template-columns: ${({ theme }) => theme.variables.gutterWidth}px 1fr;
+      grid-template-columns: 1fr;
 
       .body { max-width: 900px; }
 
@@ -165,7 +162,7 @@ const StyledWrapper = styled.div`
   }
 
   .body {
-    padding: 40px 56px 60px;
+    padding: 40px 56px 64px;
     max-width: 760px;
     min-width: 0;
 
@@ -178,39 +175,33 @@ const StyledWrapper = styled.div`
     position: relative;
     width: 100%;
     aspect-ratio: 16 / 9;
-    margin: 0 0 24px;
-    border: 1px solid ${({ theme }) => theme.colors.editor.line};
-    border-radius: 4px;
+    margin: 0 0 28px;
+    border: 1px solid var(--color-hairline, rgb(var(--c-hairline)));
+    border-radius: 12px;
     overflow: hidden;
-    background: ${({ theme }) => theme.colors.editor.bg2};
+    background: var(--color-card, rgb(var(--c-card)));
   }
 
   .post-title {
-    font-family: var(--font-mono, monospace);
-    font-size: clamp(24px, 3vw, 36px);
-    font-weight: 500;
+    font-family: var(--font-sans, "Pretendard Variable", Pretendard, system-ui, sans-serif);
+    font-size: clamp(28px, 3.5vw, 40px);
+    font-weight: 700;
     font-style: normal;
-    margin: 0 0 24px;
-    color: ${({ theme }) => theme.colors.editor.fg};
-    line-height: 1.2;
-    letter-spacing: -0.01em;
-
-    &::before {
-      content: "# ";
-      color: ${({ theme }) => theme.colors.editor.accent};
-      font-weight: 400;
-    }
+    margin: 0 0 28px;
+    color: var(--color-strong, rgb(var(--c-strong)));
+    line-height: 1.25;
+    letter-spacing: -0.03em;
   }
 
   .notion-content {
     .notion-page { padding: 0 !important; }
 
     code, .notion-inline-code {
-      background: ${({ theme }) => theme.colors.editor.bg2};
-      color: ${({ theme }) => theme.colors.editor.accent};
-      border-radius: 2px;
-      padding: 1px 5px;
-      font-family: var(--font-mono, monospace);
+      background: var(--color-sunken, rgb(var(--c-sunken)));
+      color: var(--color-signal, rgb(var(--c-signal)));
+      border-radius: 4px;
+      padding: 2px 6px;
+      font-family: var(--font-mono, "JetBrains Mono", monospace);
     }
   }
 `

@@ -3,7 +3,7 @@ import type { ExtendedRecordMap } from "notion-types"
 const NOTION_ID_RE =
   /^https?:\/\/(?:[\w-]+\.)?notion\.(?:so|site)\/(?:[^?#]*?)([0-9a-f]{32})(?:[?#]|$)/i
 
-const normalizeNotionId = (id: string) => id.replace(/-/g, "").toLowerCase()
+export const normalizeNotionId = (id: string) => id.replace(/-/g, "").toLowerCase()
 
 export const buildIdToSlug = (
   posts: ReadonlyArray<{ id?: string; slug?: string }>,

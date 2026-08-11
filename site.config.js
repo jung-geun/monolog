@@ -4,7 +4,7 @@ const CONFIG = {
     name: "jung-geun",
     image: "/avatar.svg", // If you want to create your own notion avatar, check out https://notion-avatar.vercel.app
     role: "system developer",
-    bio: "I develop everything using everyting.",
+    bio: "I develop everything using everything.",
     email: "pieroot@konkuk.ac.kr",
     linkedin: "pieroot",
     github: "jung-geun",
@@ -61,7 +61,7 @@ const CONFIG = {
     },
   },
   googleSearchConsole: {
-    enable: false,
+    enable: Boolean(process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION),
     config: {
       siteVerification: process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION || "",
     },

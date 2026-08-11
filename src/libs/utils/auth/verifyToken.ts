@@ -8,30 +8,14 @@ const extractBearerToken = (req: NextApiRequest): string | undefined => {
   return m?.[1]
 }
 
-let _deprecationWarned = false
-
 export const verifyRevalidateToken = (req: NextApiRequest): boolean => {
-  let expected = process.env.REVALIDATE_SECRET
+  const expected = process.env.REVALIDATE_SECRET
   if (!expected) {
-    const legacy = process.env.TOKEN_FOR_REVALIDATE
-    if (legacy) {
-      if (!_deprecationWarned) {
-        _deprecationWarned = true
-        console.warn('[revalidate] TOKEN_FOR_REVALIDATE is deprecated — rename env var to REVALIDATE_SECRET')
-      }
-      expected = legacy
-    }
-  }
-
-  if (!expected) {
-    console.error('[revalidate] neither REVALIDATE_SECRET nor TOKEN_FOR_REVALIDATE is configured — all revalidate requests will be rejected')
+    console.error("[revalidate] REVALIDATE_SECRET is not configured — all revalidate requests will be rejected")
     return false
   }
 
-  const provided =
-    extractBearerToken(req) ??
-    (typeof req.query.secret === "string" ? req.query.secret : undefined)
-
+  const provided = extractBearerToken(req)
   if (!provided) return false
 
   const a = Buffer.from(provided)

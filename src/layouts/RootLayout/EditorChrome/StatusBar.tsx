@@ -58,14 +58,16 @@ const StyledWrapper = styled.div`
   align-items: stretch;
   font-family: var(--font-mono, monospace);
   font-size: 11px;
+  background: ${({ theme }) => theme.colors.editor.bg2};
+  border-top: 1px solid ${({ theme }) => theme.colors.editor.line};
 
   .ssh-segment {
-    background: #1c1d1a;
-    color: #a8e0a0;
+    background: ${({ theme }) => theme.colors.editor.bg3};
+    color: ${({ theme }) => theme.colors.editor.fg2};
     display: flex;
     align-items: center;
     padding: 0 10px 0 12px;
-    border-right: 1px solid rgba(255, 255, 255, 0.12);
+    border-right: 1px solid ${({ theme }) => theme.colors.editor.line};
     white-space: nowrap;
     flex-shrink: 0;
 
@@ -75,21 +77,21 @@ const StyledWrapper = styled.div`
       width: 6px;
       height: 6px;
       border-radius: 50%;
-      background: #5ad17a;
-      box-shadow: 0 0 6px #5ad17a;
+      background: ${({ theme }) => theme.colors.editor.accent};
+      box-shadow: 0 0 6px ${({ theme }) => theme.colors.editor.accent};
       flex-shrink: 0;
       animation: ${pulse} 3s ease-in-out infinite;
     }
-    .ssh-label { color: #5ad17a; }
-    .host { color: #a8e0a0; }
-    .sep { color: #7a8c74; }
-    .ip { color: #cfcfcf; }
+    .ssh-label { color: ${({ theme }) => theme.colors.editor.fg}; font-weight: 600; }
+    .host { color: ${({ theme }) => theme.colors.editor.fg}; }
+    .sep { color: ${({ theme }) => theme.colors.editor.fg2}; }
+    .ip { color: ${({ theme }) => theme.colors.editor.fg2}; }
   }
 
   .accent-strip {
     flex: 1;
-    background: ${({ theme }) => theme.colors.editor.accent};
-    color: #1c1d1a;
+    background: ${({ theme }) => theme.colors.editor.bg2};
+    color: ${({ theme }) => theme.colors.editor.fg2};
     display: flex;
     align-items: center;
     padding: 0 12px;
@@ -108,6 +110,8 @@ const StyledWrapper = styled.div`
 
     .last {
       margin-left: auto;
+      color: ${({ theme }) => theme.colors.editor.fg};
+      font-weight: 500;
     }
   }
 

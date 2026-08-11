@@ -19,13 +19,29 @@ export type GraphSnapshotRefreshResult = {
   graphHash: string
   notionGraph: NotionGraph
   builtGraph: BuiltGraph
+  persisted: boolean
+  needsRetry: boolean
 }
 
-export async function readGraphSnapshotFromQdrant(posts?: TPosts): Promise<BuiltGraph | null> {
+export type GraphSnapshotReadResult = {
+  builtGraph: BuiltGraph
+  isStale: boolean
+}
+
+let staleSnapshotRefresh: Promise<void> | null = null
+
+export async function readGraphSnapshotFromQdrant(
+  posts?: TPosts
+): Promise<GraphSnapshotReadResult | null> {
   const currentPosts = posts ?? (await getPosts())
   const graphHash = computePostsGraphHash(currentPosts)
-  const snapshot = await getGraphSnapshot(graphHash)
-  return snapshot?.builtGraph ?? null
+  const snapshot = await getGraphSnapshot()
+  if (!snapshot) return null
+
+  return {
+    builtGraph: snapshot.builtGraph,
+    isStale: snapshot.graphHash !== graphHash,
+  }
 }
 
 export async function refreshGraphSnapshotInQdrant(
@@ -42,14 +58,30 @@ export async function refreshGraphSnapshotInQdrant(
     (await getBuiltGraph({ bypassCache: input.bypassCache, notionGraph }))
 
   if (notionGraph.partial === true) {
-    return { graphHash, notionGraph, builtGraph }
+    return { graphHash, notionGraph, builtGraph, persisted: false, needsRetry: true }
   }
 
+  let persisted = false
+  let needsRetry = false
   try {
-    await upsertGraphSnapshot(graphHash, notionGraph, builtGraph)
+    persisted = await upsertGraphSnapshot(graphHash, notionGraph, builtGraph)
   } catch (err) {
+    needsRetry = true
     warnLog("[graphSnapshot] failed to persist graph snapshot:", err)
   }
 
-  return { graphHash, notionGraph, builtGraph }
+  return { graphHash, notionGraph, builtGraph, persisted, needsRetry }
+}
+
+export function refreshStaleGraphSnapshotInQdrant(posts: TPosts): void {
+  if (staleSnapshotRefresh) return
+
+  staleSnapshotRefresh = refreshGraphSnapshotInQdrant({ posts, bypassCache: true })
+    .then(() => undefined)
+    .catch((err) => {
+      warnLog("[graphSnapshot] failed to refresh stale graph snapshot:", err)
+    })
+    .finally(() => {
+      staleSnapshotRefresh = null
+    })
 }

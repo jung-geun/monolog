@@ -4,6 +4,15 @@ import type { NextApiRequest } from "next"
 import { LRUCache } from "lru-cache"
 import { ipHash } from "src/libs/utils/comments/hash"
 
+export function getInternalOrigin(): string {
+  const configuredPort = Number(process.env.PORT)
+  const port =
+    Number.isInteger(configuredPort) && configuredPort > 0 && configuredPort <= 65_535
+      ? configuredPort
+      : 3000
+  return `http://127.0.0.1:${port}`
+}
+
 function hasTrustedProxySecret(req: NextApiRequest): boolean {
   const expected = process.env.TRUSTED_PROXY_SECRET
   const actual = req.headers["x-monolog-proxy-secret"]

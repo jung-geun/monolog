@@ -6,6 +6,7 @@ import { getBuiltGraph } from "src/apis/notion-client/getBuiltGraph"
 import { getNotionGraph } from "src/apis/notion-client/getNotionGraph"
 import { refreshGraphSnapshotInQdrant } from "src/apis/notion-client/graphSnapshot"
 import { cacheStore } from "src/libs/cache"
+import { getInternalOrigin } from "src/libs/utils/security"
 import { verifyRevalidateToken } from "src/libs/utils/auth/verifyToken"
 
 type WarmLabel = "sitemap" | "notion-graph"
@@ -17,26 +18,6 @@ type WarmResult = {
   durationMs: number
 }
 
-function getInternalOrigin(req: NextApiRequest): string {
-  const host =
-    typeof req.headers.host === "string" && req.headers.host.length > 0
-      ? req.headers.host
-      : `127.0.0.1:${process.env.PORT ?? "3000"}`
-  const forwardedProtoHeader = req.headers["x-forwarded-proto"]
-  const forwardedProto =
-    typeof forwardedProtoHeader === "string"
-      ? forwardedProtoHeader.split(",")[0]?.trim()
-      : undefined
-  const isLocalHost =
-    host === "localhost" ||
-    host.startsWith("localhost:") ||
-    host.startsWith("127.") ||
-    host === "0.0.0.0" ||
-    host.startsWith("0.0.0.0:") ||
-    host.startsWith("[::1]")
-  const proto = forwardedProto || (isLocalHost ? "http" : "https")
-  return `${proto}://${host}`
-}
 
 async function warmPath(
   origin: string,
@@ -145,7 +126,7 @@ export default async function handler(
           count: pathsToRevalidate.length,
         })
 
-        const origin = getInternalOrigin(req)
+        const origin = getInternalOrigin()
         const warmResults = await Promise.all([
           warmPath(origin, "/sitemap.xml", "sitemap", requestId),
           warmPath(origin, "/graphs/notion-graph.json", "notion-graph", requestId),

@@ -21,9 +21,10 @@ forward_signal() {
 trap 'forward_signal TERM' TERM
 trap 'forward_signal INT' INT
 
-echo "🚀 Starting Next.js server..."
+echo "docker-entrypoint: writing public runtime configuration..."
+node ./write-runtime-config.js
 
-# Start Next.js standalone server in background
+echo "docker-entrypoint: starting Next.js server..."
 node server.js &
 SERVER_PID=$!
 
@@ -61,7 +62,7 @@ else
 
     while [ $INIT_COUNT -lt $INIT_RETRIES ]; do
       if ! INIT_RESPONSE=$(curl -s --connect-timeout 2 --max-time 5 -w "\n%{http_code}" \
-        -H "Authorization: Bearer ${REVALIDATE_SECRET:-${TOKEN_FOR_REVALIDATE}}" \
+        -H "Authorization: Bearer ${REVALIDATE_SECRET}" \
         -H "X-Forwarded-Proto: http" \
         "$INIT_URL" 2>&1); then
         :

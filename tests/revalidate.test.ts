@@ -158,6 +158,7 @@ async function invoke(req: RequestStub, res: ResponseStub): Promise<void> {
 
 const originalSetImmediate = global.setImmediate
 const originalFetch = global.fetch
+const originalPort = process.env.PORT
 let backgroundWork: Promise<void> | null = null
 let fetchMock: jest.MockedFunction<typeof fetch>
 
@@ -176,6 +177,7 @@ beforeEach(() => {
     typeof fetch
   >
   global.fetch = fetchMock
+  process.env.PORT = "3411"
 
   ;(verifyRevalidateToken as jest.Mock).mockReturnValue(true)
   ;(cacheStore.clear as jest.Mock).mockResolvedValue(undefined)
@@ -192,12 +194,19 @@ beforeEach(() => {
 afterEach(() => {
   global.setImmediate = originalSetImmediate
   global.fetch = originalFetch
+  if (originalPort === undefined) delete process.env.PORT
+  else process.env.PORT = originalPort
   jest.restoreAllMocks()
 })
 
 describe("/api/revalidate", () => {
   it("runs the full background revalidation with the same notionGraph passed through graph rebuild and snapshot refresh", async () => {
-    const req = createReq()
+    const req = createReq({
+      headers: {
+        host: "attacker.example",
+        "x-forwarded-proto": "https",
+      },
+    })
     const res = createRes()
 
     await invoke(req, res)
@@ -238,6 +247,6 @@ describe("/api/revalidate", () => {
       "/hello-world",
       "/second-post",
     ])
-    expect(fetchMock).toHaveBeenCalledWith("http://example.test/graphs/notion-graph.json")
+    expect(fetchMock).toHaveBeenCalledWith("http://127.0.0.1:3411/graphs/notion-graph.json")
   })
 })

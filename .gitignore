@@ -45,3 +45,4 @@ tsconfig.tsbuildinfo
 .image-cache/
 .gstack/
 /docker-compose.override.yml
+/package-lock.json

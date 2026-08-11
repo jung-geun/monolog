@@ -13,8 +13,10 @@ export const ThemeProvider = ({ scheme, children }: Props) => {
 
   return (
     <_ThemeProvider theme={theme}>
-      <Global />
-      {children}
+      <div data-theme={scheme} style={{ display: "contents" }}>
+        <Global />
+        {children}
+      </div>
     </_ThemeProvider>
   )
 }

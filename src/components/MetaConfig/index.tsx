@@ -9,6 +9,7 @@ export type MetaConfigProps = {
   date?: string
   image?: string
   url: string
+  alternateMarkdownUrl?: string
 }
 
 const MetaConfig: React.FC<MetaConfigProps> = (props) => {
@@ -37,6 +38,13 @@ const MetaConfig: React.FC<MetaConfigProps> = (props) => {
             <meta property="article:published_time" content={props.date} />
             <meta property="article:author" content={CONFIG.profile.name} />
           </>
+        )}
+        {props.alternateMarkdownUrl && (
+          <link
+            rel="alternate"
+            type="text/markdown"
+            href={props.alternateMarkdownUrl}
+          />
         )}
       </Head>
       {CONFIG.googleAdsense?.enable && CONFIG.googleAdsense.config.client && (

@@ -28,25 +28,22 @@ const TagCloud = () => {
   }
 
   return (
-    <div className="mb-8">
-      <p className="font-mono text-[13px] mb-3">
-        <span className="text-signal">{"### "}</span>
-        <span className="text-strong">tags</span>
-        <span className="text-mute ml-2 italic text-[11px]">
-          {`// weighted by count, sorted by use · ${sorted.length} tags`}
-        </span>
-      </p>
-      <div className="flex flex-wrap gap-x-3 gap-y-1.5 items-baseline">
+    <div className="mb-10">
+      <div className="flex items-baseline justify-between mb-3">
+        <h2 className="font-sans text-base font-semibold text-strong">Tags</h2>
+        <span className="font-mono text-xs text-mute">{sorted.length} tags</span>
+      </div>
+      <div className="flex flex-wrap gap-x-3 gap-y-2 items-baseline">
         {sorted.map(([name, count]) => (
           <Link
             key={name}
             href={`/search?q=${encodeURIComponent(name)}`}
-            className="font-mono leading-none transition-colors hover:text-signal"
+            className="group inline-flex items-baseline gap-0.5 leading-none transition-colors"
             style={{ fontSize: `${fontSizeFor(count)}px`, opacity: opacityFor(count) }}
           >
-            <span className="text-mute">#</span>
-            <span className="text-strong">{name}</span>
-            <span className="ml-0.5 text-mute text-[10px]">{count}</span>
+            <span className="font-mono text-mute group-hover:text-signal/70 transition-colors">#</span>
+            <span className="font-sans font-medium text-strong group-hover:text-signal transition-colors">{name}</span>
+            <span className="font-mono text-[10px] text-mute ml-0.5">{count}</span>
           </Link>
         ))}
       </div>

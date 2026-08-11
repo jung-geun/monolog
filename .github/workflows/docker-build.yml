@@ -72,6 +72,8 @@ jobs:
           push: true
           tags: ${{ steps.tags.outputs.value }}
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            NEXT_PUBLIC_SITE_URL=${{ vars.NEXT_PUBLIC_SITE_URL }}
           cache-from: type=registry,ref=ghcr.io/jung-geun/monolog:buildcache
           cache-to: type=registry,ref=ghcr.io/jung-geun/monolog:buildcache,mode=max
           platforms: linux/amd64

@@ -3,11 +3,11 @@ import { NextPageWithLayout } from "src/types"
 import MetaConfig from "src/components/MetaConfig"
 import { CONFIG } from "site.config"
 import SeriesArchive from "src/routes/SeriesArchive"
-import { getPosts } from "src/apis"
+import { getPosts } from "src/apis/notion-client/getPosts"
 import { filterPosts } from "src/libs/utils/notion"
 import { getAllSelectItemsFromPosts } from "src/libs/utils/notion"
 import { createServerQueryClient } from "src/libs/react-query"
-import { queryKey } from "src/constants/queryKey"
+import { assertFeedNotEmpty, FEED_POSTS_FILTER, prefetchFeedPosts } from "src/libs/react-query/prefetchFeedPosts"
 import { dehydrate } from "@tanstack/react-query"
 
 type Props = {
@@ -15,10 +15,7 @@ type Props = {
 }
 
 export const getStaticPaths: GetStaticPaths = async () => {
-  const posts = filterPosts(await getPosts(), {
-    acceptStatus: ["Public"],
-    acceptType: ["Post", "Paper"],
-  })
+  const posts = filterPosts(await getPosts(), FEED_POSTS_FILTER)
 
   const seriesMap = getAllSelectItemsFromPosts("series", posts)
 
@@ -31,23 +28,8 @@ export const getStaticPaths: GetStaticPaths = async () => {
 export const getStaticProps: GetStaticProps<Props> = async ({ params }) => {
   const queryClient = createServerQueryClient()
   const seriesName = params?.name as string
-  const allPosts = await getPosts()
-
-  if (allPosts.length === 0 && process.env.NEXT_PHASE !== "phase-production-build") {
-    throw new Error("getPosts returned 0 posts — preserving previous static HTML")
-  }
-
-  const posts = filterPosts(allPosts, {
-    acceptStatus: ["Public"],
-    acceptType: ["Post", "Paper"],
-  })
-
-  await queryClient.prefetchQuery({
-    queryKey: queryKey.posts(),
-    queryFn: () => posts,
-    staleTime: 10 * 60 * 1000,
-    gcTime: 60 * 60 * 1000,
-  })
+  const posts = await prefetchFeedPosts(queryClient, await getPosts())
+  assertFeedNotEmpty(posts)
 
   return {
     props: {

@@ -2,29 +2,16 @@ import { NextPageWithLayout } from "src/types"
 import MetaConfig from "src/components/MetaConfig"
 import { CONFIG } from "site.config"
 import Search from "src/routes/Search"
-import { getPosts } from "src/apis"
+import { getPosts } from "src/apis/notion-client/getPosts"
 import { createServerQueryClient } from "src/libs/react-query"
-import { queryKey } from "src/constants/queryKey"
+import { assertFeedNotEmpty, prefetchFeedPosts } from "src/libs/react-query/prefetchFeedPosts"
 import { GetStaticProps } from "next"
 import { dehydrate } from "@tanstack/react-query"
-import { filterPosts } from "src/libs/utils/notion"
 
 export const getStaticProps: GetStaticProps = async () => {
   const queryClient = createServerQueryClient()
-  const allPosts = await getPosts()
-
-  if (allPosts.length === 0 && process.env.NEXT_PHASE !== "phase-production-build") {
-    throw new Error("getPosts returned 0 posts — preserving previous static HTML")
-  }
-
-  const posts = filterPosts(allPosts, {
-    acceptStatus: ["Public"],
-    acceptType: ["Post", "Paper"],
-  })
-  await queryClient.prefetchQuery({
-    queryKey: queryKey.posts(),
-    queryFn: () => posts,
-  })
+  const posts = await prefetchFeedPosts(queryClient, await getPosts())
+  assertFeedNotEmpty(posts)
   return {
     props: { dehydratedState: dehydrate(queryClient) },
     revalidate: CONFIG.revalidateTime,

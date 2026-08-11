@@ -1,6 +1,5 @@
 import { useMemo } from "react"
 import styled from "@emotion/styled"
-import LineNumberGutter from "src/layouts/RootLayout/EditorChrome/LineNumberGutter"
 import { useRegisterChrome } from "src/layouts/RootLayout/EditorChrome/RouteChromeContext"
 import HomeHero from "./HomeHero"
 import FeaturedSeriesGrid from "./FeaturedSeriesGrid"
@@ -21,7 +20,6 @@ const Feed = () => {
     <StyledWrapper>
       <div className="scroll-area">
         <div className="content-grid">
-          <LineNumberGutter count={120} />
           <div className="body">
             <HomeHero />
 
@@ -56,20 +54,16 @@ const StyledWrapper = styled.div`
 
   .content-grid {
     display: grid;
-    grid-template-columns: ${({ theme }) => theme.variables.gutterWidth}px 1fr;
+    grid-template-columns: 1fr;
     min-height: 100%;
-
-    @media (max-width: ${({ theme }) => theme.variables.breakpoint}px) {
-      grid-template-columns: 1fr;
-    }
   }
 
   .body {
-    padding: 30px 44px 80px;
-    max-width: 920px;
+    padding: 36px 44px 80px;
+    max-width: 840px;
 
     @media (max-width: ${({ theme }) => theme.variables.breakpoint}px) {
-      padding: 20px 20px 60px;
+      padding: 24px 20px 60px;
     }
   }
 
