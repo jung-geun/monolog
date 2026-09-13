@@ -1,10 +1,12 @@
 import { useState, useMemo } from "react"
 import { useRouter } from "next/router"
 import Link from "next/link"
+import Image from "next/image"
 import styled from "@emotion/styled"
 import usePostsQuery from "src/hooks/usePostsQuery"
 import { useRegisterChrome } from "src/layouts/RootLayout/EditorChrome/RouteChromeContext"
 import { TPost } from "src/types"
+import { getCategoryStyle } from "src/styles/categoryStyle"
 
 type Facet = "all" | "title" | "body" | "tags"
 
@@ -91,34 +93,71 @@ const Search = () => {
               <span className="fatal">fatal:</span> no matches for &quot;{q}&quot;
             </div>
           )}
-          {hits.map((post, i) => {
-            const category = post.category?.[0]
-            const dateStr = post.date?.start_date || post.createdTime?.slice(0, 10) || ""
-            return (
-              <Link key={post.id} href={`/${post.slug}`} className="result-row">
-                <div className="result-num">{i + 1}</div>
-                <div className="result-body">
-                  <div className="result-meta">
-                    {category && <span className="cat">{category}</span>}
-                    <span className="date">{dateStr}</span>
-                  </div>
-                  <div className="result-title">{highlight(post.title, q)}</div>
-                  {post.summary && (
-                    <div className="result-summary">{highlight(post.summary, q)}</div>
-                  )}
-                  {post.tags && (
-                    <div className="result-tags">
-                      {post.tags.map((t) => (
-                        <span key={t} className={t.toLowerCase().includes(q.toLowerCase()) ? "tag-hit" : ""}>
-                          #{t}
-                        </span>
-                      ))}
+          {hits.length > 0 && (
+            <div className="results-grid">
+              {hits.map((post) => {
+                const category = post.category?.[0] ?? ""
+                const style = getCategoryStyle(category)
+                const dateOnly = (post.date?.start_date || post.createdTime || "").slice(0, 10)
+
+                return (
+                  <Link
+                    key={post.id}
+                    href={`/${post.slug}`}
+                    className={`result-card group border-hairline ${style.cardBorder}`}
+                  >
+                    {post.thumbnail && (
+                      <div className="result-thumbnail">
+                        <Image
+                          src={post.thumbnail}
+                          alt=""
+                          fill
+                          sizes="(max-width: 960px) 100vw, 25vw"
+                          className="object-cover"
+                        />
+                      </div>
+                    )}
+
+                    <div className="result-body">
+                      <div className="result-header">
+                        {category && (
+                          <span className={`result-category ${style.badgeBgText}`}>
+                            {category.toUpperCase()}
+                          </span>
+                        )}
+                      </div>
+
+                      <h3 className={`result-title text-strong ${style.titleHover}`}>
+                        {highlight(post.title, q)}
+                      </h3>
+
+                      {post.summary && (
+                        <p className="result-summary">{highlight(post.summary, q)}</p>
+                      )}
+
+                      {post.tags && (
+                        <div className="result-tags">
+                          {post.tags.map((t) => (
+                            <span
+                              key={t}
+                              className={q && t.toLowerCase().includes(q.toLowerCase()) ? "tag tag-hit" : "tag"}
+                            >
+                              #{t}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+
+                      <div className="result-footer">
+                        <span>{dateOnly}</span>
+                        <span className={style.arrowHover}>→</span>
+                      </div>
                     </div>
-                  )}
-                </div>
-              </Link>
-            )
-          })}
+                  </Link>
+                )
+              })}
+            </div>
+          )}
 
           {hits.length > 0 && (
             <div className="keyboard-hints">
@@ -225,79 +264,127 @@ const StyledWrapper = styled.div`
     }
   }
 
-  .result-row {
+  .results-grid {
     display: grid;
-    grid-template-columns: 28px 1fr;
-    gap: 16px;
-    padding: 18px 0;
-    border-top: 1px solid ${({ theme }) => theme.colors.editor.line};
-    text-decoration: none;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 18px;
+  }
+
+  .result-card {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    overflow: hidden;
+    border-width: 1px;
+    border-style: solid;
+    border-radius: 12px;
+    background: rgb(var(--c-card) / 1);
     color: inherit;
-    &:hover .result-title { color: ${({ theme }) => theme.colors.editor.accent3}; }
+    text-decoration: none;
+    transition: border-color 0.15s, background-color 0.15s;
 
-    .result-num {
-      font-family: var(--font-mono, monospace);
-      font-size: 11px;
-      color: ${({ theme }) => theme.colors.editor.fg3};
-      text-align: right;
-      padding-top: 3px;
+    &:hover {
+      background: rgb(var(--c-elevated) / 1);
     }
+  }
 
-    .result-body {
-      min-width: 0;
+  .result-thumbnail {
+    position: relative;
+    height: 150px;
+    overflow: hidden;
+    border-bottom: 1px solid rgb(var(--c-hairline) / 1);
+    background: rgb(var(--c-sunken) / 1);
+  }
 
-      .result-meta {
-        display: flex;
-        gap: 10px;
-        margin-bottom: 4px;
-        font-family: var(--font-mono, monospace);
-        font-size: 11px;
-        .cat { color: ${({ theme }) => theme.colors.editor.accent}; text-transform: uppercase; letter-spacing: 1px; }
-        .date { color: ${({ theme }) => theme.colors.editor.fg3}; }
-      }
+  .result-body {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-height: 210px;
+    padding: 16px;
+  }
 
-      .result-title {
-        font-family: var(--font-mono, monospace);
-        font-size: 20px;
-        font-weight: 500;
-        line-height: 1.25;
-        color: ${({ theme }) => theme.colors.editor.fg};
-        margin-bottom: 4px;
-        transition: color 0.15s;
-        mark {
-          background: ${({ theme }) => theme.colors.editor.accent};
-          color: #fff;
-          padding: 0 2px;
-        }
-      }
+  .result-header {
+    min-height: 22px;
+    margin-bottom: 8px;
+  }
 
-      .result-summary {
-        font-family: var(--font-mono, monospace);
-        font-size: 12px;
-        color: ${({ theme }) => theme.colors.editor.fg2};
-        line-height: 1.6;
-        margin-bottom: 4px;
-        mark {
-          background: ${({ theme }) => theme.colors.editor.accentSoft};
-          color: ${({ theme }) => theme.colors.editor.accent};
-          padding: 0 2px;
-        }
-      }
+  .result-category {
+    display: inline-flex;
+    padding: 2px 8px;
+    border-radius: 6px;
+    font-family: var(--font-mono, monospace);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+  }
 
-      .result-tags {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 6px;
-        font-family: var(--font-mono, monospace);
-        font-size: 11px;
-        color: ${({ theme }) => theme.colors.editor.fg3};
-        .tag-hit {
-          background: ${({ theme }) => theme.colors.editor.accentSoft};
-          color: ${({ theme }) => theme.colors.editor.accent};
-          padding: 0 3px;
-        }
-      }
+  .result-title {
+    display: -webkit-box;
+    overflow: hidden;
+    margin: 0 0 8px;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    font-family: var(--font-sans, sans-serif);
+    font-size: 16px;
+    font-weight: 600;
+    line-height: 1.35;
+    transition: color 0.15s;
+
+    mark {
+      background: ${({ theme }) => theme.colors.editor.accent};
+      color: #fff;
+      padding: 0 2px;
     }
+  }
+
+  .result-summary {
+    display: -webkit-box;
+    overflow: hidden;
+    margin: 0 0 12px;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    color: rgb(var(--c-soft) / 1);
+    font-family: var(--font-sans, sans-serif);
+    font-size: 13px;
+    line-height: 1.55;
+
+    mark {
+      background: ${({ theme }) => theme.colors.editor.accentSoft};
+      color: ${({ theme }) => theme.colors.editor.accent};
+      padding: 0 2px;
+    }
+  }
+
+  .result-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 14px;
+  }
+
+  .tag {
+    border: 1px solid rgb(var(--c-hairline) / 1);
+    border-radius: 999px;
+    padding: 2px 7px;
+    color: rgb(var(--c-mute) / 1);
+    font-family: var(--font-mono, monospace);
+    font-size: 10px;
+  }
+
+  .tag-hit {
+    border-color: ${({ theme }) => theme.colors.editor.accent};
+    background: ${({ theme }) => theme.colors.editor.accentSoft};
+    color: ${({ theme }) => theme.colors.editor.accent};
+  }
+
+  .result-footer {
+    display: flex;
+    justify-content: space-between;
+    margin-top: auto;
+    color: rgb(var(--c-mute) / 1);
+    font-family: var(--font-mono, monospace);
+    font-size: 11px;
   }
 
   .keyboard-hints {
@@ -325,7 +412,7 @@ const StyledWrapper = styled.div`
   @media (max-width: ${({ theme }) => theme.variables.breakpoint}px) {
     .search-header { padding: 20px 20px 16px; }
     .results { padding: 16px 20px 40px; }
-    .result-row { grid-template-columns: 1fr; }
-    .result-num { display: none; }
+    .results-grid { grid-template-columns: 1fr; }
+    .result-body { min-height: 0; }
   }
 `

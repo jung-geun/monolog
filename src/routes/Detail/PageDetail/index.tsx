@@ -6,6 +6,7 @@ import LineNumberGutter from "src/layouts/RootLayout/EditorChrome/LineNumberGutt
 import { useRegisterChrome } from "src/layouts/RootLayout/EditorChrome/RouteChromeContext"
 import { CONFIG } from "site.config"
 import ActivityHeatmap from "./components/ActivityHeatmap"
+import GitHubContributions from "./components/GitHubContributions"
 import ContactBlock from "./components/ContactBlock"
 import StackGrid from "./components/StackGrid"
 
@@ -54,6 +55,7 @@ const PageDetail: React.FC = () => {
                 </div>
 
                 <ActivityHeatmap />
+                <GitHubContributions username={CONFIG.profile.github} />
                 <StackGrid />
                 <ContactBlock />
 

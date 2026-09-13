@@ -14,6 +14,7 @@ import RightRail from "./RightRail"
 import { useRegisterChrome } from "src/layouts/RootLayout/EditorChrome/RouteChromeContext"
 import { CONFIG } from "site.config"
 import ActivityHeatmap from "src/routes/Detail/PageDetail/components/ActivityHeatmap"
+import GitHubContributions from "src/routes/Detail/PageDetail/components/GitHubContributions"
 import ContactBlock from "src/routes/Detail/PageDetail/components/ContactBlock"
 import StackGrid from "src/routes/Detail/PageDetail/components/StackGrid"
 import StatsGrid from "src/routes/Feed/StatsGrid"
@@ -65,6 +66,7 @@ const PostDetail: React.FC = () => {
 
               <StatsGrid stats={stats} />
               <ActivityHeatmap />
+              <GitHubContributions username={CONFIG.profile.github} />
               <StackGrid />
               <ContactBlock />
 

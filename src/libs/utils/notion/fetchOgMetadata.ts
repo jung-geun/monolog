@@ -12,40 +12,31 @@ const FETCH_TIMEOUT_MS = 8_000
 const MAX_REDIRECT_HOPS = 3
 const MAX_RESPONSE_BYTES = 1 * 1024 * 1024 // 1 MB
 
-export type OgMetadata = {
-  url: string
-  title?: string
-  description?: string
-  image?: string
-  icon?: string
-  siteName?: string
-}
-
-// SSRF: refuse private/loopback/link-local ranges. After resolving DNS,
-// every returned address must pass this filter. We keep the list explicit
-// rather than relying on `node:net` heuristics; the cost is verbosity, the
-// benefit is auditability.
 function isPrivateIPv4(ip: string): boolean {
   const parts = ip.split(".").map((n) => Number(n))
-  if (parts.length !== 4 || parts.some((n) => Number.isNaN(n) || n < 0 || n > 255)) return true
+  if (
+    parts.length !== 4 ||
+    parts.some((n) => Number.isNaN(n) || n < 0 || n > 255)
+  ) {
+    return true
+  }
   const [a, b] = parts
-  if (a === 10) return true                            // 10.0.0.0/8
-  if (a === 127) return true                           // 127.0.0.0/8
-  if (a === 169 && b === 254) return true              // 169.254.0.0/16 (link-local + AWS metadata)
-  if (a === 172 && b >= 16 && b <= 31) return true     // 172.16.0.0/12
-  if (a === 192 && b === 168) return true              // 192.168.0.0/16
-  if (a === 0) return true                             // 0.0.0.0/8
-  if (a >= 224) return true                            // multicast / reserved
+  if (a === 10) return true
+  if (a === 127) return true
+  if (a === 169 && b === 254) return true
+  if (a === 172 && b >= 16 && b <= 31) return true
+  if (a === 192 && b === 168) return true
+  if (a === 0) return true
+  if (a >= 224) return true
   return false
 }
 
 function isPrivateIPv6(ip: string): boolean {
   const lower = ip.toLowerCase()
   if (lower === "::1") return true
-  if (lower.startsWith("fe80:") || lower.startsWith("fe80")) return true   // link-local
-  if (lower.startsWith("fc") || lower.startsWith("fd")) return true        // unique local
+  if (lower.startsWith("fe80:") || lower.startsWith("fe80")) return true
+  if (lower.startsWith("fc") || lower.startsWith("fd")) return true
   if (lower.startsWith("::ffff:")) {
-    // IPv4-mapped — re-check the v4 portion
     const v4 = lower.slice(7)
     return isPrivateIPv4(v4)
   }
@@ -53,20 +44,31 @@ function isPrivateIPv6(ip: string): boolean {
 }
 
 async function resolvesToPublicAddress(hostname: string): Promise<boolean> {
-  // Reject literal IP hosts that fall in the private space.
   if (/^[0-9.]+$/.test(hostname)) return !isPrivateIPv4(hostname)
   if (hostname.includes(":")) return !isPrivateIPv6(hostname)
   try {
     const addrs = await dns.lookup(hostname, { all: true })
     if (addrs.length === 0) return false
-    for (const a of addrs) {
-      const isPrivate = a.family === 6 ? isPrivateIPv6(a.address) : isPrivateIPv4(a.address)
+    for (const addr of addrs) {
+      const isPrivate =
+        addr.family === 6
+          ? isPrivateIPv6(addr.address)
+          : isPrivateIPv4(addr.address)
       if (isPrivate) return false
     }
     return true
   } catch {
     return false
   }
+}
+
+export type OgMetadata = {
+  url: string
+  title?: string
+  description?: string
+  image?: string
+  icon?: string
+  siteName?: string
 }
 
 // Decode the leading bytes of a fetch as text using the Content-Type charset

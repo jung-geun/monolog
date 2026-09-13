@@ -28,6 +28,10 @@ const ALLOWED_HOSTS = [
   /\.notion\.com$/i,
   /^notion\.com$/i,
   /\.notion-static\.com$/i,
+  // GitHub repository cards publish their OG cover on this exact host.
+  // Keep the allow-list narrow rather than permitting arbitrary GitHub assets.
+  /^opengraph\.githubassets\.com$/i,
+  /^github\.githubassets\.com$/i,
 ]
 
 const LOG_FIELD_MAX_LEN = 2000

@@ -1,17 +1,13 @@
-import { useMemo, useState } from "react"
+import { useMemo } from "react"
 import usePostsQuery from "src/hooks/usePostsQuery"
+import type { TPost } from "src/types"
+import HeatmapGrid from "./HeatmapGrid"
+import type { HeatmapCell, HeatmapMonth } from "./HeatmapGrid"
 
-type Cell = { date: string; count: number; level: number }
-
-const LEVEL_CLS = [
-  "bg-elevated",
-  "bg-grass-1",
-  "bg-grass-2",
-  "bg-grass-3",
-  "bg-grass-4",
-]
-
-function buildGrid(posts: ReturnType<typeof usePostsQuery>): { weeks: Cell[][]; months: { label: string; col: number }[] } {
+function buildGrid(posts: TPost[]): {
+  weeks: HeatmapCell[][]
+  months: HeatmapMonth[]
+} {
   const now = new Date()
   const startDate = new Date(now)
   startDate.setDate(startDate.getDate() - 52 * 7)
@@ -24,13 +20,13 @@ function buildGrid(posts: ReturnType<typeof usePostsQuery>): { weeks: Cell[][]; 
     if (d) countByDate[d] = (countByDate[d] || 0) + 1
   }
 
-  const weeks: Cell[][] = []
-  const months: { label: string; col: number }[] = []
+  const weeks: HeatmapCell[][] = []
+  const months: HeatmapMonth[] = []
   let lastMonth = -1
 
   const cursor = new Date(startDate)
   for (let w = 0; w < 52; w++) {
-    const col: Cell[] = []
+    const col: HeatmapCell[] = []
     for (let d = 0; d < 7; d++) {
       const iso = cursor.toISOString().slice(0, 10)
       const count = countByDate[iso] || 0
@@ -56,7 +52,6 @@ function buildGrid(posts: ReturnType<typeof usePostsQuery>): { weeks: Cell[][]; 
 const ActivityHeatmap = () => {
   const posts = usePostsQuery()
   const { weeks, months } = useMemo(() => buildGrid(posts), [posts])
-  const [tooltip, setTooltip] = useState<{ text: string; x: number; y: number } | null>(null)
 
   return (
     <div className="mb-8">
@@ -66,56 +61,13 @@ const ActivityHeatmap = () => {
         <span className="text-mute ml-2 italic text-[11px]">{"// last 52 weeks"}</span>
       </p>
 
-      <div className="relative overflow-x-auto">
-        {/* month labels */}
-        <div className="flex mb-1 pl-0" style={{ gap: 2 }}>
-          {weeks.map((_, wi) => {
-            const m = months.find((mo) => mo.col === wi)
-            return (
-              <div key={wi} style={{ width: 10, flexShrink: 0 }}>
-                {m ? (
-                  <span className="font-mono text-[9px] text-mute whitespace-nowrap">{m.label}</span>
-                ) : null}
-              </div>
-            )
-          })}
-        </div>
-
-        {/* grid */}
-        <div className="flex" style={{ gap: 2 }}>
-          {weeks.map((col, wi) => (
-            <div key={wi} className="flex flex-col" style={{ gap: 2 }}>
-              {col.map((cell) => (
-                <div
-                  key={cell.date}
-                  className={`rounded-[2px] cursor-default ${LEVEL_CLS[cell.level]}`}
-                  style={{ width: 10, height: 10, flexShrink: 0 }}
-                  onMouseEnter={(e) => {
-                    const rect = (e.target as HTMLElement).getBoundingClientRect()
-                    const parent = (e.target as HTMLElement).closest(".relative")!.getBoundingClientRect()
-                    setTooltip({
-                      text: `${cell.date}: ${cell.count} post${cell.count !== 1 ? "s" : ""}`,
-                      x: rect.left - parent.left + 5,
-                      y: rect.top - parent.top - 26,
-                    })
-                  }}
-                  onMouseLeave={() => setTooltip(null)}
-                />
-              ))}
-            </div>
-          ))}
-        </div>
-
-        {/* tooltip */}
-        {tooltip && (
-          <div
-            className="pointer-events-none absolute z-10 rounded bg-elevated border border-hairline px-2 py-1 font-mono text-[10px] text-strong whitespace-nowrap shadow"
-            style={{ left: tooltip.x, top: tooltip.y }}
-          >
-            {tooltip.text}
-          </div>
-        )}
-      </div>
+      <HeatmapGrid
+        weeks={weeks}
+        months={months}
+        formatTooltip={(cell) =>
+          `${cell.date}: ${cell.count} post${cell.count !== 1 ? "s" : ""}`
+        }
+      />
 
       <p className="font-mono text-[10px] text-mute mt-2">
         {posts.length} total entries
