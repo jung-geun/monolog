@@ -29,6 +29,19 @@ const request = (url: string): NextApiRequest =>
 
 describe("image proxy GitHub Open Graph thumbnails", () => {
   const originalFetch = global.fetch
+  const originalCommentHashSalt = process.env.COMMENT_HASH_SALT
+
+  beforeAll(() => {
+    process.env.COMMENT_HASH_SALT = "image-proxy-test-salt"
+  })
+
+  afterAll(() => {
+    if (originalCommentHashSalt === undefined) {
+      delete process.env.COMMENT_HASH_SALT
+    } else {
+      process.env.COMMENT_HASH_SALT = originalCommentHashSalt
+    }
+  })
 
   afterEach(() => {
     global.fetch = originalFetch
