@@ -27,6 +27,11 @@ class MyDocument extends Document {
             href="/rss.xml"
           ></link>
           <Script src="/runtime-config.js" strategy="beforeInteractive" />
+          <script
+            async
+            src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6070999186513755"
+            crossOrigin="anonymous"
+          />
           {googleSiteVerification && (
             <meta
               name="google-site-verification"

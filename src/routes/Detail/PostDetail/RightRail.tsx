@@ -9,6 +9,7 @@ import usePostsQuery from "src/hooks/usePostsQuery"
 import useSimilarPostsQuery from "src/hooks/useSimilarPostsQuery"
 import { TPost } from "src/types"
 import PostEgoGraph from "./PostEgoGraph"
+import { SidebarAd } from "src/components/AdPlaceholder"
 
 type TocEntry = { id: string; text: string; level: number }
 
@@ -149,6 +150,7 @@ const RightRail = ({ recordMap, post }: Props) => {
         </div>
       )}
 
+      <SidebarAd />
     </StyledWrapper>
   )
 }

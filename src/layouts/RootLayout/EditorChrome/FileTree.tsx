@@ -315,6 +315,13 @@ const FileTree = () => {
             <span className="file-icon">◈</span>
             <span className="file-name">rss.xml</span>
           </a>
+          <Link
+            href="/privacy"
+            className={`file-item${router?.asPath === "/privacy" ? " active" : ""}`}
+          >
+            <span className="file-icon">◈</span>
+            <span className="file-name">privacy.md</span>
+          </Link>
         </div>
       )}
 

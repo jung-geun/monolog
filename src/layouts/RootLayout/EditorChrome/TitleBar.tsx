@@ -1,4 +1,5 @@
 import styled from "@emotion/styled"
+import { CONFIG } from "site.config"
 
 type Props = {
   filename: string
@@ -12,7 +13,20 @@ const TitleBar = ({ filename }: Props) => (
       <span className="dot" />
     </div>
     <div className="title">pieroot.log — {filename}</div>
-    <div className="branch">main</div>
+    <div className="controls">
+      <a href="https://www.buymeacoffee.com/junggeun" target="_blank" rel="noreferrer">
+        Support
+      </a>
+      <a
+        className="github-link"
+        href={`https://github.com/${CONFIG.profile.github}`}
+        target="_blank"
+        rel="noreferrer"
+      >
+        GitHub
+      </a>
+      <span className="branch">main</span>
+    </div>
   </StyledWrapper>
 )
 
@@ -54,9 +68,23 @@ const StyledWrapper = styled.div`
     text-overflow: ellipsis;
   }
 
-  .branch {
+  .controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
     font-size: 11px;
-    color: ${({ theme }) => theme.colors.editor.fg3};
     white-space: nowrap;
+
+    a,
+    .branch { color: ${({ theme }) => theme.colors.editor.fg3}; }
+    a {
+      text-decoration: none;
+      &:hover { color: ${({ theme }) => theme.colors.editor.fg}; }
+    }
+  }
+
+  @media (max-width: ${({ theme }) => theme.variables.breakpoint}px) {
+    .github-link,
+    .branch { display: none; }
   }
 `

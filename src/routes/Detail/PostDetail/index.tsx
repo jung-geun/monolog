@@ -12,6 +12,7 @@ import Frontmatter from "src/components/Frontmatter"
 import ReadingProgress from "./ReadingProgress"
 import RightRail from "./RightRail"
 import { useRegisterChrome } from "src/layouts/RootLayout/EditorChrome/RouteChromeContext"
+import { InArticleAd, MobileAd } from "src/components/AdPlaceholder"
 import { CONFIG } from "site.config"
 import ActivityHeatmap from "src/routes/Detail/PageDetail/components/ActivityHeatmap"
 import GitHubContributions from "src/routes/Detail/PageDetail/components/GitHubContributions"
@@ -114,9 +115,11 @@ const PostDetail: React.FC = () => {
             <div className="notion-content">
               <NotionRenderer recordMap={data.recordMap} />
             </div>
+            <InArticleAd />
 
             <SeriesNav post={data} allPosts={allPosts} />
             <CommentBox data={data} />
+            <MobileAd />
             <Footer />
           </div>
           <RightRail recordMap={data.recordMap} post={data} />
