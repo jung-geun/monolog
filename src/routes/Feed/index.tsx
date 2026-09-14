@@ -6,6 +6,8 @@ import FeaturedSeriesGrid from "./FeaturedSeriesGrid"
 import RecentPostsCompact from "./RecentPostsCompact"
 import TagCloud from "src/components/TagCloud"
 import usePostsQuery from "src/hooks/usePostsQuery"
+import AdSlot from "src/components/AdSlot"
+import { CONFIG } from "site.config"
 
 const Feed = () => {
   const posts = usePostsQuery()
@@ -28,6 +30,7 @@ const Feed = () => {
             <RecentPostsCompact />
 
             <TagCloud />
+            <AdSlot slot={CONFIG.googleAdsense.config.slots.feedBottom} className="mt-10" />
           </div>
         </div>
       </div>
@@ -41,15 +44,10 @@ const StyledWrapper = styled.div`
   display: flex;
   flex-direction: column;
   flex: 1;
-  min-height: 0;
-  overflow: hidden;
 
   .scroll-area {
     flex: 1;
-    overflow-y: auto;
-    overflow-x: hidden;
-    scrollbar-width: none;
-    &::-webkit-scrollbar { display: none; }
+    overflow-x: clip;
   }
 
   .content-grid {

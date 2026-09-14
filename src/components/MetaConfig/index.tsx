@@ -1,6 +1,5 @@
 import { CONFIG } from "site.config"
 import Head from "next/head"
-import Script from "next/script"
 
 export type MetaConfigProps = {
   title: string
@@ -14,48 +13,38 @@ export type MetaConfigProps = {
 
 const MetaConfig: React.FC<MetaConfigProps> = (props) => {
   return (
-    <>
-      <Head>
-        <title>{props.title}</title>
-        <meta name="robots" content="follow, index" />
-        <meta charSet="UTF-8" />
-        <meta name="description" content={props.description} />
-        {/* og */}
-        <meta property="og:type" content={props.type} />
-        <meta property="og:title" content={props.title} />
-        <meta property="og:description" content={props.description} />
-        <meta property="og:url" content={props.url} />
-        {CONFIG.lang && <meta property="og:locale" content={CONFIG.lang} />}
-        {props.image && <meta property="og:image" content={props.image} />}
-        {/* twitter */}
-        <meta name="twitter:title" content={props.title} />
-        <meta name="twitter:description" content={props.description} />
-        <meta name="twitter:card" content="summary_large_image" />
-        {props.image && <meta name="twitter:image" content={props.image} />}
-        {/* post */}
-        {props.type === "Post" && (
-          <>
-            <meta property="article:published_time" content={props.date} />
-            <meta property="article:author" content={CONFIG.profile.name} />
-          </>
-        )}
-        {props.alternateMarkdownUrl && (
-          <link
-            rel="alternate"
-            type="text/markdown"
-            href={props.alternateMarkdownUrl}
-          />
-        )}
-      </Head>
-      {CONFIG.googleAdsense?.enable && CONFIG.googleAdsense.config.client && (
-        <Script
-          async
-          src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${CONFIG.googleAdsense.config.client}`}
-          crossOrigin="anonymous"
-          strategy="lazyOnload"
+    <Head>
+      <title>{props.title}</title>
+      <meta name="robots" content="follow, index" />
+      <meta charSet="UTF-8" />
+      <meta name="description" content={props.description} />
+      {/* og */}
+      <meta property="og:type" content={props.type} />
+      <meta property="og:title" content={props.title} />
+      <meta property="og:description" content={props.description} />
+      <meta property="og:url" content={props.url} />
+      {CONFIG.lang && <meta property="og:locale" content={CONFIG.lang} />}
+      {props.image && <meta property="og:image" content={props.image} />}
+      {/* twitter */}
+      <meta name="twitter:title" content={props.title} />
+      <meta name="twitter:description" content={props.description} />
+      <meta name="twitter:card" content="summary_large_image" />
+      {props.image && <meta name="twitter:image" content={props.image} />}
+      {/* post */}
+      {props.type === "Post" && (
+        <>
+          <meta property="article:published_time" content={props.date} />
+          <meta property="article:author" content={CONFIG.profile.name} />
+        </>
+      )}
+      {props.alternateMarkdownUrl && (
+        <link
+          rel="alternate"
+          type="text/markdown"
+          href={props.alternateMarkdownUrl}
         />
       )}
-    </>
+    </Head>
   )
 }
 

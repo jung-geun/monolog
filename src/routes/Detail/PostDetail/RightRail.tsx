@@ -9,7 +9,8 @@ import usePostsQuery from "src/hooks/usePostsQuery"
 import useSimilarPostsQuery from "src/hooks/useSimilarPostsQuery"
 import { TPost } from "src/types"
 import PostEgoGraph from "./PostEgoGraph"
-import { SidebarAd } from "src/components/AdPlaceholder"
+import AdSlot from "src/components/AdSlot"
+import { CONFIG } from "site.config"
 
 type TocEntry = { id: string; text: string; level: number }
 
@@ -49,8 +50,7 @@ const RightRail = ({ recordMap, post }: Props) => {
   const seriesName = post.series?.[0]
 
   useEffect(() => {
-    const scrollEl = document.querySelector(".scroll-area")
-    if (!scrollEl || !toc.length) return
+    if (!toc.length) return
 
     const update = () => {
       for (const entry of [...toc].reverse()) {
@@ -61,8 +61,9 @@ const RightRail = ({ recordMap, post }: Props) => {
         }
       }
     }
-    scrollEl.addEventListener("scroll", update, { passive: true })
-    return () => scrollEl.removeEventListener("scroll", update)
+    update()
+    window.addEventListener("scroll", update, { passive: true })
+    return () => window.removeEventListener("scroll", update)
   }, [toc])
 
   const related = useMemo(() => {
@@ -150,7 +151,11 @@ const RightRail = ({ recordMap, post }: Props) => {
         </div>
       )}
 
-      <SidebarAd />
+      <AdSlot
+        slot={CONFIG.googleAdsense.config.slots.postRail}
+        fullWidthResponsive={false}
+        className="mt-6"
+      />
     </StyledWrapper>
   )
 }
@@ -158,8 +163,9 @@ const RightRail = ({ recordMap, post }: Props) => {
 export default RightRail
 const StyledWrapper = styled.aside`
   position: sticky;
-  top: 0;
-  height: 100vh;
+  top: ${({ theme }) => theme.variables.titleBarHeight + theme.variables.tabBarHeight}px;
+  height: calc(100vh - ${({ theme }) => theme.variables.titleBarHeight + theme.variables.tabBarHeight + theme.variables.statusBarHeight}px);
+  height: calc(100dvh - ${({ theme }) => theme.variables.titleBarHeight + theme.variables.tabBarHeight + theme.variables.statusBarHeight}px);
   width: 240px;
   border-left: 1px solid ${({ theme }) => theme.colors.editor.line};
   padding: 40px 18px 60px;

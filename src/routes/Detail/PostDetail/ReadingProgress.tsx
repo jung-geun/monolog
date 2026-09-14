@@ -5,17 +5,18 @@ const ReadingProgress = () => {
   const [progress, setProgress] = useState(0)
 
   useEffect(() => {
-    const el = document.querySelector(".scroll-area")
-    if (!el) return
-
     const update = () => {
-      const scrollTop = el.scrollTop
-      const scrollHeight = el.scrollHeight - el.clientHeight
-      setProgress(scrollHeight > 0 ? (scrollTop / scrollHeight) * 100 : 0)
+      const max = document.documentElement.scrollHeight - window.innerHeight
+      setProgress(max > 0 ? (window.scrollY / max) * 100 : 0)
     }
 
-    el.addEventListener("scroll", update, { passive: true })
-    return () => el.removeEventListener("scroll", update)
+    update()
+    window.addEventListener("scroll", update, { passive: true })
+    window.addEventListener("resize", update)
+    return () => {
+      window.removeEventListener("scroll", update)
+      window.removeEventListener("resize", update)
+    }
   }, [])
 
   return (
@@ -30,6 +31,9 @@ export default ReadingProgress
 const StyledWrapper = styled.div`
   height: 2px;
   background: ${({ theme }) => theme.colors.editor.line};
+  position: sticky;
+  top: ${({ theme }) => theme.variables.titleBarHeight + theme.variables.tabBarHeight}px;
+  z-index: 30;
   flex-shrink: 0;
 
   .bar {

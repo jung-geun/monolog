@@ -50,7 +50,7 @@ function App({ Component, pageProps }: AppPropsWithLayout) {
             content="width=device-width, initial-scale=1, viewport-fit=cover"
           />
         </Head>
-        <div className={jetbrainsMono.variable} style={{ height: "100%" }}>
+        <div className={jetbrainsMono.variable}>
           <RootLayout>{getLayout(<Component {...pageProps} />)}</RootLayout>
         </div>
         <GoogleAnalytics />

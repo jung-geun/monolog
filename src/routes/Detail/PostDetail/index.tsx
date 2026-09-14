@@ -12,7 +12,7 @@ import Frontmatter from "src/components/Frontmatter"
 import ReadingProgress from "./ReadingProgress"
 import RightRail from "./RightRail"
 import { useRegisterChrome } from "src/layouts/RootLayout/EditorChrome/RouteChromeContext"
-import { InArticleAd, MobileAd } from "src/components/AdPlaceholder"
+import AdSlot from "src/components/AdSlot"
 import { CONFIG } from "site.config"
 import ActivityHeatmap from "src/routes/Detail/PageDetail/components/ActivityHeatmap"
 import GitHubContributions from "src/routes/Detail/PageDetail/components/GitHubContributions"
@@ -115,11 +115,10 @@ const PostDetail: React.FC = () => {
             <div className="notion-content">
               <NotionRenderer recordMap={data.recordMap} />
             </div>
-            <InArticleAd />
+            <AdSlot slot={CONFIG.googleAdsense.config.slots.postBottom} className="my-8" />
 
             <SeriesNav post={data} allPosts={allPosts} />
             <CommentBox data={data} />
-            <MobileAd />
             <Footer />
           </div>
           <RightRail recordMap={data.recordMap} post={data} />
@@ -135,15 +134,10 @@ const StyledWrapper = styled.div`
   display: flex;
   flex-direction: column;
   flex: 1;
-  min-height: 0;
-  overflow: hidden;
 
   .scroll-area {
     flex: 1;
-    overflow-y: auto;
-    overflow-x: hidden;
-    scrollbar-width: none;
-    &::-webkit-scrollbar { display: none; }
+    overflow-x: clip;
   }
 
   .content-grid {

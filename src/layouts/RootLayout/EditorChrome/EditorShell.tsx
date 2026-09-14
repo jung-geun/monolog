@@ -39,20 +39,17 @@ const EditorShell = ({ children }: { children: ReactNode }) => (
 export default EditorShell
 
 const StyledWrapper = styled.div`
-  position: fixed;
-  inset: 0;
   display: flex;
   flex-direction: column;
+  min-height: 100vh;
+  min-height: 100dvh;
   background: ${({ theme }) => theme.colors.editor.bg};
   color: ${({ theme }) => theme.colors.editor.fg};
   font-family: var(--font-mono, monospace);
-  overflow: hidden;
 
   .main-row {
     flex: 1;
     display: flex;
-    min-height: 0;
-    overflow: hidden;
     position: relative;
   }
 
@@ -61,7 +58,6 @@ const StyledWrapper = styled.div`
     min-width: 0;
     display: flex;
     flex-direction: column;
-    overflow: hidden;
   }
 
   .filetree-backdrop {
@@ -71,11 +67,11 @@ const StyledWrapper = styled.div`
   @media (max-width: ${({ theme }) => theme.variables.breakpoint}px) {
     .filetree-backdrop {
       display: block;
-      position: absolute;
-      top: 0;
+      position: fixed;
+      top: ${({ theme }) => theme.variables.titleBarHeight}px;
       left: ${({ theme }) => theme.variables.activityBarWidth}px;
       right: 0;
-      bottom: 0;
+      bottom: ${({ theme }) => theme.variables.statusBarHeight}px;
       background: rgba(0, 0, 0, 0.45);
       z-index: 15;
       opacity: 0;

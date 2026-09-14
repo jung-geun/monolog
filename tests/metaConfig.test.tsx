@@ -11,12 +11,6 @@ jest.mock("next/head", () => {
   }
 })
 
-jest.mock("next/script", () => {
-  return {
-    __esModule: true,
-    default: () => null,
-  }
-})
 
 describe("MetaConfig", () => {
   const defaultProps = {

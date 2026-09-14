@@ -26,9 +26,10 @@ export default async function handler(
     await Promise.all(revalidateRequests)
     console.log(`✅ Revalidated ${posts.length} post pages`)
 
-    // 3. Revalidate homepage
-    await res.revalidate("/")
-    console.log("✅ Revalidated homepage")
+    // 3. Revalidate index pages built without Notion credentials
+    const indexPaths = ["/", "/search", "/series", "/graph", "/ontology"]
+    await Promise.all(indexPaths.map((path) => res.revalidate(path)))
+    console.log(`✅ Revalidated ${indexPaths.join(", ")}`)
 
     // 4. Warm sitemap cache
     try {

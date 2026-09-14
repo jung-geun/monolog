@@ -240,9 +240,13 @@ export const Global = () => {
         }
 
         html, body {
-          height: 100%;
+          min-height: 100%;
           margin: 0;
           padding: 0;
+        }
+
+        html {
+          scroll-padding-top: ${theme.variables.titleBarHeight + theme.variables.tabBarHeight + 12}px;
         }
 
         body {

@@ -332,7 +332,8 @@ export default OntologyView
 const StyledWrapper = styled.div`
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  height: calc(100vh - ${({ theme }) => theme.variables.titleBarHeight + theme.variables.tabBarHeight + theme.variables.statusBarHeight}px);
+  height: calc(100dvh - ${({ theme }) => theme.variables.titleBarHeight + theme.variables.tabBarHeight + theme.variables.statusBarHeight}px);
   background: ${({ theme }) => theme.colors.editor.bg};
   color: ${({ theme }) => theme.colors.editor.fg};
   font-family: var(--font-mono, monospace);

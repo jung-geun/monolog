@@ -27,7 +27,7 @@ const HoverPreview = ({ post, anchorRef }: PreviewProps) => {
     if (!el) return
     const rect = el.getBoundingClientRect()
     setPos({
-      top: rect.top + window.scrollY,
+      top: rect.top,
       left: rect.right + 8,
     })
   }, [anchorRef])
@@ -315,13 +315,6 @@ const FileTree = () => {
             <span className="file-icon">◈</span>
             <span className="file-name">rss.xml</span>
           </a>
-          <Link
-            href="/privacy"
-            className={`file-item${router?.asPath === "/privacy" ? " active" : ""}`}
-          >
-            <span className="file-icon">◈</span>
-            <span className="file-name">privacy.md</span>
-          </Link>
         </div>
       )}
 
@@ -346,6 +339,11 @@ const FileTree = () => {
 export default FileTree
 
 const StyledWrapper = styled.nav`
+  position: sticky;
+  top: ${({ theme }) => theme.variables.titleBarHeight}px;
+  height: calc(100vh - ${({ theme }) => theme.variables.titleBarHeight + theme.variables.statusBarHeight}px);
+  height: calc(100dvh - ${({ theme }) => theme.variables.titleBarHeight + theme.variables.statusBarHeight}px);
+  align-self: flex-start;
   width: ${({ theme }) => theme.variables.fileTreeWidth}px;
   background: ${({ theme }) => theme.colors.editor.bg2};
   border-right: 1px solid ${({ theme }) => theme.colors.editor.line};
@@ -450,10 +448,10 @@ const StyledWrapper = styled.nav`
   }
 
   @media (max-width: ${({ theme }) => theme.variables.breakpoint}px) {
-    position: absolute;
-    top: 0;
+    position: fixed;
+    top: ${({ theme }) => theme.variables.titleBarHeight}px;
     left: ${({ theme }) => theme.variables.activityBarWidth}px;
-    bottom: 0;
+    bottom: ${({ theme }) => theme.variables.statusBarHeight}px;
     width: min(280px, calc(100% - ${({ theme }) => theme.variables.activityBarWidth}px));
     z-index: 20;
     box-shadow: 4px 0 16px rgba(0, 0, 0, 0.45);

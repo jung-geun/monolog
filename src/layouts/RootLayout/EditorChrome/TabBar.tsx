@@ -48,6 +48,9 @@ const StyledWrapper = styled.div`
   height: ${({ theme }) => theme.variables.tabBarHeight}px;
   background: ${({ theme }) => theme.colors.editor.bg2};
   border-bottom: 1px solid ${({ theme }) => theme.colors.editor.line};
+  position: sticky;
+  top: ${({ theme }) => theme.variables.titleBarHeight}px;
+  z-index: 30;
   display: flex;
   font-family: var(--font-mono, monospace);
   font-size: 12px;

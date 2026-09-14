@@ -88,9 +88,11 @@ const ActivityBar = () => {
 export default ActivityBar
 
 const StyledWrapper = styled.aside`
-  position: relative;
-  height: 100%;
-  flex-shrink: 0;
+  position: sticky;
+  top: ${({ theme }) => theme.variables.titleBarHeight}px;
+  height: calc(100vh - ${({ theme }) => theme.variables.titleBarHeight + theme.variables.statusBarHeight}px);
+  height: calc(100dvh - ${({ theme }) => theme.variables.titleBarHeight + theme.variables.statusBarHeight}px);
+  align-self: flex-start;
   width: ${({ theme }) => theme.variables.activityBarWidth}px;
   background: ${({ theme }) => theme.colors.editor.bg2};
   border-right: 1px solid ${({ theme }) => theme.colors.editor.line};

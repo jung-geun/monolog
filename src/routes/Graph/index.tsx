@@ -1017,8 +1017,8 @@ export default Graph
 const StyledWrapper = styled.div`
   display: flex;
   flex-direction: column;
-  flex: 1;
-  min-height: 0;
+  height: calc(100vh - ${({ theme }) => theme.variables.titleBarHeight + theme.variables.tabBarHeight + theme.variables.statusBarHeight}px);
+  height: calc(100dvh - ${({ theme }) => theme.variables.titleBarHeight + theme.variables.tabBarHeight + theme.variables.statusBarHeight}px);
   overflow: hidden;
 
   .graph-layout {

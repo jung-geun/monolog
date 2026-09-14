@@ -6,6 +6,7 @@ declare global {
   interface Window {
     __MONOLOG_RUNTIME_CONFIG__?: RuntimePublicConfig
     gtag: Gtag.Gtag
+    adsbygoogle?: Record<string, unknown>[]
   }
 }
 

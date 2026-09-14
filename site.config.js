@@ -58,6 +58,12 @@ const CONFIG = {
     config: {
       client:
         process.env.NEXT_PUBLIC_GOOGLE_ADSENSE_CLIENT || "ca-pub-6070999186513755",
+      // Display ad unit slot IDs (AdSense > Ads > By ad unit > Display). "" = slot not rendered.
+      slots: {
+        postBottom: "",
+        postRail: "",
+        feedBottom: "",
+      },
     },
   },
   googleSearchConsole: {

@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react"
 import styled from "@emotion/styled"
-import Link from "next/link"
 import { keyframes } from "@emotion/react"
 
 type Props = {
@@ -43,11 +42,6 @@ const StatusBar = ({ items }: Props) => {
             {item}
           </span>
         ))}
-        <div className="site-links">
-          <span>광고를 포함할 수 있습니다</span>
-          <Link href="/privacy">Privacy</Link>
-          <a href="/rss.xml" target="_blank" rel="noreferrer">RSS</a>
-        </div>
       </div>
     </StyledWrapper>
   )
@@ -56,7 +50,9 @@ const StatusBar = ({ items }: Props) => {
 export default StatusBar
 
 const StyledWrapper = styled.div`
-  position: relative;
+  position: sticky;
+  bottom: 0;
+  z-index: 40;
   flex-shrink: 0;
   width: 100%;
   height: ${({ theme }) => theme.variables.statusBarHeight}px;
@@ -119,21 +115,6 @@ const StyledWrapper = styled.div`
       color: ${({ theme }) => theme.colors.editor.fg};
       font-weight: 500;
     }
-
-    .site-links {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      margin-left: 16px;
-      white-space: nowrap;
-      color: ${({ theme }) => theme.colors.editor.fg3};
-
-      a {
-        color: inherit;
-        text-decoration: none;
-        &:hover { color: ${({ theme }) => theme.colors.editor.fg}; }
-      }
-    }
   }
 
   @media (max-width: ${({ theme }) => theme.variables.breakpoint}px) {
@@ -148,11 +129,6 @@ const StyledWrapper = styled.div`
       > span + span { margin-left: 8px; }
       > span:not(:first-of-type):not(:last-of-type) {
         display: none;
-      }
-      .site-links {
-        gap: 6px;
-        margin-left: auto;
-        > span { display: none; }
       }
     }
   }
