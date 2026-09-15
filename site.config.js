@@ -97,8 +97,8 @@ const CONFIG = {
       appid: "", // Embed Code -> data-app-id value
     },
   },
-  // about page slug (optional — for showing widgets on the about page)
-  aboutSlug: "about",
+  // about page slug (optional — leave empty until the matching Notion page exists)
+  aboutSlug: "",
 
   // stack/skills for About page widget (optional — remove to hide StackGrid)
   stack: {

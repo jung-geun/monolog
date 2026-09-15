@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import styled from "@emotion/styled"
 import {
@@ -14,6 +14,7 @@ import {
 import useOntologyQuery from "src/hooks/useOntologyQuery"
 import useNotionGraphQuery from "src/hooks/useNotionGraphQuery"
 import { Entity, SemanticEdge, SemanticRelationKind } from "src/types/ontology"
+import { useRegisterChrome } from "src/layouts/RootLayout/EditorChrome/RouteChromeContext"
 
 type ViewMode = "entity" | "relation"
 
@@ -141,6 +142,11 @@ const OntologyView = () => {
   const [simNodes, setSimNodes] = useState<ONode[]>([])
   const [simLinks, setSimLinks] = useState<OLink[]>([])
   const simRef = useRef<Simulation<ONode, OLink> | null>(null)
+  const statusItems = useMemo(
+    () => ["main", "ontology", ontology ? `${ontology.entities.length} entities` : "not built"],
+    [ontology]
+  )
+  useRegisterChrome("ontology.md", statusItems)
 
   const postMap = new Map(
     graph.nodes

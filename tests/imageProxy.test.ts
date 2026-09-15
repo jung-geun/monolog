@@ -81,4 +81,24 @@ describe("image proxy GitHub Open Graph thumbnails", () => {
     expect(res.status).toHaveBeenCalledWith(403)
     expect(res.json).toHaveBeenCalledWith({ error: "Host not allowed" })
   })
+
+  it("returns an optimizer-compatible PNG when a stable Notion image is unavailable", async () => {
+    const req = {
+      headers: {},
+      query: { kind: "s3", id: "missing-stable-image" },
+      socket: { remoteAddress: "203.0.113.1" },
+      url: "/api/image-proxy?kind=s3&id=missing-stable-image",
+    } as unknown as NextApiRequest
+    const res = response()
+
+    await imageProxy(req, res)
+
+    expect(res.setHeader).toHaveBeenCalledWith("Content-Type", "image/png")
+    expect(res.status).toHaveBeenCalledWith(200)
+    const body = (res.send as jest.Mock).mock.calls[0][0]
+    expect(Buffer.isBuffer(body)).toBe(true)
+    expect(body.subarray(0, 8)).toEqual(
+      Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
+    )
+  })
 })

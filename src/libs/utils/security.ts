@@ -130,11 +130,32 @@ export function extractRequestOrigin(req: NextApiRequest): string | null {
   return normalizeOrigin(rawOrigin)
 }
 
+function getRequestOrigin(req: NextApiRequest): string | null {
+  const host = req.headers.host
+  if (typeof host !== "string" || !host.trim()) return null
+
+  const forwardedProto = hasTrustedProxySecret(req)
+    ? req.headers["x-forwarded-proto"]
+    : undefined
+  const firstForwardedProto = typeof forwardedProto === "string"
+    ? forwardedProto.split(",", 1)[0].trim().toLowerCase()
+    : undefined
+  const protocol = firstForwardedProto === "http" || firstForwardedProto === "https"
+    ? firstForwardedProto
+    : (req.socket as typeof req.socket & { encrypted?: boolean }).encrypted
+      ? "https"
+      : "http"
+
+  return normalizeOrigin(`${protocol}://${host}`)
+}
+
 export function isRequestOriginAllowed(req: NextApiRequest, allowedOrigins?: Array<string | undefined>): boolean {
   if (process.env.NODE_ENV !== "production") return true
 
   const source = extractRequestOrigin(req)
   if (!source) return false
+
+  if (source === getRequestOrigin(req)) return true
 
   const allowed = normalizeAllowedOrigins(allowedOrigins)
   if (allowed.size === 0) return false

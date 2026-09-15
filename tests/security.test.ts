@@ -3,13 +3,14 @@
  */
 
 import type { NextApiRequest } from "next"
-import { getInternalOrigin, getIp } from "src/libs/utils/security"
+import { getInternalOrigin, getIp, isRequestOriginAllowed } from "src/libs/utils/security"
 import { getRequestIp } from "src/libs/utils/image/proxyServer"
 
 const REMOTE_ADDRESS = "172.18.0.2"
 const originalHops = process.env.TRUSTED_PROXY_HOPS
 const originalSecret = process.env.TRUSTED_PROXY_SECRET
 const originalPort = process.env.PORT
+const originalNodeEnv = process.env.NODE_ENV
 
 function request(headers: Record<string, string> = {}, remoteAddress = REMOTE_ADDRESS): NextApiRequest {
   return {
@@ -31,9 +32,16 @@ function setPort(port: string | undefined): void {
   else process.env.PORT = port
 }
 
+function setNodeEnv(value: string | undefined): void {
+  const mutableEnv = process.env as Record<string, string | undefined>
+  if (value === undefined) delete mutableEnv.NODE_ENV
+  else mutableEnv.NODE_ENV = value
+}
+
 afterEach(() => {
   setProxyConfig(originalHops, originalSecret)
   setPort(originalPort)
+  setNodeEnv(originalNodeEnv)
 })
 
 describe("getInternalOrigin", () => {
@@ -49,6 +57,39 @@ describe("getInternalOrigin", () => {
 
     setPort("invalid")
     expect(getInternalOrigin()).toBe("http://127.0.0.1:3000")
+  })
+})
+
+describe("isRequestOriginAllowed", () => {
+  beforeEach(() => setNodeEnv("production"))
+
+  it("accepts the browser origin that exactly matches the direct request origin", () => {
+    expect(isRequestOriginAllowed(request({
+      host: "127.0.0.1:3100",
+      origin: "http://127.0.0.1:3100",
+    }), [])).toBe(true)
+  })
+
+  it("uses forwarded protocol only from the authenticated proxy", () => {
+    setProxyConfig("1", "proxy-secret")
+    const headers = {
+      host: "blog.example.com",
+      origin: "https://blog.example.com",
+      "x-forwarded-proto": "https",
+    }
+
+    expect(isRequestOriginAllowed(request(headers), [])).toBe(false)
+    expect(isRequestOriginAllowed(request({
+      ...headers,
+      "x-monolog-proxy-secret": "proxy-secret",
+    }), [])).toBe(true)
+  })
+
+  it("rejects a cross-origin browser request", () => {
+    expect(isRequestOriginAllowed(request({
+      host: "blog.example.com",
+      origin: "https://evil.example.com",
+    }), [])).toBe(false)
   })
 })
 

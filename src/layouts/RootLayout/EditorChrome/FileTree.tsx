@@ -326,12 +326,14 @@ const FileTree = () => {
       >
         <span className="file-name">  README.md</span>
       </Link>
-      <Link
-        href="/about"
-        className={`file-item${router?.asPath === "/about" ? " active" : ""}`}
-      >
-        <span className="file-name">  about.md</span>
-      </Link>
+      {CONFIG.aboutSlug && (
+        <Link
+          href={`/${CONFIG.aboutSlug}`}
+          className={`file-item${router?.asPath === `/${CONFIG.aboutSlug}` ? " active" : ""}`}
+        >
+          <span className="file-name">  about.md</span>
+        </Link>
+      )}
     </StyledWrapper>
   )
 }

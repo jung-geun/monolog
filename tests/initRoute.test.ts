@@ -37,6 +37,16 @@ beforeEach(() => {
 
 describe("/api/init", () => {
   it("warms post and index routes before reporting success", async () => {
+    let activeRevalidations = 0
+    let maxActiveRevalidations = 0
+    revalidate.mockImplementation(async () => {
+      activeRevalidations += 1
+      maxActiveRevalidations = Math.max(maxActiveRevalidations, activeRevalidations)
+      const { promise, resolve } = Promise.withResolvers<void>()
+      setImmediate(resolve)
+      await promise
+      activeRevalidations -= 1
+    })
     const res = { revalidate, status, json }
     await handler({} as NextApiRequest, res as unknown as NextApiResponse)
 
@@ -51,6 +61,7 @@ describe("/api/init", () => {
         "/ontology",
       ])
     )
+    expect(maxActiveRevalidations).toBe(1)
     expect(json).toHaveBeenCalledWith(
       expect.objectContaining({ success: true, postsRevalidated: 2 })
     )

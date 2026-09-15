@@ -14,6 +14,7 @@ import {
   GraphIcon,
   ExplorerIcon,
 } from "src/layouts/RootLayout/EditorChrome/ActivityIcons"
+import { CONFIG } from "site.config"
 
 type CommandKind = "action" | "post" | "tag" | "cat"
 
@@ -62,7 +63,9 @@ const CommandPalette = () => {
       action: () => setScheme(scheme === "light" ? "dark" : "light"),
     },
     { kind: "action", label: "Go home", hint: "g h", icon: "→", href: "/" },
-    { kind: "action", label: "Open about", hint: "g a", icon: "→", href: "/about" },
+    ...(CONFIG.aboutSlug
+      ? [{ kind: "action", label: "Open about", hint: "g a", icon: "→", href: `/${CONFIG.aboutSlug}` } as Command]
+      : []),
     { kind: "action", label: "Knowledge graph", hint: "g g", icon: <GraphIcon size={14} />, href: "/graph" },
     { kind: "action", label: "Search posts", hint: "/", icon: <SearchIcon size={14} />, href: "/search" },
     ...posts.map((p): Command => ({

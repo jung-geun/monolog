@@ -26,7 +26,7 @@ const PATHS_TTL = 30_000
 
 export const getStaticPaths = async () => {
   if (pathsCache && Date.now() - pathsCache.ts < PATHS_TTL) {
-    return { paths: pathsCache.paths, fallback: true }
+    return { paths: pathsCache.paths, fallback: "blocking" }
   }
 
   const posts = await getPosts()
@@ -36,7 +36,7 @@ export const getStaticPaths = async () => {
 
   return {
     paths,
-    fallback: true,
+    fallback: "blocking",
   }
 }
 

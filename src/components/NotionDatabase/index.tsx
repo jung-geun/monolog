@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react"
+import React, { useState } from "react"
 import { TDbView, TNotionDatabase } from "src/types"
 import TableDatabase from "./Table"
 import GalleryDatabase from "./Gallery"
@@ -9,6 +9,8 @@ import ViewTabs from "./ViewTabs"
 type Props = {
   database: TNotionDatabase
 }
+
+const EMPTY_VIEWS: NonNullable<TNotionDatabase["views"]> = []
 
 function renderView(view: TDbView, db: TNotionDatabase): React.ReactNode {
   switch (view) {
@@ -25,19 +27,16 @@ function renderView(view: TDbView, db: TNotionDatabase): React.ReactNode {
 }
 
 const NotionDatabase: React.FC<Props> = ({ database }) => {
-  if (!database.rows.length) return null
-
-  const views = database.views ?? []
+  const views = database.views ?? EMPTY_VIEWS
   const showTabs = views.length > 1
   const initialId = database.defaultViewId ?? views[0]?.id ?? null
-  const [activeId, setActiveId] = useState<string | null>(initialId)
+  const [selectedId, setSelectedId] = useState<string | null>(initialId)
+  const activeId =
+    selectedId && views.some((view) => view.id === selectedId)
+      ? selectedId
+      : initialId
 
-  // If views list changes (e.g. refetch) and activeId is no longer valid, reset.
-  useEffect(() => {
-    if (activeId && views.length > 0 && !views.find((v) => v.id === activeId)) {
-      setActiveId(initialId)
-    }
-  }, [views, activeId, initialId])
+  if (!database.rows.length) return null
 
   const active = views.find((v) => v.id === activeId) ?? null
   const activeType: TDbView = active?.type ?? database.view
@@ -50,7 +49,7 @@ const NotionDatabase: React.FC<Props> = ({ database }) => {
   return (
     <>
       {showTabs && (
-        <ViewTabs views={views} activeId={activeId} onChange={setActiveId} />
+        <ViewTabs views={views} activeId={activeId} onChange={setSelectedId} />
       )}
       {renderView(activeType, dbForView)}
     </>

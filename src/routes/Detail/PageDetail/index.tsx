@@ -10,12 +10,12 @@ import GitHubContributions from "./components/GitHubContributions"
 import ContactBlock from "./components/ContactBlock"
 import StackGrid from "./components/StackGrid"
 
-const aboutSlug = (CONFIG as any).aboutSlug ?? "about"
+const aboutSlug = (CONFIG as any).aboutSlug as string | undefined
 
 const PageDetail: React.FC = () => {
   const data = usePostQuery()
 
-  const isAbout = data?.slug === aboutSlug
+  const isAbout = Boolean(aboutSlug) && data?.slug === aboutSlug
   const filename = isAbout ? "about.md" : `${data?.slug ?? "page"}.md`
   const statusItems = useMemo(
     () => ["main", filename, "Markdown"],

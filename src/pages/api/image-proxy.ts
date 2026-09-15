@@ -262,16 +262,24 @@ const refreshImageUrlFromNotion = async (metadata: ImageProxyMetadata) => {
   return { url: null, via: undefined as string | undefined }
 }
 
-const PLACEHOLDER_SVG = `<?xml version="1.0" encoding="UTF-8"?><svg xmlns='http://www.w3.org/2000/svg' width='400' height='300' viewBox='0 0 400 300' role='img' aria-label='Image unavailable'><rect width='100%' height='100%' fill='#f3f4f6'/><text x='50%' y='50%' dominant-baseline='middle' text-anchor='middle' fill='#6b7280' font-family='-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif' font-size='18'>Image unavailable</text></svg>`
+const PLACEHOLDER_PNG = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR42mP4/OUbAAW7At6vMXm0AAAAAElFTkSuQmCC',
+  'base64'
+)
+
+function sendPlaceholder(res: NextApiResponse, status: number, cacheControl: string) {
+  res.setHeader('Content-Type', 'image/png')
+  res.setHeader('Cache-Control', cacheControl)
+  res.setHeader('Content-Length', PLACEHOLDER_PNG.byteLength)
+  return res.status(status).send(PLACEHOLDER_PNG)
+}
 
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
   if (!checkImageProxyRateLimit(getIpHash(req)).ok) {
-    res.setHeader('Content-Type', 'image/svg+xml')
-    res.setHeader('Cache-Control', 'public, max-age=60, s-maxage=60')
-    return res.status(429).send(PLACEHOLDER_SVG)
+    return sendPlaceholder(res, 429, 'public, max-age=60, s-maxage=60')
   }
 
   const kind = firstQueryValue(req.query.kind as string | string[] | undefined)
@@ -326,9 +334,7 @@ export default async function handler(
         if (!refreshed.url) {
           resolveInFlight(null)
           inFlightMap.delete(cacheKey)
-          res.setHeader('Content-Type', 'image/svg+xml')
-          res.setHeader('Cache-Control', 'public, max-age=60, s-maxage=60')
-          return res.status(200).send(PLACEHOLDER_SVG)
+          return sendPlaceholder(res, 200, 'public, max-age=60, s-maxage=60')
         }
         signedUrl = refreshed.url
         setLruSignedUrl(id, signedUrl)
@@ -433,9 +439,7 @@ export default async function handler(
           }).catch(() => {})
         }
       } catch { /* non-fatal */ }
-      res.setHeader('Content-Type', 'image/svg+xml')
-      res.setHeader('Cache-Control', 'public, max-age=600, s-maxage=600')
-      return res.status(200).send(PLACEHOLDER_SVG)
+      return sendPlaceholder(res, 200, 'public, max-age=600, s-maxage=600')
     }
   }
 
@@ -705,9 +709,7 @@ export default async function handler(
     }
 
     try {
-      res.setHeader('Content-Type', 'image/svg+xml')
-      res.setHeader('Cache-Control', 'public, max-age=600, s-maxage=600')
-      return res.status(200).send(PLACEHOLDER_SVG)
+      return sendPlaceholder(res, 200, 'public, max-age=600, s-maxage=600')
     } catch {
       return res.status(500).json({ error: 'Failed to proxy image' })
     }

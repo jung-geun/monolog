@@ -61,7 +61,7 @@ else
     INIT_COUNT=0
 
     while [ $INIT_COUNT -lt $INIT_RETRIES ]; do
-      if ! INIT_RESPONSE=$(curl -s --connect-timeout 2 --max-time 5 -w "\n%{http_code}" \
+      if ! INIT_RESPONSE=$(curl -s --connect-timeout 2 --max-time 900 -w "\n%{http_code}" \
         -H "Authorization: Bearer ${REVALIDATE_SECRET}" \
         -H "X-Forwarded-Proto: http" \
         "$INIT_URL" 2>&1); then

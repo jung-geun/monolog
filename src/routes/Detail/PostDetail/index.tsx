@@ -21,7 +21,7 @@ import StackGrid from "src/routes/Detail/PageDetail/components/StackGrid"
 import StatsGrid from "src/routes/Feed/StatsGrid"
 import { getStats } from "src/libs/utils/stats"
 
-const aboutSlug = (CONFIG as any).aboutSlug ?? "about"
+const aboutSlug = (CONFIG as any).aboutSlug as string | undefined
 
 const PostDetail: React.FC = () => {
   const data = usePostQuery()
@@ -33,7 +33,7 @@ const PostDetail: React.FC = () => {
 
   if (!data) return null
 
-  const isAbout = data.slug === aboutSlug
+  const isAbout = Boolean(aboutSlug) && data.slug === aboutSlug
   const category = data.category?.[0] || undefined
   const dateStr = data.date?.start_date || data.createdTime?.slice(0, 10) || ""
 

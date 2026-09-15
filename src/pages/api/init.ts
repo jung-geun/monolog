@@ -1,6 +1,5 @@
 import { NextApiRequest, NextApiResponse } from "next"
 import { getPosts } from "../../apis"
-import { TPost } from "../../types"
 import { verifyRevalidateToken } from "src/libs/utils/auth/verifyToken"
 import { getInternalOrigin } from "src/libs/utils/security"
 
@@ -19,16 +18,18 @@ export default async function handler(
     const posts = await getPosts()
     console.log(`📦 Fetched ${posts.length} posts from Notion`)
 
-    // 2. Revalidate all post pages to add them to ISR cache
-    const revalidateRequests = posts.map((post: TPost) =>
-      res.revalidate(`/${post.slug}`)
-    )
-    await Promise.all(revalidateRequests)
+    // 2. Revalidate routes serially. Each post render reads Notion; concurrent
+    // revalidation can exceed Notion's request rate and leave a partial cold cache.
+    for (const post of posts) {
+      await res.revalidate(`/${post.slug}`)
+    }
     console.log(`✅ Revalidated ${posts.length} post pages`)
 
     // 3. Revalidate index pages built without Notion credentials
     const indexPaths = ["/", "/search", "/series", "/graph", "/ontology"]
-    await Promise.all(indexPaths.map((path) => res.revalidate(path)))
+    for (const path of indexPaths) {
+      await res.revalidate(path)
+    }
     console.log(`✅ Revalidated ${indexPaths.join(", ")}`)
 
     // 4. Warm sitemap cache
