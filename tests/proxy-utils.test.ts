@@ -72,6 +72,16 @@ describe('customMapImageUrl', () => {
     const result = customMapImageUrl(url)
     expect(result).toBe(url)
   })
+
+  it('proxies GitHub Open Graph covers without nesting them through notion.so', () => {
+    const url = 'https://opengraph.githubassets.com/hash/jung-geun/PSO'
+
+    const result = customMapImageUrl(url)
+    const proxyUrl = new URL(result, 'https://blog.pieroot.xyz')
+
+    expect(proxyUrl.pathname).toBe('/api/image-proxy')
+    expect(proxyUrl.searchParams.get('url')).toBe(url)
+  })
 })
 
 describe('unwrapProxiedUrl', () => {

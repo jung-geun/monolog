@@ -5,6 +5,35 @@ const SITE_PREFIX = (() => {
   return site ? site.replace(/\/$/, '') : ''
 })()
 
+const DIRECT_PROXY_HOSTS = new Set([
+  'opengraph.githubassets.com',
+  'github.githubassets.com',
+])
+
+function unwrapAllowedNotionImageUrl(targetUrl: string): string {
+  try {
+    const wrapper = new URL(targetUrl)
+    const hostname = wrapper.hostname.toLowerCase()
+    const isNotionImage =
+      (hostname === 'notion.so' ||
+        hostname.endsWith('.notion.so') ||
+        hostname === 'notion.com' ||
+        hostname.endsWith('.notion.com')) &&
+      wrapper.pathname.startsWith('/image/')
+
+    if (!isNotionImage) return targetUrl
+
+    const nested = new URL(decodeURIComponent(wrapper.pathname.slice('/image/'.length)))
+    if (nested.protocol === 'https:' && DIRECT_PROXY_HOSTS.has(nested.hostname.toLowerCase())) {
+      return nested.toString()
+    }
+  } catch {
+    // Preserve the original target; the API route performs final validation.
+  }
+
+  return targetUrl
+}
+
 export const IMAGE_PROXY_PATH = '/api/image-proxy'
 
 export type ImageProxyMetadata = {
@@ -33,16 +62,17 @@ export function isAlreadyProxied(url: string): boolean {
 /** Prefix site origin when available and build the proxied URL. */
 export function createProxyRequestUrl(targetUrl: string, meta?: ImageProxyMetadata): string {
   const params = new URLSearchParams()
+  const normalizedTargetUrl = unwrapAllowedNotionImageUrl(targetUrl)
 
   // S3 presigned URLs change every ~1 hour (new X-Amz-Signature). Extract the
   // stable UUID so that the proxy URL itself never changes for the same image.
-  const s3Id = extractS3ImageId(targetUrl)
+  const s3Id = extractS3ImageId(normalizedTargetUrl)
   if (s3Id) {
     params.set('id', s3Id)
     params.set('kind', 's3')
   } else {
     // Non-S3 Notion CDN URLs are stable — pass as-is.
-    params.set('url', targetUrl)
+    params.set('url', normalizedTargetUrl)
   }
 
   if (meta) {

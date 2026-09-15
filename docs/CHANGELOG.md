@@ -24,6 +24,7 @@ monolog의 버전별 변경 이력. 프로젝트 개요는 [`../README.md`](../R
 - **About 고정 진입점 복원** — FileTree의 `about.md`를 설정 상태와 무관한 영구 링크로 복원하고 `/about`을 고정 slug로 지정.
 - **포스트 스크롤 길이 중복 수정** — Utterances 클라이언트가 소유하는 `.utterances-frame` placeholder 충돌을 제거해 직접 진입·새로고침 시 문서 높이가 두 배로 늘어나던 문제 해결.
 - **AdSense 하단 앵커 공백 제거** — Google Auto ads가 `body`에 주입하는 하단 패딩을 무효화해 광고 축소·닫기 뒤 StatusBar 아래 빈 영역을 제거하고, 앵커 위치를 하단으로 고정.
+- **링크 임베드 썸네일 복원** — GitHub Open Graph 이미지를 Notion 이미지 엔드포인트로 중첩하지 않고 허용된 로컬 이미지 프록시로 직접 전달해 북마크 카드의 우측 미리보기를 표시.
 
 ---
 
