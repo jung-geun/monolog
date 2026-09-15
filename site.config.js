@@ -97,8 +97,8 @@ const CONFIG = {
       appid: "", // Embed Code -> data-app-id value
     },
   },
-  // about page slug (optional — leave empty until the matching Notion page exists)
-  aboutSlug: "",
+  // About is a permanent top-level document in the editor chrome.
+  aboutSlug: "about",
 
   // stack/skills for About page widget (optional — remove to hide StackGrid)
   stack: {
