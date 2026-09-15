@@ -23,6 +23,7 @@ monolog의 버전별 변경 이력. 프로젝트 개요는 [`../README.md`](../R
 - **본문 내부 링크 SPA 전환** — `NotionRenderer`에 capture-phase 클릭 인터셉터 추가. 같은 DB 내 다른 글 링크가 `router.push`로 처리됨. `dynamic({ ssr: false })` 컨테이너 마운트 타이밍 회피를 위해 document-level 리스너 + `.notion-page` 필터.
 - **About 고정 진입점 복원** — FileTree의 `about.md`를 설정 상태와 무관한 영구 링크로 복원하고 `/about`을 고정 slug로 지정.
 - **포스트 스크롤 길이 중복 수정** — Utterances 클라이언트가 소유하는 `.utterances-frame` placeholder 충돌을 제거해 직접 진입·새로고침 시 문서 높이가 두 배로 늘어나던 문제 해결.
+- **AdSense 하단 앵커 공백 제거** — Google Auto ads가 `body`에 주입하는 하단 패딩을 무효화해 광고 축소·닫기 뒤 StatusBar 아래 빈 영역을 제거하고, 앵커 위치를 하단으로 고정.
 
 ---
 

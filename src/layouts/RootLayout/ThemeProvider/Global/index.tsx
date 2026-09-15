@@ -254,6 +254,8 @@ export const Global = () => {
           background-color: ${e.bg};
           font-family: var(--font-sans, ${pretendard.style.fontFamily}, system-ui, sans-serif);
           -webkit-font-smoothing: antialiased;
+          /* Auto ads anchors are fixed overlays. Ignore Google's inline body spacer. */
+          padding-bottom: 0 !important;
         }
 
         * {
