@@ -107,7 +107,7 @@ const TRUSTED_ONLY_EVENTS = new Set([
 /** A push `branches:` item that names one branch: no glob or `!` characters. */
 const EXACT_BRANCH = /^[A-Za-z0-9._\/-]+$/
 
-/** Keys a gating step may have. `if:`, `shell:` and the rest could skip or neuter it. */
+/** Keys the yarn test and yarn build steps may have. `if:`, `shell:` and the rest could skip or neuter them. */
 const GATE_STEP_KEYS = new Set([
   "name",
   "id",
