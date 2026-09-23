@@ -8,18 +8,37 @@ GitHub Actions 워크플로우의 형태, 실측 기록, 보안 요구 사항과
 
 | 파일 | 트리거 | Runner | 역할 |
 |---|---|---|---|
-| [`test.yml`](../.github/workflows/test.yml) (Test Suite) | `push`·`pull_request` (`main`, `dev`), `workflow_dispatch` | `ubuntu-latest` | **Run Tests**와 **Build Project**를 병렬 실행. Run Tests의 ESLint·type-check는 `continue-on-error`라 게이트가 아니고, 실제 게이트는 `yarn test`와 `yarn build`(next build의 TypeScript 검사 포함) 두 개 |
-| [`docker-build.yml`](../.github/workflows/docker-build.yml) | `push` (`main`, `v*` 태그) | `[self-hosted, Linux, X64]` | GHCR 이미지 빌드·push |
+| [`test.yml`](../.github/workflows/test.yml) (Test Suite) | `push`·`pull_request` (`main`, `dev`), `workflow_dispatch` | `ubuntu-latest` | **Run Tests**와 **Build Project**를 병렬 실행. Run Tests의 ESLint·type-check는 `continue-on-error`라 잡을 실패시키지 않는다. 검사 중 잡을 실패시키는 것은 `yarn test`와 `yarn build`(next build의 TypeScript 검사 포함)이고, 실패하면 Test Suite 실행이 실패한다. 이 결과를 소비하는 곳은 아직 없다([게이팅](#게이팅)) |
+| [`docker-build.yml`](../.github/workflows/docker-build.yml) | `push` (`main`, `v*` 태그) | `[self-hosted, Linux, X64]` | GHCR 이미지 빌드·push. Test Suite 결과를 기다리지 않는다([게이팅](#게이팅)) |
 | [`revalidate.yml`](../.github/workflows/revalidate.yml) | `schedule`, `workflow_dispatch` | `ubuntu-latest` | `/api/revalidate` 호출 |
+
+### 게이팅
+
+규칙: 이미지·패키지 **발행(push)과 배포**는 테스트 워크플로우 전체 결과로 게이팅한다. 아무것도 발행하지 않는 PR 검증 빌드는 테스트와 병렬로 실행해도 된다.
+
+- **Build Project**는 아무것도 발행하지 않는 검증 빌드다. 그래서 Run Tests와 병렬로 실행하는 것은 규칙에 맞다.
+- Run Tests·Build Project가 실패하면 Test Suite 실행이 실패하지만, 2026-09-24 현재 그 결과를 소비하는 곳이 없다.
+  - `main`에는 branch protection이 없다(`gh api repos/jung-geun/monolog/branches/main/protection` → 404).
+  - 유일한 ruleset `main protected`의 규칙은 `deletion`·`non_fast_forward`뿐이고 required status check가 없다(`gh api repos/jung-geun/monolog/rules/branches/main`).
+  - Test Suite 결과를 기다리는 워크플로우(`workflow_run`, 또는 reusable workflow로 호출한 뒤 `needs:`)도 없다.
+  - 그래서 실패한 Test Suite는 merge도 GHCR 발행도 막지 않는다.
+- **규칙 위반(미해결)**: `docker-build.yml`의 GHCR push는 Test Suite 결과를 기다리지 않는다. 이 변경의 범위 밖이라 [후속 작업](#후속-작업)으로 남긴다.
+  - required status check만으로는 이 공백이 닫히지 않는다. branch ruleset은 `main` 반영만 다루고, `v*` 태그 push로 시작되는 발행은 그 대상이 아니다. 발행 잡 자체가 같은 commit의 테스트 성공을 기다려야 한다.
+  - 예를 들어 `docker-build.yml`이 Test Suite 잡을 reusable workflow로 호출하고 발행 잡을 `needs:`로 건다. 이때 `test.yml`에 `workflow_call` 트리거가 추가되므로 계약 테스트의 트리거 목록도 같이 바꾼다.
+  - `workflow_run`은 PR의 Test Suite 실행에서도 발생한다. 그래서 self-hosted runner에서 쓰면 계약 테스트의 runner 규칙에 걸린다.
 
 ### 계약 테스트
 
 [`tests/ciWorkflow.test.ts`](../tests/ciWorkflow.test.ts)는 `yarn test`에 포함되며 다음을 고정한다.
 
-- `test.yml`: 잡 이름(Run Tests / Build Project), 두 잡 사이 `needs:` 없음, 두 잡에 job-level `if:` 없음·`continue-on-error` 없음(또는 `false`), `run: yarn test`·`run: yarn build` step이 각각 정확히 하나이고 `name`·`id`·`run`·`env`·`timeout-minutes`·`continue-on-error: false` 외의 key(`if:`, `shell:` 등) 없음, 트리거가 정확히 `push`·`pull_request`·`workflow_dispatch`, `push`·`pull_request`의 필터가 `branches: {main, dev}` 하나뿐(`!` 패턴·wildcard·`paths`·`paths-ignore`·`branches-ignore`·`types` 없음), top-level `permissions`가 정확히 `contents: read`이고 어떤 잡도 `permissions`를 다시 정하지 않음.
-- `.github/workflows/*.y?ml` 전체: `push`·`schedule`·`workflow_dispatch`·`workflow_call` 외의 이벤트(`pull_request`, `pull_request_target`, `issue_comment`, `workflow_run` 등)로 시작될 수 있는 워크플로우는 모든 잡이 GitHub-hosted runner label을 사용. 호출하는 로컬 reusable workflow도 같은 규칙으로 검사하고, 읽을 수 없는 `on:`·`runs-on` 형태는 실패로 처리한다.
+- `test.yml`: 잡 이름(Run Tests / Build Project), 두 잡 사이 `needs:` 없음, 두 잡에 job-level `if:` 없음·`continue-on-error` 없음(또는 `false`), `run: yarn test`·`run: yarn build` step이 각각 정확히 하나이고 `name`·`id`·`run`·`env`·`timeout-minutes`·`continue-on-error: false` 외의 key(`if:`, `shell:` 등) 없음, workflow level과 `test`·`build` 잡에 `defaults` 없음(`defaults.run.shell`·`working-directory`도 그 step에 적용되므로), 트리거가 정확히 `push`·`pull_request`·`workflow_dispatch`, `push`·`pull_request`의 필터가 `branches: {main, dev}` 하나뿐(`!` 패턴·wildcard·`paths`·`paths-ignore`·`branches-ignore`·`types` 없음), top-level `permissions`가 정확히 `contents: read`이고 어떤 잡도 `permissions`를 다시 정하지 않음.
+- `.github/workflows/`의 `*.yml`·`*.yaml` 전체: 신뢰하는 이벤트만으로 시작되는 워크플로우가 아니면 모든 잡이 GitHub-hosted runner label을 써야 한다. 호출하는 로컬 reusable workflow도 같은 규칙으로 검사한다.
+  - 신뢰하는 이벤트는 `schedule`·`workflow_dispatch`·`workflow_call`, 그리고 조건을 갖춘 `push`다. 그 외 이벤트(`pull_request`, `pull_request_target`, `issue_comment`, `workflow_run` 등)는 신뢰하지 않는다.
+  - `push`는 필터 key가 `branches:`·`tags:`뿐이고(하나 이상), `branches:` 항목이 모두 `dependabot/`로 시작하지 않는 정확한 branch 이름일 때만 신뢰한다. 이 저장소에서는 Dependabot이 `dependabot/**` branch를 만들어 push하므로(npm·github-actions·docker 업데이트 활성), 필터 없는 `push`, `'**'` 같은 wildcard, `branches-ignore`, `paths`만 있는 필터는 Dependabot이 올린 코드도 실행한다. 판단을 단순하게 하려고 나머지 형태(다른 wildcard, `!` 패턴, `tags-ignore`, `branches`와 함께 쓴 `paths` 등)도 신뢰하지 않는다.
+  - label은 정확한 GitHub-hosted 목록(`ubuntu-latest`, `ubuntu-24.04`, `windows-2025`, `macos-15` 등)과 비교한다. `ubuntu-selfhosted`처럼 모양만 비슷한 custom label은 통과하지 못한다.
+- 파서는 자신이 읽는 mapping(top level, `on`, 트리거 필터, `jobs`, 각 잡·step, `permissions`)에서 다음을 실패로 처리한다. 첫 key 앞의 내용, key 들여쓰기 이하에서 `key:` 형태가 아닌 줄(`key :`, `? key`, `key:value` 등), 중복 key, 읽을 수 없는 `on:`·`runs-on` 형태. 그 아래 중첩 mapping(`env`, `with`, `strategy` 등)은 읽지 않는다.
 
-이 테스트는 관리자의 실수를 막는 회귀 가드일 뿐 보안 경계가 아니다. 이유는 아래 [self-hosted runner 보안](#self-hosted-runner-보안)에 있다.
+이 테스트와 워크플로우의 `if:` 가드는 관리자의 실수를 막는 통제이며 유지한다. 다만 PR이 워크플로우 파일을 바꿀 수 있으므로 이것만으로는 부족하고, 저장소 설정으로도 보장해야 한다. 이유와 필요한 설정은 아래 [self-hosted runner 보안](#self-hosted-runner-보안)에 있다.
 
 ---
 
@@ -93,9 +112,9 @@ GitHub Actions 워크플로우의 형태, 실측 기록, 보안 요구 사항과
 
 ## self-hosted runner 보안
 
-규칙: public 저장소의 `pull_request` 코드를 self-hosted runner에서 실행하지 않는다. 워크플로우 YAML(`if:`, 트리거, `runs-on`)은 PR이 수정할 수 있으므로 저장소 설정으로도 보장해야 한다.
+규칙: public 저장소의 `pull_request` 코드를 self-hosted runner에서 실행하지 않는다. 워크플로우 YAML의 가드(`if:`, 트리거, `runs-on`, 이 계약 테스트, `docker-build.yml` 로그인 step의 `if: github.event_name != 'pull_request'`)는 유지한다. 그러나 PR이 이를 수정할 수 있으므로 runner group의 저장소 제한과 fork PR 승인 설정으로도 보장한다.
 
-`pull_request` 이벤트는 PR merge commit의 워크플로우 파일로 실행된다. 그래서 fork PR은 `docker-build.yml`에 `pull_request` 트리거를 추가하거나 self-hosted `runs-on`을 쓰는 새 워크플로우 파일을 넣을 수 있다. 이 코드는 계약 테스트가 실패하기 **전에** 실행되므로, 계약 테스트로는 막을 수 없다.
+`pull_request` 이벤트는 PR merge commit의 워크플로우 파일로 실행된다. 그래서 fork PR은 `docker-build.yml`에 `pull_request` 트리거를 추가하거나 self-hosted `runs-on`을 쓰는 새 워크플로우 파일을 넣을 수 있다. 이 코드는 계약 테스트가 실패하기 **전에** 실행되므로, 계약 테스트만으로는 막을 수 없다.
 
 ### 현재 설정 (2026-09-24 `gh api`로 확인)
 
@@ -106,13 +125,21 @@ GitHub Actions 워크플로우의 형태, 실측 기록, 보안 요구 사항과
 | self-hosted runner | 저장소 레벨 4대, label `[self-hosted, Linux, X64]` (2대 online) | `gh api repos/jung-geun/monolog/actions/runners` |
 | fork PR 승인 정책 | `first_time_contributors`: 이전에 기여한 적 있는 외부 기여자의 fork PR은 승인 없이 실행됨 | `gh api repos/jung-geun/monolog/actions/permissions/fork-pr-contributor-approval` |
 | 기본 `GITHUB_TOKEN` 권한 | `write` (그래서 `test.yml`의 top-level `permissions: contents: read`를 계약 테스트로 고정) | `gh api repos/jung-geun/monolog/actions/permissions/workflow` |
+| `main` 규칙 | ruleset `main protected`: `deletion`·`non_fast_forward`만 있음(required status check 없음). branch protection 없음 | `gh api repos/jung-geun/monolog/rules/branches/main`, `gh api repos/jung-geun/monolog/branches/main/protection` (404) |
 
 ### 필요한 설정 (미적용)
 
-1. fork PR 승인 정책을 `all_external_contributors`(모든 외부 기여자 승인 필요)로 바꾼다. 승인자는 실행을 승인하기 전에 `.github/workflows/` 변경을 확인한다.
-2. PR 코드가 self-hosted runner에 닿지 않게 한다. User 계정 저장소에는 runner group이 없으므로, 이 public 저장소에서 self-hosted runner를 빼고 `docker-build.yml`을 GitHub-hosted runner로 옮기거나, runner group으로 저장소·워크플로우를 제한할 수 있는 조직 계정으로 옮긴다.
+이 저장소에는 runner group이 없다. runner group은 조직(Organization) 설정에만 있고, 이 저장소의 소유자는 User 계정이며 self-hosted runner는 저장소 레벨에 등록돼 있다. 그래서 설정 수준의 통제는 모두 저장소 소유자 작업이다. 아래 UI 경로와 문구는 GitHub 화면이 바뀌면 달라질 수 있으므로, 함께 적은 API endpoint를 확인 기준으로 삼는다.
 
-두 설정 모두 저장소 소유자가 적용해야 한다. 적용 전까지는 위 노출이 열려 있다.
+1. **fork PR 승인**: 정책을 `all_external_contributors`(모든 외부 기여자 승인 필요)로 바꾼다. 승인자는 실행을 승인하기 전에 `.github/workflows/` 변경을 확인한다.
+   - UI: 저장소 `Settings` → `Actions` → `General` → "Approval for running fork pull request workflows from contributors" → "Require approval for all external contributors".
+   - API: `repos/jung-geun/monolog/actions/permissions/fork-pr-contributor-approval`의 `approval_policy`(현재 `first_time_contributors`).
+2. **PR 코드가 self-hosted runner에 닿지 않게 하기**: runner group의 저장소 제한을 쓸 수 없으므로 다음 중 하나를 한다.
+   - 이 public 저장소에서 self-hosted runner를 제거하고 `docker-build.yml`을 GitHub-hosted runner로 옮긴다. UI: 저장소 `Settings` → `Actions` → `Runners`. API: `repos/jung-geun/monolog/actions/runners`.
+   - 저장소를 조직 계정으로 옮기고, runner group으로 이 runner를 쓸 수 있는 저장소·워크플로우를 제한한다. UI: 조직 `Settings` → `Actions` → `Runner groups`.
+3. **required status check**: ruleset `main protected`에 `Run Tests (22.x)`와 `Build Project`를 required status check로 추가한다. UI: 저장소 `Settings` → `Rules` → `Rulesets` → `main protected` → "Require status checks to pass". API: `repos/jung-geun/monolog/rulesets/15859599`. 이 설정은 `main` 반영을 게이팅한다. `v*` 태그 push로 시작되는 GHCR 발행은 branch ruleset 대상이 아니므로, 이것만으로는 발행 게이팅이 되지 않는다([게이팅](#게이팅)).
+
+적용 전까지는 위 노출이 열려 있다.
 
 ---
 
@@ -121,4 +148,6 @@ GitHub Actions 워크플로우의 형태, 실측 기록, 보안 요구 사항과
 - [ ] **변경 후 실측**: 머지 후 Test Suite 성공 실행을 20회 이상 모아 위 [측정 방법](#측정-방법)대로 크리티컬 패스 median·p90을 이 문서에 기록하고 기준 176s / 196s, 예측 ~115.5s / ~128s와 비교한다.
 - [ ] **yarn 캐시 실험**: 병렬 실행에서 Build Project(또는 두 잡 모두)의 `cache: 'yarn'`을 제거하거나 restore-only로 바꾼 뒤 20회 이상 측정한다. 모델은 캐시 제거 시 median ~107s를 예측한다. 실측이 더 빠를 때만 바꾼다.
 - [ ] **self-hosted runner 설정**: 위 [필요한 설정](#필요한-설정-미적용) 1·2를 적용하고 이 문서의 현재 설정 표를 갱신한다(소유자 작업).
+- [ ] **required status check**: 위 [필요한 설정](#필요한-설정-미적용) 3을 적용한다(소유자 작업).
+- [ ] **발행 게이팅**: `docker-build.yml`의 GHCR push가 같은 commit의 Test Suite 성공을 기다리게 한다([게이팅](#게이팅)). 바꾸면 계약 테스트에 이 조건을 추가한다.
 - 크리티컬 패스 median이 기록된 기준보다 20% 이상 나빠지거나, 테스트 수가 크게 늘거나, 새 테스트 계층을 추가하면 같은 방법으로 다시 측정하고 가장 긴 잡부터 줄인다.
