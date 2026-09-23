@@ -26,6 +26,10 @@ monolog의 버전별 변경 이력. 프로젝트 개요는 [`../README.md`](../R
 - **AdSense 하단 앵커 공백 제거** — Google Auto ads가 `body`에 주입하는 하단 패딩을 무효화해 광고 축소·닫기 뒤 StatusBar 아래 빈 영역을 제거하고, 앵커 위치를 하단으로 고정.
 - **링크 임베드 썸네일 복원** — GitHub Open Graph 이미지를 Notion 이미지 엔드포인트로 중첩하지 않고 허용된 로컬 이미지 프록시로 직접 전달해 북마크 카드의 우측 미리보기를 표시.
 
+### CI
+- **Build Project 병렬 실행** — `test.yml`의 `build` 잡에서 `needs: test`를 제거해 Run Tests와 동시에 시작. 변경 전 실측(성공 36회): 크리티컬 패스 median 176s / p90 196s. 변경 후 수치는 아직 측정 전이며, step 시간 모델의 예측은 median ~115.5s / p90 ~128s. 측정 방법, 잡별 고정비, 후속 작업은 [`CI.md`](CI.md).
+- **CI 형태 계약 테스트** — `tests/ciWorkflow.test.ts`가 `test.yml`의 잡 병렬성, `yarn test`·`yarn build` 게이트, 트리거·branch 필터, 읽기 전용 토큰을 고정하고, PR이나 외부 계정이 시작할 수 있는 모든 워크플로우가 GitHub-hosted runner를 쓰는지 검사. 보안 경계는 저장소 설정이며 필요한 설정은 아직 미적용([`CI.md`](CI.md#self-hosted-runner-보안)).
+
 ---
 
 ## v1.4.0
