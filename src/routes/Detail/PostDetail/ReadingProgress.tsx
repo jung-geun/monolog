@@ -40,5 +40,6 @@ const StyledWrapper = styled.div`
     height: 100%;
     background: ${({ theme }) => theme.colors.editor.accent};
     transition: width 0.1s linear;
+    @media (prefers-reduced-motion: reduce) { transition: none; }
   }
 `

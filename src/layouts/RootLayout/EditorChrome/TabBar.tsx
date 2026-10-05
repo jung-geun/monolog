@@ -74,25 +74,45 @@ const StyledWrapper = styled.div`
     text-decoration: none;
     flex-shrink: 0;
     max-width: 220px;
+    animation: monolog-tab-enter 220ms var(--motion-ease);
+    transition: color var(--motion-fast), background var(--motion-fast);
+
+    &::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 1px;
+      background: ${({ theme }) => theme.colors.editor.accent};
+      transform: scaleX(0);
+      transform-origin: left;
+      transition: transform 220ms var(--motion-ease);
+    }
+
+    &:hover:not(.active) {
+      background: ${({ theme }) => theme.colors.editor.bg3};
+      color: ${({ theme }) => theme.colors.editor.fg};
+    }
+
+    &:focus-visible {
+      outline: 1px solid ${({ theme }) => theme.colors.editor.accent};
+      outline-offset: -3px;
+    }
+
+    &:active .icon { transform: scale(0.85); }
 
     &.active {
       background: ${({ theme }) => theme.colors.editor.bg};
       color: ${({ theme }) => theme.colors.editor.fg};
 
-      &::before {
-        content: "";
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        height: 1px;
-        background: ${({ theme }) => theme.colors.editor.accent};
-      }
+      &::before { transform: scaleX(1); }
     }
 
     .icon {
       color: ${({ theme }) => theme.colors.editor.accent2};
       flex-shrink: 0;
+      transition: transform var(--motion-fast) var(--motion-ease);
     }
 
     .label {
@@ -115,11 +135,17 @@ const StyledWrapper = styled.div`
       color: ${({ theme }) => theme.colors.editor.fg3};
       cursor: pointer;
       flex-shrink: 0;
-      transition: opacity 0.1s, background 0.1s;
+      transition: opacity var(--motion-fast), background var(--motion-fast), transform var(--motion-fast);
 
       &:hover {
         background: rgba(255, 255, 255, 0.1);
         color: ${({ theme }) => theme.colors.editor.fg};
+      }
+
+      &:active { transform: scale(0.85); }
+      &:focus-visible {
+        opacity: 1;
+        outline: 1px solid ${({ theme }) => theme.colors.editor.accent};
       }
     }
 
@@ -135,5 +161,12 @@ const StyledWrapper = styled.div`
     flex: 1;
     border-bottom: 1px solid ${({ theme }) => theme.colors.editor.line};
     min-width: 0;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .tab { animation: none; }
+    .tab::before { transition: none; }
+    .tab:active .icon,
+    .tab .close-btn:active { transform: none; }
   }
 `

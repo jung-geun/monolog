@@ -57,6 +57,10 @@ const PreviewCard = styled.div`
   border-radius: 6px;
   padding: 12px 14px;
   pointer-events: none;
+  transform-origin: top left;
+  animation: monolog-panel-enter 180ms var(--motion-ease);
+
+  @media (prefers-reduced-motion: reduce) { animation: none; }
 
   .preview-title {
     font-size: 12px;
@@ -126,7 +130,7 @@ const PostTreeItem = ({ post, isActive, href }: TreeItemProps) => {
         <span className="file-icon">◧</span>
         <span className="file-name">{post.slug.slice(0, 22)}.md</span>
       </Link>
-      {showPreview && <HoverPreview post={post} anchorRef={ref} />}
+      {showPreview && !isActive && <HoverPreview post={post} anchorRef={ref} />}
     </>
   )
 }
@@ -355,8 +359,7 @@ const StyledWrapper = styled.nav`
   padding: 10px 0;
   flex-shrink: 0;
   margin-left: 0;
-  transition: margin-left 0.18s ease, transform 0.18s ease;
-  will-change: margin-left, transform;
+  transition: margin-left 240ms var(--motion-ease), transform 240ms var(--motion-ease);
 
   scrollbar-width: none;
   &::-webkit-scrollbar { display: none; }
@@ -379,10 +382,19 @@ const StyledWrapper = styled.nav`
     cursor: pointer;
     margin-top: 6px;
     user-select: none;
+    transition: color var(--motion-fast);
+
+    &:focus-visible {
+      outline: 1px solid ${({ theme }) => theme.colors.editor.accent};
+      outline-offset: -2px;
+    }
+
+    &:active .chev { transform: scale(0.8); }
 
     .chev {
       display: inline-block;
       width: 10px;
+      transition: transform var(--motion-fast) var(--motion-ease);
     }
 
     &:hover {
@@ -392,6 +404,10 @@ const StyledWrapper = styled.nav`
 
   .spacer {
     height: 8px;
+  }
+
+  [id^="tree-section-"] {
+    animation: monolog-menu-enter 200ms var(--motion-ease);
   }
 
   .file-item {
@@ -407,6 +423,14 @@ const StyledWrapper = styled.nav`
     overflow: hidden;
     text-decoration: none;
     gap: 6px;
+    transition: background var(--motion-fast), color var(--motion-fast);
+
+    &:focus-visible {
+      outline: 1px solid ${({ theme }) => theme.colors.editor.accent};
+      outline-offset: -2px;
+    }
+
+    &:active .file-icon { transform: scale(0.85); }
 
     &:hover {
       background: ${({ theme }) => theme.colors.editor.bg3};
@@ -432,6 +456,7 @@ const StyledWrapper = styled.nav`
     .file-icon {
       color: ${({ theme }) => theme.colors.editor.accent2};
       flex-shrink: 0;
+      transition: transform var(--motion-fast) var(--motion-ease);
     }
     .file-name {
       overflow: hidden;
@@ -463,5 +488,12 @@ const StyledWrapper = styled.nav`
       transform: translateX(-100%);
       box-shadow: none;
     }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+    [id^="tree-section-"] { animation: none; }
+    .section-header:active .chev,
+    .file-item:active .file-icon { transform: none; }
   }
 `

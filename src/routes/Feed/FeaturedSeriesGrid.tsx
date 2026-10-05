@@ -35,7 +35,7 @@ const FeaturedSeriesGrid = () => {
                   {count} entries{count >= 10 ? " · ongoing" : ""}
                 </p>
               </div>
-              <span className="font-mono text-xs text-mute transition-colors group-hover:text-signal">
+              <span className="font-mono text-xs text-mute motion-safe:transition-[color,translate] duration-150 motion-safe:group-hover:translate-x-1 motion-safe:group-focus-visible:translate-x-1 group-hover:text-signal">
                 →
               </span>
             </Link>

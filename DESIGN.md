@@ -249,7 +249,7 @@ The application clearly separates **App-Shell Chrome** from **Reading Surfaces**
 
 ### 8. `StatusBar` (`src/layouts/RootLayout/EditorChrome/StatusBar.tsx`)
 - **Dimensions**: Fixed bottom chrome bar (`height: 22px`, `font-mono text-[11px]`).
-- **Status Indicator**: Neutral sunken background (`bg3`: `#f2f2f2` / `#252525`) with compact signal blue dot (`background: accent`, box-shadow glow, keyframe pulse animation) and readable foreground status text displaying `ssh pieroot@log · <IP>`.
+- **Status Indicator**: Neutral sunken background (`bg3`: `#f2f2f2` / `#252525`) with compact signal blue dot (`background: accent`, box-shadow glow, one-shot 420ms arrival) and readable foreground status text displaying `ssh pieroot@log · <IP>`. No idle pulse while reading.
 
 - **Breadcrumb Strip**: Route items (`main`, `Reading`, `Markdown`) with active item highlighted in bold.
 
@@ -287,6 +287,16 @@ export const variables = {
 - **Card Hover**: Border changes from `border-hairline` to category hover accent (`hover:border-signal/45`, `hover:border-cs/45`, etc.); background shifts to `hover:bg-card/85`.
 - **Left Strip Hover**: Color transitions from `bg-hairline` to category group hover accent (`group-hover:bg-signal`, `group-hover:bg-cs`, etc.).
 - **Text Hover**: Headings and arrows transition to category group hover text accent (`group-hover:text-signal`, `group-hover:text-cs`, etc.).
+
+### Reading-Friendly Motion
+- **Shared Timing**: `src/styles/globals.css` owns `--motion-fast: 160ms`, `--motion-ease: cubic-bezier(0.22, 1, 0.36, 1)`, and the `monolog-*` keyframes.
+- **Route Entry**: `EditorShell` preserves the chrome and mounted content boundary. A completed top-of-document navigation gets a 320ms, 8px upward reveal; the previous page remains readable while loading. Never delay navigation to finish an exit animation.
+- **Refresh Entry**: Use a 360ms opacity-only reveal from 0.84 to 1, not an invisible first paint or a layout translation. Do not change native scroll restoration.
+- **Navigation Signal**: A 2px sticky boundary with a -2px bottom margin overlaps the content edge beneath the tab bar without adding layout space. Keep the animated line inside an `overflow: hidden` box so WebKit does not need `overflow-clip-margin`. Only pending navigation loops; completion fades it over 420ms, and errors/cancellations clear it.
+- **Micro-Interactions**: New tabs (220ms), menu sections (200ms), command palette (240ms), inactive-post hover previews (180ms), theme icon (280ms), and home-card arrows (4px/150ms). Active-tab underline uses `scaleX`, not width/layout animation. Suppress the active article's hover preview.
+- **Reading Stability**: No per-word reveal, scroll parallax, or idle status-dot animation. Skip document translation for back/forward history traversal, anchor targets, shallow routing, and an already scrolled document. Do not add or override scroll restoration.
+- **Reduced Motion**: Disable decorative entry, menu, icon, shimmer, and skeleton animation under `prefers-reduced-motion: reduce`; use a static pending signal and immediate TOC, back-to-top, and progress updates. Cancel an active Web Animation when the OS preference changes.
+
 
 
 ### Accessibility & Semantics

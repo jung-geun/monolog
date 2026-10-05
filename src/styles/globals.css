@@ -36,3 +36,54 @@
   --font-sans: "Pretendard Variable", Pretendard, "Monolog Sans Supplement", system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
 }
+
+:root {
+  --motion-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --motion-fast: 160ms;
+}
+
+@keyframes monolog-page-reveal {
+  from { opacity: 0.84; }
+  to { opacity: 1; }
+}
+
+@keyframes monolog-route-scan {
+  from { transform: translateX(-110%); }
+  to { transform: translateX(420%); }
+}
+
+@keyframes monolog-route-finish {
+  0% { opacity: 0.8; transform: scaleX(0.32); }
+  65% { opacity: 0.6; transform: scaleX(1); }
+  100% { opacity: 0; transform: scaleX(1); }
+}
+
+@keyframes monolog-tab-enter {
+  from { opacity: 0.6; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes monolog-menu-enter {
+  from { opacity: 0.6; transform: translateX(-4px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes monolog-panel-enter {
+  from { opacity: 0.6; transform: translateY(-8px) scale(0.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes monolog-icon-turn {
+  from { opacity: 0.5; transform: rotate(-35deg) scale(0.85); }
+  to { opacity: 1; transform: rotate(0) scale(1); }
+}
+
+@keyframes monolog-dot-arrive {
+  0% { opacity: 0.5; transform: scale(0.6); }
+  65% { opacity: 1; transform: scale(1.15); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root { --motion-fast: 0ms; }
+}

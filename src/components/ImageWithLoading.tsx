@@ -54,6 +54,10 @@ export default ImageWithLoading
 const StyledWrapper = styled.div`
   position: absolute;
   inset: 0;
+
+  @media (prefers-reduced-motion: reduce) {
+    img { transition: none; }
+  }
 `
 
 const SkeletonOverlay = styled.div`
@@ -68,6 +72,8 @@ const SkeletonOverlay = styled.div`
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;
   z-index: 1;
+
+  @media (prefers-reduced-motion: reduce) { animation: none; }
 
   @keyframes shimmer {
     0% {
