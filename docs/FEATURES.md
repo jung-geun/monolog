@@ -131,7 +131,7 @@ DB 블록 주입은 **createPortal** 기반 — react-notion-x가 그린 자리�
 - 증분 대조: `last_edited_time` overlap 스캔 + 24시간마다 전체 대조(삭제·데이터소스 이동 감지). 같은 분 안의 연속 편집은 분이 지난 뒤 1회 재확인
 - 바뀐 글만 본문을 다시 가져오고, 상세·카테고리·시리즈·컬렉션 등 영향 경로만 ISR 재생성. 메타데이터만 바뀌면 본문 버전(`contentHash`)과 임베딩 유지
 - slug 변경 → 이전 주소 308 리다이렉트, 비공개·삭제 → 이전 alias까지 제거, slug 충돌 → 양쪽 모두 비노출, 예약 발행 → 발행 시각 이후 첫 대조에서 공개
-- 입력: Notion webhook(`/api/notion-webhook`, HMAC 서명 · 이벤트 ID 중복 제거), 15분 주기 `/api/cron/content`, 수동 `/api/revalidate`
+- 입력: Notion webhook(`/api/notion-webhook`, HMAC 서명 · 이벤트 ID 중복 제거), 호스트 cron의 15분 주기 `/api/cron/content`, 수동 `/api/revalidate`. GitHub Actions schedule은 지연·누락 가능한 보조 트리거
 - 실패한 경로·그래프 유지보수·IndexNow·Discord 알림은 영속 outbox에서 재시도. webhook·수동·초기화 요청은 발행만 기다리고 AI 그래프 작업은 cron에서 처리
 
 ---
@@ -183,7 +183,7 @@ DB 블록 주입은 **createPortal** 기반 — react-notion-x가 그린 자리�
 - **`/robots.txt` · `/llms.txt` · `/{slug}.md`** — 공개 글 목록과 같은 레지스트리에서 동적 생성
 - **IndexNow** — 발행·수정·slug 변경·삭제된 URL을 발행 직후 제출 (`INDEXNOW_KEY`, `/<key>.txt`)
 - **검색 서비스 검증** — Google·Naver·Bing 메타 태그를 컨테이너 시작 시 주입
-- 정기 동기화 GitHub Action (`revalidate.yml`) — 15분마다 `/api/cron/content` 호출, 남은 작업이 있으면 실패로 표시
+- 정기 동기화 — 운영 Linux 호스트의 `scripts/reconcile-content-host.sh`를 15분 cron으로 실행. GitHub Action (`revalidate.yml`)은 같은 `/api/cron/content` 호출을 예약하는 보조 수단이며 자동 실행 시각을 보장하지 않음. 남은 작업이 있으면 실패로 표시
 
 ---
 

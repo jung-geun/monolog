@@ -161,7 +161,27 @@ yarn dev
 | `REVALIDATE_URL` | 필수 | 운영 사이트 base URL (예: `https://your-site.com`, 끝 `/` 없음) |
 | `REVALIDATE_SECRET` | 필수 | 컨테이너의 `REVALIDATE_SECRET` 환경변수와 동일 값 |
 
-워크플로우는 15분마다 `POST /api/cron/content`를 호출합니다. 응답이 `200`이 아니면 실패하거나 남은 작업(`pending`)이 있다는 뜻이며, 남은 작업은 저장소에 보존되어 다음 실행에서 이어서 처리됩니다.
+워크플로우는 15분마다 `POST /api/cron/content` 실행을 **예약**합니다. GitHub Actions의 schedule은 지연·누락될 수 있으므로 운영 동기화의 유일한 트리거로 사용하지 않습니다. 응답이 `200`이 아니면 실패하거나 남은 작업(`pending`)이 있다는 뜻이며, 남은 작업은 저장소에 보존되어 다음 실행에서 이어서 처리됩니다.
+
+### 운영 호스트 cron (Linux, 기본 트리거)
+
+운영 호스트에는 15분 cron을 등록하고 GitHub Actions는 보조 트리거로 유지합니다. `scripts/reconcile-content-host.sh`는 신뢰할 수 있는 shell-compatible `/app/monolog/.env`에서 토큰을 읽고 로컬 `POST http://127.0.0.1:3000/api/cron/content`를 호출합니다. 토큰은 curl의 표준 입력으로 전달해 명령행에 노출하지 않습니다. 기존 캐시를 지우거나 실제 Notion 글을 수정하지 않습니다.
+
+기존 작업을 보존하며 배포 계정의 `crontab -e`에 다음 줄을 추가합니다. 호스트의 `cron` 서비스가 실행 중이어야 합니다.
+
+```cron
+*/15 * * * * /bin/bash /app/monolog/scripts/reconcile-content-host.sh 2>&1 | /usr/bin/logger -t monolog-content-sync
+```
+
+스크립트는 사용자 캐시 디렉터리의 `flock`으로 호스트 작업 중첩을 막고 요청을 최대 900초로 제한합니다. GitHub 호출과의 중첩은 콘텐츠 저장소의 lease가 제어합니다. 실패한 콘텐츠 작업은 저장소에 남아 다음 실행에서 이어서 처리됩니다.
+
+```bash
+# 등록 상태와 실제 자동 호출 응답 확인 (토큰 출력 없음)
+crontab -l
+journalctl -t monolog-content-sync --since today --no-pager
+```
+
+등록만으로 자동 갱신이 검증된 것은 아닙니다. 실제 quarter-hour 실행 로그의 `status=completed`, `pending=0`, `failed=0`을 확인하고, 수동 호출 성공과 자동 실행 성공을 구분해 보고합니다.
 
 ---
 
