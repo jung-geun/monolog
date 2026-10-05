@@ -16,4 +16,4 @@ ps:
 	docker compose ps
 
 logs:
-	docker compose logs -f blog redis qdrant
+	docker compose logs -f blog redis content-redis qdrant

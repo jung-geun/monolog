@@ -11,8 +11,7 @@ import { cacheStore, keys } from "src/libs/cache"
 import { buildGraph, nodeCollisionRadiusForDegree } from "src/libs/utils/graph"
 import type { GraphNode, GraphEdge } from "src/libs/utils/graph"
 import type { NotionGraph } from "src/types/notionGraph"
-import { computePostsGraphHash } from "./graphHash"
-import { getPosts } from "./getPosts"
+import { createHash } from "crypto"
 import { getNotionGraph } from "./getNotionGraph"
 
 export type BuiltGraph = {
@@ -77,16 +76,12 @@ export async function getBuiltGraph(options?: {
   bypassCache?: boolean
   notionGraph?: NotionGraph
 }): Promise<BuiltGraph> {
-  const posts = await getPosts()
-  const hash = computePostsGraphHash(posts)
+  const notionGraph = options?.notionGraph ?? await getNotionGraph({ bypassCache: options?.bypassCache })
+  const hash = createHash("sha1").update(JSON.stringify([notionGraph.nodes, notionGraph.edges])).digest("hex").slice(0, 16)
   const key = keys.builtGraph(hash)
-  let builtFromPartial = false
+  const builtFromPartial = notionGraph.partial === true
 
   const build = async (): Promise<BuiltGraph> => {
-    const notionGraph =
-      options?.notionGraph ??
-      (await getNotionGraph(options?.bypassCache ? { bypassCache: true } : undefined))
-    builtFromPartial = notionGraph.partial === true
     const { nodes, edges, cats, catCenters } = buildGraph(notionGraph, W, H)
     runSimulationSync(nodes, edges)
     return { nodes, edges, cats, catCenters, generatedAt: notionGraph.generatedAt }

@@ -1,8 +1,8 @@
 import type { NextApiRequest, NextApiResponse } from "next"
-import { getPosts, getPostBySlug, getRecordMap, getRecordMapDatabases } from "src/apis"
+import { getPosts, getRecordMap, getRecordMapDatabases } from "src/apis"
+import { getSlugRedirect, readContentRecordMap } from "src/libs/content/registry"
 import { renderPostMarkdown } from "src/libs/utils/notion/markdown"
-import { filterPosts } from "src/libs/utils/notion"
-import type { FilterPostsOptions } from "src/libs/utils/notion/filterPosts"
+import { markdownUrl, postUrl, publicDetails } from "src/libs/seo"
 import { CONFIG } from "site.config"
 import { errorLog } from "src/libs/utils/logger"
 
@@ -60,21 +60,20 @@ export default async function handler(
   }
 
   try {
-    const filterOptions: FilterPostsOptions = {
-      acceptStatus: ["Public", "PublicOnDetail"],
-      acceptType: ["Paper", "Post", "Page"],
-    }
-
     const posts = await getPosts()
-    const filteredPosts = filterPosts(posts, filterOptions)
-    let post = filteredPosts.find((p) => p.slug === slug)
+    const filteredPosts = publicDetails(posts)
+    const post = filteredPosts.find((candidate) => candidate.slug === slug)
 
     if (!post) {
-      const fallbackPost = await getPostBySlug(slug)
-      if (fallbackPost) {
-        const filteredFallback = filterPosts([fallbackPost], filterOptions)
-        if (filteredFallback.length > 0) {
-          post = filteredFallback[0]
+      const targetSlug = await getSlugRedirect(slug)
+      if (targetSlug && targetSlug !== slug) {
+        const target = filteredPosts.find((candidate) => candidate.slug === targetSlug)
+        if (target) {
+          return sendResponse(req, res, 308, {
+            "Content-Type": "text/plain; charset=utf-8",
+            "Cache-Control": "no-store",
+            Location: markdownUrl(target.slug),
+          }, "Permanent Redirect\n")
         }
       }
     }
@@ -92,7 +91,8 @@ export default async function handler(
       )
     }
 
-    const recordMap = await getRecordMap(post.id, posts)
+    const recordMap = await readContentRecordMap(post.id)
+      ?? await getRecordMap(post.id, filteredPosts, { lastEditedTime: post.lastEditedTime })
     if (!recordMap) {
       errorLog(`Missing record map for slug: ${slug}`)
       return sendResponse(
@@ -111,15 +111,13 @@ export default async function handler(
     const dbs = await getRecordMapDatabases(recordMap)
     const markdown = renderPostMarkdown(post, recordMap, dbs, {
       siteUrl: CONFIG.link,
-      allPosts: posts,
+      allPosts: filteredPosts,
     })
 
     const safeSlug =
       post.slug.replace(/[^A-Za-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "") ||
       "page"
     const filename = `${safeSlug}.md`
-    const sMax = CONFIG.revalidateTime || 21600
-    const stale = Math.floor(sMax / 6)
 
     return sendResponse(
       req,
@@ -128,8 +126,8 @@ export default async function handler(
       {
         "Content-Type": "text/markdown; charset=utf-8",
         "Content-Disposition": `inline; filename="${filename}"`,
-        "Cache-Control": `public, s-maxage=${sMax}, stale-while-revalidate=${stale}`,
-        Link: `<${CONFIG.link}/${post.slug}>; rel="canonical"`,
+        "Cache-Control": "no-store",
+        Link: `<${postUrl(post.slug)}>; rel="canonical"`,
       },
       markdown
     )

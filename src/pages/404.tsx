@@ -20,9 +20,10 @@ const NotFoundPage: NextPageWithLayout = () => (
   <>
     <MetaConfig
       title={`404 — ${CONFIG.blog.title}`}
-      description="Page not found"
+      description="요청한 페이지를 찾을 수 없습니다."
       type="website"
       url={`${CONFIG.link}/404`}
+      noindex
     />
     <main
       style={{

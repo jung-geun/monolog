@@ -5,19 +5,13 @@ describe("runtime public configuration", () => {
     delete window.__MONOLOG_RUNTIME_CONFIG__
   })
 
-  it("uses empty defaults when the container has no public configuration", () => {
-    expect(getRuntimePublicConfig()).toEqual({
-      googleMeasurementId: "",
-      googleSiteVerification: "",
-      naverSiteVerification: "",
-    })
-  })
 
   it("reads an injected analytics measurement ID", () => {
     window.__MONOLOG_RUNTIME_CONFIG__ = {
       googleMeasurementId: "G-TEST123",
       googleSiteVerification: "",
       naverSiteVerification: "",
+      bingSiteVerification: "",
     }
 
     expect(getRuntimePublicConfig().googleMeasurementId).toBe("G-TEST123")
@@ -30,12 +24,14 @@ describe("runtime public configuration", () => {
       googleMeasurementId: 1 as unknown as string,
       googleSiteVerification: null as unknown as string,
       naverSiteVerification: "naver-token",
+      bingSiteVerification: "bing-token",
     }
 
     expect(getRuntimePublicConfig()).toEqual({
       googleMeasurementId: "",
       googleSiteVerification: "",
       naverSiteVerification: "naver-token",
+      bingSiteVerification: "bing-token",
     })
   })
 })

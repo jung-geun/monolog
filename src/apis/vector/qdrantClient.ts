@@ -1,5 +1,9 @@
 import { QdrantClient } from "@qdrant/js-client-rest"
 import { EMBEDDING_DIMS } from "src/apis/llm/openaiEmbedding"
+import type { TPost } from "src/types"
+import { getPosts } from "src/apis/notion-client/getPosts"
+import { eligibleGraphPosts } from "src/apis/notion-client/graphHash"
+import { z } from "zod"
 
 export function normalizeUUID(id: string): string {
   const clean = id.replace(/-/g, "")
@@ -29,6 +33,18 @@ export type PostPayload = {
   category: string
   tags: string[]
   createdAt: string
+}
+
+const postPayloadSchema = z.object({
+  postId: z.string(), title: z.string(), slug: z.string(), category: z.string(),
+  tags: z.array(z.string()), createdAt: z.string(),
+})
+
+export async function updatePostPayload(post: TPost): Promise<void> {
+  await getQdrantClient().setPayload(COLLECTION, {
+    wait: true, points: [normalizeUUID(post.id)],
+    payload: { postId: post.id, title: post.title, slug: post.slug, category: post.category?.[0] ?? "misc", tags: post.tags ?? [], createdAt: post.createdTime },
+  })
 }
 
 export async function ensureCollection(): Promise<void> {
@@ -69,18 +85,17 @@ export async function searchSimilar(
   topK: number,
   excludeId?: string
 ): Promise<SimilarResult[]> {
+  const posts = eligibleGraphPosts(await getPosts())
+  const eligibleIds = new Set(posts.map((post) => post.id))
+  if (!posts.length) return []
   const client = getQdrantClient()
   const results = await client.search(COLLECTION, {
-    vector,
-    limit: topK + (excludeId ? 1 : 0),
-    with_payload: true,
+    vector, limit: topK + (excludeId ? 1 : 0), with_payload: true,
+    filter: { must: [{ has_id: posts.map((post) => normalizeUUID(post.id)) }] },
   })
-  return results
-    .filter((r) => r.id !== excludeId)
-    .slice(0, topK)
-    .map((r) => ({
-      postId: r.id as string,
-      score: r.score,
-      payload: r.payload as PostPayload,
-    }))
+  return results.flatMap((result) => {
+    const parsed = postPayloadSchema.safeParse(result.payload)
+    if (result.id === excludeId || !parsed.success || !eligibleIds.has(parsed.data.postId)) return []
+    return [{ postId: parsed.data.postId, score: result.score, payload: parsed.data }]
+  }).slice(0, topK)
 }

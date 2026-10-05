@@ -38,6 +38,7 @@ describe("GoogleAnalytics runtime configuration", () => {
       googleMeasurementId: "G-TEST123",
       googleSiteVerification: "",
       naverSiteVerification: "",
+      bingSiteVerification: "",
     }
 
     act(() => root.render(<GoogleAnalytics />))

@@ -5,13 +5,12 @@ import { CONFIG } from "site.config"
 import SeriesList from "src/routes/SeriesList"
 import { getPosts } from "src/apis/notion-client/getPosts"
 import { createServerQueryClient } from "src/libs/react-query"
-import { assertFeedNotEmpty, prefetchFeedPosts } from "src/libs/react-query/prefetchFeedPosts"
+import { prefetchFeedPosts } from "src/libs/react-query/prefetchFeedPosts"
 import { dehydrate } from "@tanstack/react-query"
 
 export const getStaticProps: GetStaticProps = async () => {
   const queryClient = createServerQueryClient()
-  const posts = await prefetchFeedPosts(queryClient, await getPosts())
-  assertFeedNotEmpty(posts)
+  await prefetchFeedPosts(queryClient, await getPosts())
 
   return {
     props: {
@@ -24,8 +23,8 @@ export const getStaticProps: GetStaticProps = async () => {
 const SeriesIndexPage: NextPageWithLayout = () => (
   <>
     <MetaConfig
-      title={`Series — ${CONFIG.blog.title}`}
-      description={`All series on ${CONFIG.blog.title}`}
+      title={`연재 목록 — ${CONFIG.blog.title}`}
+      description={`${CONFIG.blog.title}의 주제별 연재를 모았습니다. 시리즈를 선택해 연결된 글을 순서대로 읽어보세요.`}
       type="website"
       url={`${CONFIG.link}/series`}
     />

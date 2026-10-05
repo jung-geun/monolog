@@ -3,7 +3,6 @@ import Link from "next/link"
 import styled from "@emotion/styled"
 import { ExtendedRecordMap } from "notion-types"
 import { uuidToId } from "notion-utils"
-import { unwrapBlock } from "src/libs/utils/notion/unwrapBlock"
 import { getNotionRichTextPlainText } from "src/libs/utils/notion/richText"
 import usePostsQuery from "src/hooks/usePostsQuery"
 import useSimilarPostsQuery from "src/hooks/useSimilarPostsQuery"
@@ -11,6 +10,7 @@ import { TPost } from "src/types"
 import PostEgoGraph from "./PostEgoGraph"
 import AdSlot from "src/components/AdSlot"
 import { CONFIG } from "site.config"
+import { getArticleHeadings } from "../components/NotionRenderer/headings"
 
 type TocEntry = { id: string; text: string; level: number }
 
@@ -20,24 +20,10 @@ type Props = {
 }
 
 export const extractToc = (recordMap: ExtendedRecordMap | null): TocEntry[] => {
-  if (!recordMap) return []
-  const toc: TocEntry[] = []
-  for (const [id, boxed] of Object.entries(recordMap.block)) {
-    const block = unwrapBlock(boxed)
-    if (!block) continue
-    const type = block.type
-    if (type === "header" || type === "sub_header" || type === "sub_sub_header") {
-      const text = getNotionRichTextPlainText(block.properties?.title)
-      if (text) {
-        toc.push({
-          id: uuidToId(id),
-          text,
-          level: type === "header" ? 1 : type === "sub_header" ? 2 : 3,
-        })
-      }
-    }
-  }
-  return toc
+  return getArticleHeadings(recordMap).flatMap(({ block, level }) => {
+    const text = getNotionRichTextPlainText(block.properties?.title)
+    return text ? [{ id: uuidToId(block.id), text, level: level - 1 }] : []
+  })
 }
 
 const RightRail = ({ recordMap, post }: Props) => {
@@ -205,6 +191,7 @@ const StyledWrapper = styled.aside`
     }
     &.level-2 { padding-left: 20px; }
     &.level-3 { padding-left: 30px; }
+    &.level-4 { padding-left: 40px; }
   }
 
   .series-title-link {

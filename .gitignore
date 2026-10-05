@@ -46,3 +46,6 @@ tsconfig.tsbuildinfo
 .gstack/
 /docker-compose.override.yml
 /package-lock.json
+
+# Local durable content registry (CONTENT_STATE_DIR)
+/.content-state/

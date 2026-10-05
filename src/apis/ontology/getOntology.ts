@@ -1,15 +1,17 @@
 import { createHash } from "crypto"
 import { getPosts } from "src/apis/notion-client/getPosts"
 import { cacheStore, keys } from "src/libs/cache"
-import { buildOntology } from "./buildOntology"
 import { extractPostOntology } from "./extractPostOntology"
 import { extractRelations } from "./extractRelations"
-import { searchSimilar, normalizeUUID, deletePoint } from "src/apis/vector/qdrantClient"
-import { Ontology, OntologyState, PostOntology, Entity } from "src/types/ontology"
+import { searchSimilar, normalizeUUID, deletePoint, updatePostPayload } from "src/apis/vector/qdrantClient"
 import { TPost } from "src/types"
+import type { Ontology, OntologyState, PostOntology, Entity } from "src/types/ontology"
 import { debugLog, warnLog } from "src/libs/utils/logger"
+import { eligibleGraphPosts, postContentVersion } from "src/apis/notion-client/graphHash"
+import type { SimilarResult } from "src/apis/vector/qdrantClient"
 
-const ONTOLOGY_STATE_TTL_MS = 30 * 24 * 60 * 60 * 1000
+// The incremental index must never expire in a quiet blog; expiry would force a full LLM rebuild.
+const ONTOLOGY_STATE_TTL_MS = 0
 const SIMILARITY_THRESHOLD = 0.85
 const TOP_K = 8
 
@@ -42,9 +44,9 @@ function computeDiff(
   const added: TPost[] = []
   const modified: TPost[] = []
   for (const post of posts) {
-    const lastEdited = post.lastEditedTime ?? post.createdTime
+    const lastEdited = postContentVersion(post)
     if (!(post.id in index)) added.push(post)
-    else if (index[post.id] !== lastEdited) modified.push(post)
+    else if (index[post.id] !== lastEdited && !(post.contentHash && index[post.id] === post.lastEditedTime)) modified.push(post)
   }
   return { added, modified, removed }
 }
@@ -87,9 +89,9 @@ async function addPostToState(
   state: OntologyState,
   post: TPost,
   postMap: Map<string, TPost>,
-  opts: { bypassCache?: boolean }
+  opts: OntologyRefreshOptions
 ): Promise<void> {
-  const lastEdited = post.lastEditedTime ?? post.createdTime
+  const lastEdited = postContentVersion(post)
 
   // entity 추출 + 임베딩 + Qdrant upsert (캐시 히트면 LLM 스킵)
   const ont = await extractPostOntology(post, opts)
@@ -99,11 +101,12 @@ async function addPostToState(
   const candidates: TPost[] = []
 
   if (vector) {
-    let similar: Awaited<ReturnType<typeof searchSimilar>> = []
+    let similar: SimilarResult[] = []
     try {
       similar = await searchSimilar(vector, TOP_K, normalizeUUID(post.id))
     } catch (err) {
       warnLog(`[addPostToState] Qdrant search failed for "${post.slug}":`, err)
+      throw err
     }
 
     for (const result of similar) {
@@ -135,7 +138,7 @@ async function addPostToState(
   if (candidates.length > 0) {
     const summaries = new Map<string, string>([[post.id, ont.summary]])
     for (const candidate of candidates) {
-      const cLastEdited = candidate.lastEditedTime ?? candidate.createdTime
+      const cLastEdited = postContentVersion(candidate)
       const cached = await cacheStore.get<PostOntology>(keys.postOntology(candidate.id, cLastEdited))
       if (cached) summaries.set(candidate.id, cached.summary)
     }
@@ -150,19 +153,16 @@ async function addPostToState(
       }
     } catch (err) {
       warnLog(`[addPostToState] extractRelations fwd failed for "${post.slug}":`, err)
+      throw err
     }
 
     // candidates → post 방향 (역방향 관계 포착)
     for (const candidate of candidates) {
-      try {
-        const revEdges = await extractRelations(candidate, [post], summaries, opts)
-        for (const edge of revEdges) {
-          if (!state.edges.some((e) => e.source === edge.source && e.target === edge.target && e.kind === edge.kind)) {
-            state.edges.push(edge)
-          }
+      const revEdges = await extractRelations(candidate, [post], summaries, opts)
+      for (const edge of revEdges) {
+        if (!state.edges.some((e) => e.source === edge.source && e.target === edge.target && e.kind === edge.kind)) {
+          state.edges.push(edge)
         }
-      } catch (err) {
-        warnLog(`[addPostToState] extractRelations rev failed for "${candidate.slug}":`, err)
       }
     }
   }
@@ -175,74 +175,91 @@ async function addPostToState(
 }
 
 export async function getOntology(_opts?: { bypassCache?: boolean }): Promise<Ontology | null> {
-  const state = await cacheStore.get<OntologyState>(keys.ontologyState)
-  if (!state) return null
+  const cached = await cacheStore.getShared<OntologyState>(keys.ontologyState)
+  if (!cached) return null
+  const state = structuredClone(cached)
+  const ids = new Set(eligibleGraphPosts(await getPosts()).map((post) => post.id))
+  for (const id of Object.keys(state.index)) if (!ids.has(id)) removePostFromState(state, id)
   return toOntology(state)
 }
 
-export async function getOrBuildOntology(
-  opts: { bypassCache?: boolean } = {}
-): Promise<{ ontology: Ontology; stats: BuildStats }> {
-  const posts = await getPosts()
-  const postMap = new Map<string, TPost>(posts.map((p) => [p.id, p]))
+export type OntologyRefreshOptions = {
+  bypassCache?: boolean
+  posts?: TPost[]
+  removedIds?: string[]
+  changedIds?: string[]
+}
+type OntologyBuildResult = { ontology: Ontology; stats: BuildStats }
+let ontologyQueue: Promise<void> = Promise.resolve()
 
-  if (opts.bypassCache) {
-    const ontology = await buildOntology({ bypassCache: true })
-    const newState: OntologyState = {
-      ...ontology,
-      index: Object.fromEntries(posts.map((p) => [p.id, p.lastEditedTime ?? p.createdTime])),
-    }
-    await cacheStore.set(keys.ontologyState, newState, ONTOLOGY_STATE_TTL_MS)
-    const stateJson = JSON.stringify(newState)
-    return {
-      ontology,
-      stats: {
-        added: posts.length,
-        modified: 0,
-        removed: 0,
-        stateSizeBytes: Buffer.byteLength(stateJson, "utf8"),
-      },
-    }
-  }
+export function getOrBuildOntology(opts: OntologyRefreshOptions = {}): Promise<OntologyBuildResult> {
+  const work = ontologyQueue.then(() => refreshOntology(opts))
+  ontologyQueue = work.then(() => undefined, () => undefined)
+  return work
+}
 
-  const state = (await cacheStore.get<OntologyState>(keys.ontologyState)) ?? emptyState()
+async function refreshOntology(opts: OntologyRefreshOptions): Promise<OntologyBuildResult> {
+  const posts = eligibleGraphPosts(opts.posts ?? await getPosts())
+  const postMap = new Map(posts.map((post) => [post.id, post]))
+  let state = structuredClone(await cacheStore.getShared<OntologyState>(keys.ontologyState) ?? emptyState())
   const diff = computeDiff(state.index, posts)
-
-  debugLog(`[getOrBuildOntology] diff: +${diff.added.length} ~${diff.modified.length} -${diff.removed.length}`)
-
-  // 수정/삭제된 페이지를 먼저 그래프에서 제거
-  for (const postId of [...diff.removed, ...diff.modified.map((p) => p.id)]) {
-    removePostFromState(state, postId)
-    try {
-      await deletePoint(postId)
-    } catch (err) {
-      warnLog(`[getOrBuildOntology] deletePoint failed for ${postId}:`, err)
-    }
-  }
-
-  // 추가/수정된 페이지를 순차 처리 (각 처리 후 state.index 갱신 → 다음 페이지에서 후보로 연결 가능)
-  for (const post of [...diff.added, ...diff.modified]) {
-    try {
-      await addPostToState(state, post, postMap, opts)
-    } catch (err) {
-      warnLog(`[getOrBuildOntology] addPostToState failed for "${post.slug}":`, err)
-    }
-  }
-
-  state.generatedAt = new Date().toISOString()
-  await cacheStore.set(keys.ontologyState, state, ONTOLOGY_STATE_TTL_MS)
-
-  const stateJson = JSON.stringify(state)
+  // Explicit bypass is the manual rebuild command only. Ordinary maintenance never resets this index.
+  if (opts.bypassCache) diff.modified = posts.filter((post) => post.id in state.index)
+  const removals = [...new Set([...diff.removed, ...(opts.removedIds ?? []).filter((id) => !postMap.has(id))])]
+  const semanticIds = new Set([...diff.added, ...diff.modified].map((post) => post.id))
+  // Bind an existing timestamp checkpoint to the first body hash without
+  // rebuilding its entities or embeddings. Different timestamps still update.
+  const checkpointIds = posts.filter(post => post.contentHash && state.index[post.id] === post.lastEditedTime).map(post => post.id)
+  const metadataPosts = [...new Set([...(opts.changedIds ?? []), ...checkpointIds])].flatMap((id) => {
+    const post = postMap.get(id)
+    return post && !semanticIds.has(id) && id in state.index ? [post] : []
+  })
   const stats: BuildStats = {
-    added: diff.added.length,
-    modified: diff.modified.length,
-    removed: diff.removed.length,
-    stateSizeBytes: Buffer.byteLength(stateJson, "utf8"),
+    added: diff.added.length, modified: diff.modified.length, removed: removals.length,
+    stateSizeBytes: Buffer.byteLength(JSON.stringify(state), "utf8"),
   }
+  if (!semanticIds.size && !removals.length && !metadataPosts.length) return { ontology: toOntology(state), stats }
 
-  debugLog(
-    `[getOrBuildOntology] done: ${state.entities.length} entities, ${state.edges.length} edges, ${stats.stateSizeBytes} bytes`
-  )
-
+  // One failing item must not block the rest; failures are aggregated so the run still retries.
+  const failures: unknown[] = []
+  // Delete vectors before pruning the index: an id whose delete failed stays indexed, so the next
+  // diff retries it. Reads already hide it through the eligibility filter.
+  const deletedIds = new Set<string>()
+  for (const id of removals) {
+    try {
+      await deletePoint(id)
+      deletedIds.add(id)
+    } catch (err) {
+      failures.push(err)
+    }
+  }
+  const pruned = [...diff.removed.filter((id) => deletedIds.has(id)), ...diff.modified.map((post) => post.id)]
+  for (const id of pruned) removePostFromState(state, id)
+  // Persist metadata-safe pruning before any expensive extraction.
+  if (pruned.length) await cacheStore.setShared(keys.ontologyState, state, ONTOLOGY_STATE_TTL_MS)
+  for (const post of metadataPosts) {
+    try {
+      await updatePostPayload(post)
+      state.index[post.id] = postContentVersion(post)
+      await cacheStore.setShared(keys.ontologyState, state, ONTOLOGY_STATE_TTL_MS)
+    } catch (error) { failures.push(error) }
+  }
+  for (const post of [...diff.added, ...diff.modified]) {
+    const next = structuredClone(state)
+    try {
+      await addPostToState(next, post, postMap, opts)
+    } catch (err) {
+      warnLog(`[getOrBuildOntology] extraction failed for "${post.slug}":`, err)
+      failures.push(err)
+      continue
+    }
+    state = next
+    state.generatedAt = new Date().toISOString()
+    // Each committed post survives a later upstream failure and will not be reprocessed on retry.
+    await cacheStore.setShared(keys.ontologyState, state, ONTOLOGY_STATE_TTL_MS)
+  }
+  if (failures.length) throw new AggregateError(failures, `Ontology maintenance failed for ${failures.length} item(s)`)
+  stats.stateSizeBytes = Buffer.byteLength(JSON.stringify(state), "utf8")
+  debugLog(`[getOrBuildOntology] diff: +${stats.added} ~${stats.modified} -${stats.removed}`)
   return { ontology: toOntology(state), stats }
 }

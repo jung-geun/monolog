@@ -14,9 +14,9 @@ let sharedClient: Redis | null = null
 function getSharedClient(url: string): Redis {
   if (sharedClient) return sharedClient
   sharedClient = new Redis(url, {
-    lazyConnect: true,
+    lazyConnect: false,
     maxRetriesPerRequest: 2,
-    enableOfflineQueue: false,
+    enableOfflineQueue: true,
   })
   sharedClient.on("error", (err: Error) =>
     debugLog(`[redis] error: ${err.message}`)
@@ -37,11 +37,21 @@ export class RedisBackend implements CacheBackend {
     return `${this.prefix}${key}`
   }
 
+  async getStrict<T>(key: string): Promise<T | null> {
+    const raw = await this.redis.get(this.k(key))
+    return raw === null ? null : decodeEnvelope<T>(raw)
+  }
+
+  async setStrict<T>(key: string, data: T, ttlMs: number): Promise<void> {
+    const payload = encodeEnvelope(data)
+    if (payload.length > SIZE_LIMIT_BYTES) throw new Error("Shared state exceeds the Redis value size limit")
+    if (ttlMs === 0) await this.redis.set(this.k(key), payload)
+    else await this.redis.set(this.k(key), payload, "PX", ttlMs)
+  }
+
   async get<T>(key: string): Promise<T | null> {
     try {
-      const raw = await this.redis.get(this.k(key))
-      if (raw == null) return null
-      return decodeEnvelope<T>(raw)
+      return await this.getStrict<T>(key)
     } catch (err: any) {
       debugLog(`[redis] get error: ${err.message}`)
       return null
@@ -57,7 +67,8 @@ export class RedisBackend implements CacheBackend {
         )
         return
       }
-      await this.redis.set(this.k(key), payload, "PX", ttlMs)
+      if (ttlMs === 0) await this.redis.set(this.k(key), payload)
+      else await this.redis.set(this.k(key), payload, "PX", ttlMs)
     } catch (err: any) {
       debugLog(`[redis] set error: ${err.message}`)
     }
@@ -68,29 +79,6 @@ export class RedisBackend implements CacheBackend {
       await this.redis.del(this.k(key))
     } catch (err: any) {
       debugLog(`[redis] delete error: ${err.message}`)
-    }
-  }
-
-  async clear(prefix?: string): Promise<void> {
-    try {
-      // SCAN is non-blocking unlike KEYS — safe for production Redis
-      const pattern = this.k(prefix ?? "") + "*"
-      let cursor = "0"
-      do {
-        const [next, keys] = await this.redis.scan(
-          cursor,
-          "MATCH",
-          pattern,
-          "COUNT",
-          100
-        )
-        cursor = next
-        if (keys.length > 0) {
-          await this.redis.del(...keys)
-        }
-      } while (cursor !== "0")
-    } catch (err: any) {
-      debugLog(`[redis] clear error: ${err.message}`)
     }
   }
 }

@@ -19,6 +19,11 @@ import {
   rewriteRecordMapInternalLinks,
 } from "src/libs/utils/notion/rewriteInternalLinks"
 import usePostsQuery from "src/hooks/usePostsQuery"
+import { NotionRenderer as CoreNotionRenderer } from "react-notion-x"
+import { Code as RawCode } from "react-notion-x/build/third-party/code"
+import { Equation } from "./Equation"
+import type { ComponentProps } from "react"
+import { normalizeArticleHeadings } from "./headings"
 
 // core styles shared by all of react-notion-x (required)
 import "react-notion-x/src/styles.css"
@@ -41,21 +46,13 @@ declare global {
   }
 }
 
-const _NotionRenderer = dynamic(
-  () => import("react-notion-x").then((m) => m.NotionRenderer),
-  { ssr: false }
-)
-
-const RawCode = dynamic(() =>
-  import("react-notion-x/build/third-party/code").then(async (m) => m.Code)
-)
+// Keep the article core, code text and KaTeX output synchronous on server and
+// client; only browser-dependent media/modal widgets below are client-only.
 
 // Wrap Code with a localized error boundary so a single block crash does not
 // collapse the entire page. Falls back to a plain <pre> with the raw text.
-const Code: FC<any> = (props) => {
-  const block = props?.block
-  const title: string =
-    block?.properties?.title?.map((t: any[]) => t?.[0] ?? "").join("") ?? ""
+const Code: FC<ComponentProps<typeof RawCode>> = (props) => {
+  const title = props.block.properties?.title?.map((segment) => segment[0]).join("") ?? ""
   return (
     <SafeBlock
       name="Code"
@@ -81,17 +78,17 @@ const Code: FC<any> = (props) => {
 // react-notion-x 의 components.Collection 슬롯을 우리 DB 렌더러로 교체.
 // react-notion-x 가 본인 트리 안에서 직접 렌더하므로, portal 기반 sibling 인젝션이
 // 야기하던 insertBefore/removeChild race 가 원천 차단된다.
-const Collection: FC<any> = (props) => {
-  const block = props?.block
-  if (!block?.id) return null
-  const databaseId: string = (block.format as any)?.database_id || block.id
-  const title: string =
-    block.properties?.title?.map((t: any[]) => t?.[0] ?? "").join("") || "데이터베이스"
+const Collection: FC<{ block: Block }> = ({ block }) => {
+  const format = block.format
+  const databaseId = format && "database_id" in format && typeof format.database_id === "string"
+    ? format.database_id
+    : block.id
+  const properties = block.properties
+  const title = properties && "title" in properties && Array.isArray(properties.title)
+    ? properties.title.map((segment: unknown) => Array.isArray(segment) && typeof segment[0] === "string" ? segment[0] : "").join("")
+    : "데이터베이스"
   return <DatabaseBlockRenderer databaseId={databaseId} title={title} />
 }
-const Equation = dynamic(() =>
-  import("react-notion-x/build/third-party/equation").then((m) => m.Equation)
-)
 const Pdf = dynamic(
   () => import("react-notion-x/build/third-party/pdf").then((m) => m.Pdf),
   {
@@ -100,20 +97,6 @@ const Pdf = dynamic(
 )
 const Modal = dynamic(
   () => import("react-notion-x/build/third-party/modal").then((m) => m.Modal),
-  {
-    ssr: false,
-  }
-)
-
-const Video = dynamic(
-  () => import("./Video").then((m) => m.Video),
-  {
-    ssr: false,
-  }
-)
-
-const Audio = dynamic(
-  () => import("./Audio").then((m) => m.Audio),
   {
     ssr: false,
   }
@@ -136,17 +119,18 @@ function normalizeForCollection(rm: ExtendedRecordMap | null): ExtendedRecordMap
   if (!rm) return null
   let changed = false
   const newBlock: ExtendedRecordMap["block"] = {}
+  const rootId = Object.keys(rm.block)[0]
 
   for (const [id, boxed] of Object.entries(rm.block)) {
     if (!boxed) { newBlock[id] = boxed; continue }
     const block = unwrapBlock(boxed)
-    if (block?.type === "collection_view_page") {
+    if (block?.type === "collection_view_page" && id !== rootId) {
       changed = true
-      const v = boxed.value as any
-      const newValue = v && "value" in v && "role" in v
-        ? { ...v, value: { ...v.value, type: "collection_view" } }
-        : { ...v, type: "collection_view" }
-      newBlock[id] = { ...boxed, value: newValue }
+      const value = boxed.value
+      const normalized: Block = { ...block, type: "collection_view", properties: { source: [], ...block.properties }, format: undefined }
+      newBlock[id] = "value" in value && "role" in value
+        ? { ...boxed, value: { ...value, value: normalized } }
+        : { ...boxed, value: normalized }
     } else {
       newBlock[id] = boxed
     }
@@ -177,7 +161,7 @@ const NotionRenderer: FC<Props> = ({ recordMap }) => {
     [recordMap, idToSlug]
   )
   const renderedRecordMap = useMemo(
-    () => normalizeForCollection(internalRecordMap),
+    () => normalizeArticleHeadings(normalizeForCollection(internalRecordMap)),
     [internalRecordMap]
   )
 
@@ -199,10 +183,7 @@ const NotionRenderer: FC<Props> = ({ recordMap }) => {
   // EditorChrome tab. Intercept on the capture phase so we beat any default
   // navigation, and route internal hrefs through the SPA.
   //
-  // Listener is attached to `document` (not `.notion-page`) because the inner
-  // renderer is `dynamic({ ssr: false })` — at the first effect run the
-  // `.notion-page` container has not mounted yet, so a scoped listener races
-  // with hydration and misses clicks until the next recordMap change.
+  // Capture also covers links inside lazily mounted interactive blocks.
   useEffect(() => {
     if (typeof window === 'undefined') return
 
@@ -221,7 +202,7 @@ const NotionRenderer: FC<Props> = ({ recordMap }) => {
       router.push(href)
     }
     document.addEventListener('click', onClick, { capture: true })
-    return () => document.removeEventListener('click', onClick, { capture: true } as any)
+    return () => document.removeEventListener('click', onClick, { capture: true })
   }, [router])
 
   // Log all blocks in the current page (dev/test only)
@@ -290,9 +271,8 @@ const NotionRenderer: FC<Props> = ({ recordMap }) => {
   // accompanying text — visually it's a 1em circle most readers won't
   // notice. Wrap each one in a pill with the @name pulled from `alt`, so
   // mentions read inline like the Notion source. Idempotent: skips images
-  // already inside a `.notion-user-pill` parent. Observer attaches to body
-  // because `_NotionRenderer` is a `ssr: false` dynamic import — the
-  // .notion-page container is created after this useEffect first fires.
+  // already inside a `.notion-user-pill` parent. Observe body for mentions
+  // added later by browser-only interactive blocks.
   useEffect(() => {
     if (!recordMap || typeof window === "undefined") return
     const enhance = () => {
@@ -689,7 +669,7 @@ const NotionRenderer: FC<Props> = ({ recordMap }) => {
         strategy="lazyOnload"
         onLoad={refreshKatex}
       />
-      <_NotionRenderer
+      <CoreNotionRenderer
         darkMode={scheme === "dark"}
         recordMap={renderedRecordMap ?? recordMap}
         components={{
@@ -698,13 +678,9 @@ const NotionRenderer: FC<Props> = ({ recordMap }) => {
           Equation,
           Modal,
           Pdf,
-          Video,
-          video: Video,
-          Audio,
-          audio: Audio,
           nextImage: Image,
           nextLink: Link,
-        } as any}
+        }}
         mapPageUrl={mapPageUrl}
         mapImageUrl={mapImageUrlWrapper}
       />

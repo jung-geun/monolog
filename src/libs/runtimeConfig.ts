@@ -2,12 +2,14 @@ export type RuntimePublicConfig = {
   googleMeasurementId: string
   googleSiteVerification: string
   naverSiteVerification: string
+  bingSiteVerification: string
 }
 
 const emptyRuntimePublicConfig: RuntimePublicConfig = {
   googleMeasurementId: "",
   googleSiteVerification: "",
   naverSiteVerification: "",
+  bingSiteVerification: "",
 }
 
 export const getRuntimePublicConfig = (): RuntimePublicConfig => {
@@ -26,6 +28,10 @@ export const getRuntimePublicConfig = (): RuntimePublicConfig => {
     naverSiteVerification:
       typeof config.naverSiteVerification === "string"
         ? config.naverSiteVerification
+        : "",
+    bingSiteVerification:
+      typeof config.bingSiteVerification === "string"
+        ? config.bingSiteVerification
         : "",
   }
 }

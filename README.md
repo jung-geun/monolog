@@ -30,7 +30,7 @@ d3-force 시뮬레이션으로 글들이 연결 강도에 따라 자연스럽게
 - **노드 드래그** — 잡으면 따라오고 놓으면 시뮬레이션이 자연스럽게 재배치
 - **줌/팬** — 휠 줌(0.3x~4x) + 빈 영역 드래그 팬 + 모바일 핀치 줌
 - **실시간 force 슬라이더** — repulsion · centering을 슬라이더로 조절. 시뮬레이션을 재생성하지 않고 파라미터만 mutation해 노드 위치 보존
-- **그래프 캐시** — `sha1(sorted pageId:lastEditedTime)` 해시 키. 어떤 페이지든 수정되면 자동 재빌드. `next start` 후 `instrumentation.ts`가 백그라운드로 워밍.
+- **그래프 캐시** — 공개 글의 본문 해시와 메타데이터로 변경을 감지하고, 기존 Qdrant 스냅샷을 재사용합니다. 콘텐츠 동기화의 대기 작업을 `/api/cron/content`가 증분 갱신하며 `yarn warm:graph`로 수동 워밍할 수 있습니다.
 
 ### 안정 Notion 이미지 프록시 + 1GB LRU 디스크 캐시
 S3 presigned URL이 ISR마다 만료돼도 프록시 URL(`?id=<uuid>&kind=s3`)은 고정 — 브라우저 캐시와 `next/Image` 옵티마이저가 정상 동작합니다. 401/403/410 응답 시 URL 자동 재발급, in-flight dedup으로 동일 이미지 중복 페치 차단.
@@ -38,8 +38,8 @@ S3 presigned URL이 ISR마다 만료돼도 프록시 URL(`?id=<uuid>&kind=s3`)�
 ### 자기 데이터 익명 댓글
 외부 SaaS 없이 방문자 댓글을 본인 Notion `comments` DB에 직접 적재합니다. `SHA-256(slug + ipHash + salt)` 앞 4자로 자동 닉네임 생성, honeypot + IP rate limit 스팸 방어, Notion `Status` 필드 하나로 모더레이션.
 
-### Cold start 없는 ISR 워밍
-Docker entrypoint가 `next start` 후 자동으로 `/api/init`을 호출해 포스트 캐시를 미리 채웁니다. 그래프는 `instrumentation.ts`가 별도 워밍. 첫 사용자 요청 때 빈 화면이 없습니다.
+### 증분 콘텐츠 동기화 + Cold start 없는 워밍
+Notion webhook과 15분 주기 대조가 바뀐 글만 다시 가져오고 영향받는 경로만 재생성합니다. 발행본은 내구성 콘텐츠 레지스트리(AOF Redis)에 저장돼 Notion 장애·재시작 중에도 유지되고, slug 변경은 이전 주소에서 308로 이어집니다. Docker entrypoint는 `next start` 후 `/api/init`으로 레지스트리를 준비하고 모든 공개 경로를 워밍합니다.
 
 ---
 
@@ -64,7 +64,7 @@ Docker entrypoint가 `next start` 후 자동으로 `/api/init`을 호출해 포�
 git clone https://github.com/jung-geun/monolog.git
 cd monolog
 yarn install
-cp .env.example .env         # NOTION_TOKEN · NOTION_DATASOURCE_ID 필수
+cp .env.example .env         # NOTION_TOKEN · NOTION_DATASOURCE_ID 필수 (로컬 레지스트리 CONTENT_STATE_DIR 포함)
 yarn dev
 ```
 

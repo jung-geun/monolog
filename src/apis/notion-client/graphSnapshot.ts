@@ -4,9 +4,11 @@ import type { NotionGraph } from "src/types/notionGraph"
 import { warnLog } from "src/libs/utils/logger"
 import { getGraphSnapshot, upsertGraphSnapshot } from "src/apis/vector/qdrantGraphStore"
 import { getBuiltGraph } from "./getBuiltGraph"
-import { computePostsGraphHash } from "./graphHash"
+import { computePostsGraphHash, eligibleGraphPosts } from "./graphHash"
 import { getNotionGraph } from "./getNotionGraph"
 import { getPosts } from "./getPosts"
+import { buildPropertyEdges } from "./buildNotionGraph"
+import { CONFIG } from "site.config"
 
 export type GraphSnapshotRefreshInput = {
   posts?: TPosts
@@ -30,29 +32,54 @@ export type GraphSnapshotReadResult = {
 
 let staleSnapshotRefresh: Promise<void> | null = null
 
+export function pruneNotionGraph(graph: NotionGraph, posts: TPosts): NotionGraph {
+  const postMap = new Map(eligibleGraphPosts(posts).map((post) => [post.id, post]))
+  const postNodes = graph.nodes.flatMap((node) => {
+    if (node.kind !== "post") return []
+    const post = postMap.get(node.id)
+    return post ? [{ ...node, title: post.title, slug: post.slug, category: post.category?.[0] ?? "misc", tags: post.tags ?? [], url: `${CONFIG.link}/${post.slug}`, createdAt: post.createdTime }] : []
+  })
+  const retainedIds = new Set(postNodes.map((node) => node.id))
+  const { hubNodes, propertyEdges } = buildPropertyEdges([...postMap.values()].filter((post) => retainedIds.has(post.id)))
+  return { ...graph, nodes: [...postNodes, ...hubNodes], edges: [
+    ...graph.edges.filter((edge) => retainedIds.has(edge.source) && retainedIds.has(edge.target)),
+    ...propertyEdges,
+  ] }
+}
+
+// Metadata-only removal; never fetches blocks or invokes AI. Keep the old hash so additions/edits still refresh.
+export async function pruneGraphSnapshotInQdrant(posts: TPosts): Promise<void> {
+  const snapshot = await getGraphSnapshot()
+  if (!snapshot) return
+  const notionGraph = pruneNotionGraph(snapshot.notionGraph, posts)
+  if (JSON.stringify(notionGraph) === JSON.stringify(snapshot.notionGraph)) return
+  const builtGraph = await getBuiltGraph({ notionGraph })
+  await upsertGraphSnapshot(snapshot.graphHash, notionGraph, builtGraph)
+}
+
 export async function readGraphSnapshotFromQdrant(
   posts?: TPosts
 ): Promise<GraphSnapshotReadResult | null> {
-  const currentPosts = posts ?? (await getPosts())
+  const currentPosts = eligibleGraphPosts(posts ?? await getPosts())
   const graphHash = computePostsGraphHash(currentPosts)
   const snapshot = await getGraphSnapshot()
   if (!snapshot) return null
-
+  const isStale = snapshot.graphHash !== graphHash
+  const safeGraph = pruneNotionGraph(snapshot.notionGraph, currentPosts)
   return {
-    builtGraph: snapshot.builtGraph,
-    isStale: snapshot.graphHash !== graphHash,
+    builtGraph: isStale ? await getBuiltGraph({ notionGraph: safeGraph }) : snapshot.builtGraph,
+    isStale,
   }
 }
 
 export async function refreshGraphSnapshotInQdrant(
   input: GraphSnapshotRefreshInput = {}
 ): Promise<GraphSnapshotRefreshResult> {
-  const posts =
-    input.posts ?? (await getPosts(input.bypassCache ? { bypassCache: true } : undefined))
+  const posts = eligibleGraphPosts(input.posts ?? await getPosts(input.bypassCache ? { bypassCache: true } : undefined))
   const graphHash = computePostsGraphHash(posts)
   const notionGraph =
     input.notionGraph ??
-    (await getNotionGraph(input.bypassCache ? { bypassCache: true } : undefined))
+    (await getNotionGraph({ posts, bypassCache: input.bypassCache }))
   const builtGraph =
     input.builtGraph ??
     (await getBuiltGraph({ bypassCache: input.bypassCache, notionGraph }))

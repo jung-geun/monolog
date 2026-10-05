@@ -10,12 +10,10 @@ import GitHubContributions from "./components/GitHubContributions"
 import ContactBlock from "./components/ContactBlock"
 import StackGrid from "./components/StackGrid"
 
-const aboutSlug = (CONFIG as any).aboutSlug as string | undefined
-
 const PageDetail: React.FC = () => {
   const data = usePostQuery()
 
-  const isAbout = Boolean(aboutSlug) && data?.slug === aboutSlug
+  const isAbout = Boolean(CONFIG.aboutSlug) && data?.slug === CONFIG.aboutSlug
   const filename = isAbout ? "about.md" : `${data?.slug ?? "page"}.md`
   const statusItems = useMemo(
     () => ["main", filename, "Markdown"],
@@ -31,6 +29,7 @@ const PageDetail: React.FC = () => {
         <div className="content-grid">
           <LineNumberGutter count={80} />
           <div className="body">
+            <h1 className="page-title">{data.title}</h1>
             {isAbout && (
               <>
                 {/* YAML frontmatter */}
@@ -100,5 +99,15 @@ const StyledWrapper = styled.div`
     @media (max-width: ${({ theme }) => theme.variables.breakpoint}px) {
       padding: 24px 20px 60px;
     }
+  }
+
+  .page-title {
+    font-family: var(--font-sans, "Pretendard Variable", Pretendard, system-ui, sans-serif);
+    font-size: clamp(28px, 3.5vw, 40px);
+    font-weight: 700;
+    margin: 0 0 28px;
+    color: var(--color-strong, rgb(var(--c-strong)));
+    line-height: 1.25;
+    letter-spacing: -0.03em;
   }
 `

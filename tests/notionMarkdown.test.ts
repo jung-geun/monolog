@@ -88,7 +88,7 @@ describe("renderPostMarkdown", () => {
       "---",
       'title: "Test Post Title"',
       'description: "This is a summary paragraph."',
-      'date: "2026-08-11"',
+      'date: "2026-08-11T00:00:00.000Z"',
       'last_modified: "2026-08-11T12:00:00.000Z"',
       'type: "Post"',
       "tags:",
@@ -175,6 +175,46 @@ describe("renderPostMarkdown", () => {
     expect(markdown).toContain("## Header 2")
     expect(markdown).toContain("### Header 3")
     expect(markdown).toContain("#### Header 4")
+  })
+
+  it("promotes the highest used heading to ## and never skips a level", () => {
+    const recordMap = makeRecordMap({
+      "root-post-id": {
+        id: "root-post-id",
+        type: "page",
+        content: ["lead-id", "top-id", "deep-id"],
+      },
+      "lead-id": { id: "lead-id", type: "header_4", properties: { title: [["Lead"]] } },
+      "top-id": { id: "top-id", type: "sub_header", properties: { title: [["Top"]] } },
+      "deep-id": { id: "deep-id", type: "header_4", properties: { title: [["Deep"]] } },
+    })
+
+    const markdown = renderPostMarkdown(basePost, recordMap, new Map(), {
+      siteUrl: "https://example.com",
+      allPosts,
+    })
+
+    expect(markdown).toContain("## Lead\n\n## Top\n\n### Deep")
+  })
+
+  it("derives description from the first prose block when Summary is empty", () => {
+    const recordMap = makeRecordMap({
+      "root-post-id": {
+        id: "root-post-id",
+        type: "page",
+        content: ["heading-id", "code-id", "prose-id"],
+      },
+      "heading-id": { id: "heading-id", type: "header", properties: { title: [["Not this"]] } },
+      "code-id": { id: "code-id", type: "code", properties: { title: [["const no = 1"]] } },
+      "prose-id": { id: "prose-id", type: "text", properties: { title: [["First real ‣ sentence."]] } },
+    })
+
+    const markdown = renderPostMarkdown({ ...basePost, summary: " " }, recordMap, new Map(), {
+      siteUrl: "https://example.com",
+      allPosts,
+    })
+
+    expect(markdown).toContain('description: "First real sentence."')
   })
 
   it("renders combined bold, italic, link, inline code, and equation decorations", () => {

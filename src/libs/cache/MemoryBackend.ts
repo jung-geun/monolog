@@ -20,20 +20,10 @@ export class MemoryBackend implements CacheBackend {
       const oldest = this.store.keys().next().value
       if (oldest) this.store.delete(oldest)
     }
-    this.store.set(key, { data, expiry: Date.now() + ttlMs })
+    this.store.set(key, { data, expiry: ttlMs === 0 ? Infinity : Date.now() + ttlMs })
   }
 
   async delete(key: string): Promise<void> {
     this.store.delete(key)
-  }
-
-  async clear(prefix?: string): Promise<void> {
-    if (!prefix) {
-      this.store.clear()
-      return
-    }
-    for (const k of this.store.keys()) {
-      if (k.startsWith(prefix)) this.store.delete(k)
-    }
   }
 }

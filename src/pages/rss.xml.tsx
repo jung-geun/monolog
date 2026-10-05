@@ -1,73 +1,62 @@
 import type { GetServerSideProps } from "next"
-import { getPosts } from "../apis/notion-client/getPosts"
+import { getPosts } from "src/apis/notion-client/getPosts"
 import { CONFIG } from "site.config"
-import type { TPost } from "../types"
+import { filterPosts } from "src/libs/utils/notion/filterPosts"
+import { absoluteUrl, escapeXml, modifiedDate, postUrl, publishedDate, summaryText } from "src/libs/seo"
+import { errorLog } from "src/libs/utils/logger"
 
-const escape = (s: string) =>
-  s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&apos;")
-
-function toRfc822(raw: string): string {
-  const d = new Date(raw)
-  if (isNaN(d.getTime())) return new Date().toUTCString()
-  return d.toUTCString()
-}
-
-export const getServerSideProps: GetServerSideProps = async ({ res }) => {
-  const posts = await getPosts()
-  const sMax = CONFIG.revalidateTime || 6 * 3600
-
-  const feedUrl = `${CONFIG.link}/rss.xml`
-  const now = new Date().toUTCString()
-
-  const items = posts
-    .map((post: TPost) => {
-      const link = `${CONFIG.link}/${post.slug}`
-      const pubDate = toRfc822(post.date?.start_date || post.createdTime || "")
+export const getServerSideProps: GetServerSideProps = async ({ req, res }) => {
+  res.setHeader("Cache-Control", "no-store")
+  try {
+    const posts = filterPosts(await getPosts())
+    let latestContent: string | undefined
+    const items = posts.map((post) => {
+      const link = postUrl(post.slug)
+      const published = publishedDate(post)
+      const modified = modifiedDate(post)
+      for (const date of [published, modified]) {
+        if (date && (!latestContent || date > latestContent)) latestContent = date
+      }
       const categories = (post.category ?? [])
-        .map((c) => `<category>${escape(c)}</category>`)
+        .map((category) => `<category>${escapeXml(category)}</category>`)
         .join("")
-      const description = post.summary
-        ? `<description><![CDATA[${post.summary}]]></description>`
+      const summary = summaryText(post.summary)
+      const description = summary
+        ? `<description><![CDATA[${summary.replace(/\]\]>/g, "]]]]><![CDATA[>")}]]></description>`
         : ""
       return `
-  <item>
-    <title>${escape(post.title)}</title>
-    <link>${escape(link)}</link>
-    <guid isPermaLink="false">${escape(post.id)}</guid>
-    <pubDate>${pubDate}</pubDate>
-    ${description}
-    ${categories}
-    <author>${escape(CONFIG.profile.email)} (${escape(CONFIG.profile.name)})</author>
-  </item>`
-    })
-    .join("")
+    <item>
+      <title>${escapeXml(post.title)}</title>
+      <link>${escapeXml(link)}</link>
+      <guid isPermaLink="false">${escapeXml(post.id)}</guid>
+      ${published ? `<pubDate>${new Date(published).toUTCString()}</pubDate>` : ""}
+      ${description}
+      ${categories}
+      <author>${escapeXml(CONFIG.profile.email)} (${escapeXml(CONFIG.profile.name)})</author>
+    </item>`
+    }).join("")
 
-  const xml = `<?xml version="1.0" encoding="UTF-8"?>
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
   <channel>
-    <title>${escape(CONFIG.blog.title)}</title>
-    <link>${escape(CONFIG.link)}</link>
-    <description>${escape(CONFIG.blog.description)}</description>
-    <language>${escape(CONFIG.lang)}</language>
-    <lastBuildDate>${now}</lastBuildDate>
-    <atom:link href="${escape(feedUrl)}" rel="self" type="application/rss+xml"/>
+    <title>${escapeXml(CONFIG.blog.title)}</title>
+    <link>${escapeXml(absoluteUrl("/"))}</link>
+    <description>${escapeXml(CONFIG.blog.description)}</description>
+    <language>${escapeXml(CONFIG.lang)}</language>
+    ${latestContent ? `<lastBuildDate>${new Date(latestContent).toUTCString()}</lastBuildDate>` : ""}
+    <atom:link href="${escapeXml(absoluteUrl("/rss.xml"))}" rel="self" type="application/rss+xml"/>
     ${items}
   </channel>
 </rss>`
-
-  res.setHeader("Content-Type", "application/rss+xml; charset=utf-8")
-  res.setHeader(
-    "Cache-Control",
-    `public, s-maxage=${sMax}, stale-while-revalidate=${Math.floor(sMax / 6)}`
-  )
-  res.write(xml)
-  res.end()
-
+    res.setHeader("Content-Type", "application/rss+xml; charset=utf-8")
+    res.end(req.method === "HEAD" ? undefined : xml)
+  } catch (error) {
+    errorLog("Error generating RSS:", error)
+    res.statusCode = 503
+    res.setHeader("Content-Type", "text/plain; charset=utf-8")
+    res.setHeader("Retry-After", "60")
+    res.end(req.method === "HEAD" ? undefined : "RSS temporarily unavailable\n")
+  }
   return { props: {} }
 }
 

@@ -20,8 +20,8 @@ import ContactBlock from "src/routes/Detail/PageDetail/components/ContactBlock"
 import StackGrid from "src/routes/Detail/PageDetail/components/StackGrid"
 import StatsGrid from "src/routes/Feed/StatsGrid"
 import { getStats } from "src/libs/utils/stats"
-
-const aboutSlug = (CONFIG as any).aboutSlug as string | undefined
+import { publishedDate, modifiedDate, calendarDate, summaryText } from "src/libs/seo"
+import { getArticleDescription } from "src/libs/utils/notion/articleSummary"
 
 const PostDetail: React.FC = () => {
   const data = usePostQuery()
@@ -33,9 +33,14 @@ const PostDetail: React.FC = () => {
 
   if (!data) return null
 
-  const isAbout = Boolean(aboutSlug) && data.slug === aboutSlug
+  const isAbout = Boolean(CONFIG.aboutSlug) && data.slug === CONFIG.aboutSlug
   const category = data.category?.[0] || undefined
-  const dateStr = data.date?.start_date || data.createdTime?.slice(0, 10) || ""
+  const published = publishedDate(data)
+  const modified = modifiedDate(data)
+  const meaningfulModified = modified && published && modified > published
+    && calendarDate(modified) !== calendarDate(published) ? modified : undefined
+  const authors = data.author?.map((author) => author.name.trim()).filter(Boolean)
+  const summary = getArticleDescription(summaryText(data.summary), data.recordMap, data.id)
 
   if (isAbout) {
     const stats = getStats(allPosts)
@@ -44,6 +49,7 @@ const PostDetail: React.FC = () => {
         <div className="scroll-area">
           <div className="content-grid content-grid--about">
             <div className="body">
+              <h1 className="post-title">{data.title}</h1>
               {/* YAML frontmatter */}
               <div className="font-mono text-[13px] space-y-0.5 mb-6">
                 <p className="text-mute">---</p>
@@ -105,12 +111,20 @@ const PostDetail: React.FC = () => {
 
             <Frontmatter
               title={data.title}
-              date={dateStr}
+              date={published}
+              modifiedDate={meaningfulModified}
+              authors={authors}
               category={category}
               tags={data.tags}
             />
 
             <h1 className="post-title">{data.title}</h1>
+            {summary && (
+              <section className="post-summary" aria-label="요약">
+                <div className="summary-label">요약</div>
+                <p>{summary}</p>
+              </section>
+            )}
 
             <div className="notion-content">
               <NotionRenderer recordMap={data.recordMap} />
@@ -190,6 +204,24 @@ const StyledWrapper = styled.div`
     color: var(--color-strong, rgb(var(--c-strong)));
     line-height: 1.25;
     letter-spacing: -0.03em;
+  }
+
+  .post-summary {
+    margin: 0 0 28px;
+    line-height: 1.7;
+    overflow-wrap: anywhere;
+
+    .summary-label {
+      font-family: var(--font-mono, "JetBrains Mono", monospace);
+      font-size: 13px;
+      color: var(--color-signal, rgb(var(--c-signal)));
+      margin-bottom: 8px;
+    }
+
+    p {
+      margin: 0;
+      white-space: pre-wrap;
+    }
   }
 
   .notion-content {

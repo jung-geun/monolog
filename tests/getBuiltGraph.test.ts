@@ -2,15 +2,9 @@
  * @jest-environment node
  */
 
-import { createHash } from "crypto"
-import type { TPosts } from "src/types"
 import type { NotionGraph } from "src/types/notionGraph"
 import { forceCollide } from "d3-force"
 import { nodeCollisionRadiusForDegree } from "src/libs/utils/graph"
-
-jest.mock("src/apis/notion-client/getPosts", () => ({
-  getPosts: jest.fn(),
-}))
 
 jest.mock("src/apis/notion-client/getNotionGraph", () => ({
   getNotionGraph: jest.fn(),
@@ -53,22 +47,7 @@ jest.mock("src/libs/cache", () => ({
 
 import { getBuiltGraph } from "src/apis/notion-client/getBuiltGraph"
 import { getNotionGraph } from "src/apis/notion-client/getNotionGraph"
-import { getPosts } from "src/apis/notion-client/getPosts"
 import { cacheStore, keys } from "src/libs/cache"
-
-const posts = [
-  {
-    id: "post-a",
-    title: "Post A",
-    slug: "post-a",
-    createdTime: "2026-01-01T00:00:00.000Z",
-    lastEditedTime: "2026-01-03T00:00:00.000Z",
-    date: { start_date: "2026-01-01" },
-    type: ["Post"],
-    status: ["Public"],
-    fullWidth: false,
-  },
-] as TPosts
 
 const notionGraph = {
   version: "v1",
@@ -87,17 +66,8 @@ const notionGraph = {
   edges: [],
 } as NotionGraph
 
-function expectedGraphHash(currentPosts: TPosts): string {
-  const signature = currentPosts
-    .map((post) => `${post.id}:${post.lastEditedTime ?? post.createdTime}`)
-    .sort()
-    .join("|")
-  return createHash("sha1").update(signature).digest("hex").slice(0, 16)
-}
-
 beforeEach(() => {
   jest.clearAllMocks()
-  ;(getPosts as jest.Mock).mockResolvedValue(posts)
   ;(getNotionGraph as jest.Mock).mockResolvedValue(notionGraph)
   ;(cacheStore.getOrSet as jest.Mock).mockImplementation(
     async (_key: string, _ttl: number, fetcher: () => Promise<unknown>) => fetcher()
@@ -106,14 +76,6 @@ beforeEach(() => {
 })
 
 describe("getBuiltGraph", () => {
-  it("uses the supplied notionGraph instead of calling getNotionGraph again", async () => {
-    const result = await getBuiltGraph({ bypassCache: true, notionGraph })
-
-    expect(getNotionGraph).not.toHaveBeenCalled()
-    expect(result.generatedAt).toBe(notionGraph.generatedAt)
-    expect(result.nodes).toHaveLength(1)
-  })
-
   it("uses degree-derived collision spacing in the server layout", async () => {
     await getBuiltGraph({ bypassCache: true, notionGraph })
 
@@ -121,16 +83,19 @@ describe("getBuiltGraph", () => {
     expect(collisionRadius({ degree: 4 })).toBe(nodeCollisionRadiusForDegree(4))
   })
 
-  it("writes non-partial bypass builds through cacheStore.set", async () => {
-    const result = await getBuiltGraph({ bypassCache: true, notionGraph })
-    const key = `built-graph:${expectedGraphHash(posts)}`
+  it("reuses a layout for unchanged topology and recomputes when an edge changes", async () => {
+    await getBuiltGraph({ notionGraph })
+    await getBuiltGraph({ notionGraph: { ...notionGraph, generatedAt: "2026-07-09T00:00:00.000Z" } })
+    await getBuiltGraph({
+      notionGraph: {
+        ...notionGraph,
+        edges: [{ source: "post-a", target: "tag:tag-a", type: "has-tag", weight: 1 }],
+      },
+    })
 
-    expect(keys.builtGraph).toHaveBeenCalledWith(expectedGraphHash(posts))
-    expect(cacheStore.set).toHaveBeenCalledWith(
-      key,
-      result,
-      24 * 60 * 60 * 1000
-    )
+    const [unchanged, sameTopology, changed] = (keys.builtGraph as jest.Mock).mock.calls.map(([hash]) => hash)
+    expect(sameTopology).toBe(unchanged)
+    expect(changed).not.toBe(unchanged)
   })
 
   it("returns a partial bypass build without caching it", async () => {

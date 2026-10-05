@@ -6,6 +6,34 @@ monolog의 버전별 변경 이력. 프로젝트 개요는 [`../README.md`](../R
 
 ## Unreleased
 
+### 상세 글 메타데이터 및 문서 제목
+- **Post·Paper 메타데이터 표시** — 에디터 frontmatter에 작성자(없으면 `CONFIG.profile.name`), 발행일, 발행 이후의 수정일을 SSR로 표시. 날짜는 유효한 `<time dateTime>`을 사용하고, 수정일은 `contentModifiedTime`을 우선하며 없으면 `lastEditedTime`을 사용. 날짜 레이블과 같은 날 수정일 생략은 `CONFIG.timeZone`(기본 `Asia/Seoul`)을 따르고 UTC ISO 시각은 유지.
+- **전체 요약 표시** — 제목 아래 `요약` 레이블과 함께 Summary 전문을 줄바꿈을 유지하고 생략 없이 표시. 기존 에디터 레이아웃·광고·본문 렌더러는 유지.
+- **문서 제목 보장** — PostDetail의 About 분기와 PageDetail에 라우트 소유 `h1`을 추가하고, 타입이 지정된 `CONFIG.aboutSlug`를 직접 사용. 본문 렌더러의 기본 `fullPage: false` 동작은 변경하지 않음.
+
+### 증분 콘텐츠 동기화
+- **내구성 콘텐츠 레지스트리** — 공개 게시물·본문 recordMap·slug 이력·대기 작업 outbox를 `CONTENT_REDIS_URL`(Redis 7.2+, AOF + `WAITAOF`) 또는 `CONTENT_STATE_DIR`에 원자적으로 저장. 상세 페이지와 Markdown은 이 발행본을 렌더해 Notion 장애 중에도 마지막 발행본을 유지.
+- **전체 캐시 삭제 제거** — `/api/revalidate`는 캐시를 지우지 않고 바뀐 글과 영향 경로(상세·카테고리·시리즈·컬렉션)만 재생성. `cacheStore.clear`와 백엔드 `clear` 삭제.
+- **변경 감지** — `last_edited_time` overlap 증분 스캔 + 24시간 전체 대조(삭제·데이터소스 이동), 같은 분 안의 연속 편집 1회 재확인, 예약 발행 자동 공개. 메타데이터만 바뀐 글은 본문 해시와 임베딩을 유지.
+- **slug·수명주기** — 이전 slug는 308 리다이렉트, 비공개·삭제 시 이전 alias까지 제거. 기존 공개 slug 소유자는 충돌·이름 변경 본문 실패 중에도 유지하며, 새 소유자는 기존 소유자의 성공적인 변경 이후에만 발행. 최초 발행부터 중복인 slug는 양쪽 모두 비노출(+ 선택적 `DISCORD_WEBHOOK` 경고).
+- **입력 경로** — Notion webhook(`/api/notion-webhook`, HMAC 서명·이벤트 ID 중복 제거·구독 검증 토큰 로그), 15분 주기 `/api/cron/content`(기존 3일 주기 전체 재검증 대체), 수동 `/api/revalidate?path=…|full=true`. 콘텐츠·경로 작업이 남으면 `503`; 선택적 알림 대기는 `notificationsPending`으로 별도 집계.
+- **AI 유지보수 분리** — webhook·수동·초기화 요청은 발행만 기다리고 그래프·ontology 증분 작업은 cron에서 재시도. 기존 ontology 체크포인트는 재추출 없이 본문 해시로 이전.
+- **recordMap root 정리** — 공개 HTML에 Notion 데이터베이스 원시 속성을 싣지 않도록 root 블록을 제목만 남김(`recordMap:v8`).
+- **불완전 본문 보호** — 재귀 하위 블록에서도 공식 SDK의 전체 블록 검증을 적용하며, 불완전한 응답은 마지막 발행본을 덮어쓰지 않고 재시도.
+- **첨부 파일 URL 갱신** — 공식 Notion file·PDF·video·audio 업로드는 페이지·블록 ID와 파일명을 담은 절대 `/api/attachment` URL로 저장. GET/HEAD는 공개 레지스트리 본문에서 도달 가능한 첨부만 확인하고 공식 SDK로 새 HTTPS 서명 URL에 `307` + `no-store` 리다이렉트. 외부 URL과 이미지 프록시 경로는 유지하며 삭제·비공개·다른 페이지 블록은 `404`, 상위 API 장애는 기존 본문을 변경하지 않고 `503`.
+
+### SEO · AEO · GEO
+- **메타데이터** — canonical, Open Graph·Twitter 절대 이미지, JSON-LD(`WebSite`·`Person`·`BlogPosting`/`WebPage`·`BreadcrumbList`)를 홈·분류·시리즈·상세에 적용.
+- **본문 SSR** — 본문·코드·KaTeX 수식을 서버에서 렌더, 제목 계층을 h2부터 정규화(TOC·Markdown 공통), Summary가 없으면 본문 발췌를 설명으로 사용.
+- **크롤러 출력 일치** — 동적 `robots.txt`·`llms.txt`·`sitemap.xml`·RSS·`/{slug}.md`가 같은 공개 글 목록을 사용. 가려지던 정적 `public/robots.txt` 삭제.
+- **IndexNow·Bing** — 변경 URL을 `CONFIG.link`의 canonical origin으로 발행 직후 IndexNow에 제출(`INDEXNOW_KEY`만 필요), Bing 검증 메타(`NEXT_PUBLIC_BING_SITE_VERIFICATION`). 선택적 IndexNow·Discord 알림은 영구 실패를 제거하고 일시 실패를 최대 8회 시도하며 콘텐츠 건강 상태와 분리.
+- **폰트** — 전체 Pretendard preload를 제거하고 `unicode-range` 동적 subset으로 전환.
+- **썸네일 안정화** — 이미지 프록시는 origin 상대 URL로 저장해 `NEXT_PUBLIC_SITE_URL` 설정과 무관하게 Next.js 이미지 옵티마이저가 허용하고, 빌드 주소 변경으로 콘텐츠 수정 시각이 변하지 않도록 유지.
+
+### 업그레이드 참고
+- `CONTENT_REDIS_URL` 또는 `CONTENT_STATE_DIR`가 필수. Compose는 AOF가 켜진 `content-redis` 서비스와 `content-redis-data` 볼륨을 추가하며 기존 캐시 Redis는 그대로 둔다. 로컬 개발 `.env`에는 `CONTENT_STATE_DIR=.content-state`를 추가.
+- 첫 기동의 `/api/init`은 모든 공개 글 본문을 한 번 가져와 레지스트리를 구축한다(글 수에 비례).
+
 ### Graph 인터랙션 전면 개편 (Phase 1 / 1.5 / 2)
 - **페이지별 해시 그래프 캐시** — `notionGraph:v2:{sha1(sorted pageId:lastEditedTime)}` 키 도입. 어떤 페이지든 `last_edited_time`이 바뀌면 새 키 → 자동 재빌드. 페이지 추가/삭제도 시그니처 변경으로 감지.
 - **엣지 종류 확장** — `link_to_page` 블록 엣지, `shared-tag` / `shared-series` / `series-next` (방향성 있음) 엣지 추가. CONNECTED 패널에서 같은 페어 자동 머지(`via mention · shared-tag` 형식).
@@ -25,6 +53,7 @@ monolog의 버전별 변경 이력. 프로젝트 개요는 [`../README.md`](../R
 - **포스트 스크롤 길이 중복 수정** — Utterances 클라이언트가 소유하는 `.utterances-frame` placeholder 충돌을 제거해 직접 진입·새로고침 시 문서 높이가 두 배로 늘어나던 문제 해결.
 - **AdSense 하단 앵커 공백 제거** — Google Auto ads가 `body`에 주입하는 하단 패딩을 무효화해 광고 축소·닫기 뒤 StatusBar 아래 빈 영역을 제거하고, 앵커 위치를 하단으로 고정.
 - **링크 임베드 썸네일 복원** — GitHub Open Graph 이미지를 Notion 이미지 엔드포인트로 중첩하지 않고 허용된 로컬 이미지 프록시로 직접 전달해 북마크 카드의 우측 미리보기를 표시.
+- **단위 테스트 격리** — `next/jest`가 로컬 `.env`를 읽더라도 단위 테스트에서는 Redis L2를 비활성화해 실제 Redis 연결이 Jest 종료를 막지 않도록 수정. 통합 테스트 설정은 유지.
 
 ---
 

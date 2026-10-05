@@ -3,6 +3,7 @@ import { cacheStore, keys } from "src/libs/cache"
 import { TPost } from "src/types"
 import { SemanticEdge, SemanticRelationKind } from "src/types/ontology"
 import { warnLog } from "src/libs/utils/logger"
+import { postContentVersion } from "src/apis/notion-client/graphHash"
 
 const RELATION_TTL_MS = 7 * 24 * 60 * 60 * 1000
 
@@ -50,8 +51,8 @@ export async function extractRelations(
   const results: SemanticEdge[] = []
 
   for (const target of targetPosts) {
-    const sourceLastEdited = sourcePost.lastEditedTime ?? sourcePost.createdTime
-    const targetLastEdited = target.lastEditedTime ?? target.createdTime
+    const sourceLastEdited = postContentVersion(sourcePost)
+    const targetLastEdited = postContentVersion(target)
     const cacheKey = keys.ontology(`rel:${sourcePost.id}:${target.id}:${sourceLastEdited}:${targetLastEdited}`)
 
     if (!bypassCache) {
@@ -77,7 +78,7 @@ export async function extractRelations(
       })
     } catch (err) {
       warnLog(`[extractRelations] LLM failed for pair (${sourcePost.id}, ${target.id}):`, err)
-      continue
+      throw err
     }
 
     const rel = llmResult.relations[0]

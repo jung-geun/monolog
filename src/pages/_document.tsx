@@ -5,7 +5,7 @@ import { getRuntimePublicConfigFromEnvironment } from "src/libs/runtimeConfigSer
 
 class MyDocument extends Document {
   render() {
-    const { googleSiteVerification, naverSiteVerification } =
+    const { googleSiteVerification, naverSiteVerification, bingSiteVerification } =
       getRuntimePublicConfigFromEnvironment()
 
     return (
@@ -19,12 +19,6 @@ class MyDocument extends Document {
             rel="apple-touch-icon"
             sizes="192x192"
             href="/apple-touch-icon.png"
-          ></link>
-          <link
-            rel="alternate"
-            type="application/rss+xml"
-            title="RSS 2.0"
-            href="/rss.xml"
           ></link>
           <Script src="/runtime-config.js" strategy="beforeInteractive" />
           {CONFIG.googleAdsense?.enable && CONFIG.googleAdsense.config.client && (
@@ -46,6 +40,9 @@ class MyDocument extends Document {
               name="naver-site-verification"
               content={naverSiteVerification}
             />
+          )}
+          {bingSiteVerification && (
+            <meta name="msvalidate.01" content={bingSiteVerification} />
           )}
         </Head>
         <body>

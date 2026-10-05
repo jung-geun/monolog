@@ -3,12 +3,16 @@ import { filterPosts, optimizeRecordMap } from "src/libs/utils/notion"
 import { CONFIG } from "site.config"
 import { NextPageWithLayout } from "../types"
 import CustomError from "src/routes/Error"
-import { getRecordMap, getPosts, getPostBySlug, getRecordMapDatabases } from "src/apis"
+import { getRecordMap, getPosts, getRecordMapDatabases } from "src/apis"
+import { getSlugRedirect, readContentRecordMap } from "src/libs/content/registry"
 import MetaConfig from "src/components/MetaConfig"
 import { GetStaticProps } from "next"
 import { createServerQueryClient } from "src/libs/react-query"
 import { queryKey } from "src/constants/queryKey"
-import { assertFeedNotEmpty, prefetchFeedPosts } from "src/libs/react-query/prefetchFeedPosts"
+import { prefetchFeedPosts } from "src/libs/react-query/prefetchFeedPosts"
+import { markdownUrl, modifiedDate, postUrl, publishedDate, publicDetails, summaryText } from "src/libs/seo"
+import { customMapImageUrl } from "src/libs/utils/notion/customMapImageUrl"
+import { getArticleDescription } from "src/libs/utils/notion/articleSummary"
 import { dehydrate } from "@tanstack/react-query"
 import usePostQuery from "src/hooks/usePostQuery"
 import useTrackVisit from "src/hooks/useTrackVisit"
@@ -31,7 +35,7 @@ export const getStaticPaths = async () => {
 
   const posts = await getPosts()
   const filteredPost = filterPosts(posts, filter)
-  const paths = filteredPost.map((row) => `/${row.slug}`)
+  const paths = filteredPost.map((row) => postUrl(row.slug).replace(CONFIG.link.replace(/\/+$/, ""), ""))
   pathsCache = { ts: Date.now(), paths }
 
   return {
@@ -42,69 +46,42 @@ export const getStaticPaths = async () => {
 
 export const getStaticProps: GetStaticProps = async (context) => {
   const slug = context.params?.slug
+  if (typeof slug !== "string") return { notFound: true, revalidate: 60 }
 
   debugLog(`[getStaticProps] slug: "${slug}"`)
+  const queryClient = createServerQueryClient()
+  const posts = await getPosts()
+  await prefetchFeedPosts(queryClient, posts)
 
-  try {
-    const queryClient = createServerQueryClient()
-    const posts = await getPosts()
-
-    const feedPosts = await prefetchFeedPosts(queryClient, posts)
-    assertFeedNotEmpty(feedPosts)
-
-    const detailPosts = filterPosts(posts, filter)
-    let postDetail = detailPosts.find((t: any) => t.slug === slug)
-
-    if (!postDetail) {
-      debugLog(`[getStaticProps] slug "${slug}" not in build-time list, fetching from Notion`)
-      const notionPost = await getPostBySlug(slug as string)
-
-      if (!notionPost) {
-        return { notFound: true }
-      }
-
-      postDetail = notionPost
-    }
-
-    try {
-      const rawRecordMap = await getRecordMap(postDetail?.id!, posts)
-      const recordMap = optimizeRecordMap(rawRecordMap)
-
-      if (recordMap) {
-        const databases = await getRecordMapDatabases(recordMap)
-        await Promise.all(
-          Array.from(databases.entries()).map(([id, db]) =>
-            queryClient.prefetchQuery({ queryKey: queryKey.database(id), queryFn: () => db })
-          )
-        )
-      }
-
-      await queryClient.prefetchQuery({ queryKey: queryKey.post(`${slug}`), queryFn: () => ({ ...postDetail, recordMap }) })
-
-      return {
-        props: {
-          dehydratedState: dehydrate(queryClient),
-        },
-        revalidate: CONFIG.revalidateTime,
-      }
-    } catch (recordMapError) {
-      console.error(`Failed to get record map for ${slug}:`, recordMapError)
-
-      await queryClient.prefetchQuery({ queryKey: queryKey.post(`${slug}`), queryFn: () => ({ ...postDetail, recordMap: null }) })
-
-      return {
-        props: {
-          dehydratedState: dehydrate(queryClient),
-        },
-        revalidate: 60,
+  const details = publicDetails(posts)
+  const postDetail = details.find((post) => post.slug === slug)
+  if (!postDetail) {
+    const targetSlug = await getSlugRedirect(slug)
+    if (targetSlug && targetSlug !== slug) {
+      const target = details.find((post) => post.slug === targetSlug)
+      if (target) {
+        return { redirect: { destination: postUrl(target.slug), permanent: true }, revalidate: 60 }
       }
     }
-  } catch (error) {
-    console.error(`Error in getStaticProps for ${slug}:`, error)
+  }
+  if (!postDetail) return { notFound: true, revalidate: 60 }
 
-    return {
-      notFound: true,
-    }
+  // Render the body published with this registry revision; live Notion is only
+  // the cold-registry path. Upstream failures must not replace valid ISR HTML.
+  const rawRecordMap = await readContentRecordMap(postDetail.id)
+    ?? await getRecordMap(postDetail.id, details, { lastEditedTime: postDetail.lastEditedTime })
+  if (!rawRecordMap) throw new Error(`Missing record map for ${slug}`)
+  const recordMap = optimizeRecordMap(rawRecordMap)
+  if (!recordMap) throw new Error(`Invalid record map for ${slug}`)
+  const databases = await getRecordMapDatabases(recordMap)
+  for (const [id, database] of databases) {
+    queryClient.setQueryData(queryKey.database(id), database)
+  }
+  queryClient.setQueryData(queryKey.post(slug), { ...postDetail, recordMap })
+
+  return {
+    props: { dehydratedState: dehydrate(queryClient) },
+    revalidate: CONFIG.revalidateTime,
   }
 }
 
@@ -114,21 +91,31 @@ const DetailPage: NextPageWithLayout = () => {
   useArticleAnalytics(post)
   if (!post) return <CustomError />
 
-  const image =
-    post.thumbnail ??
-    CONFIG.ogImageGenerateURL ??
-    `${CONFIG.ogImageGenerateURL}/${encodeURIComponent(post.title)}.png`
-
-  const date = post.date?.start_date || post.createdTime || ""
+  let image: string | undefined
+  if (post.thumbnail) {
+    try {
+      const thumbnail = new URL(post.thumbnail, CONFIG.link)
+      if (thumbnail.protocol === "https:" || thumbnail.protocol === "http:") {
+        const notionImage = /(^|\.)(notion\.so|notion\.com|notion-static\.com|amazonaws\.com)$/i.test(thumbnail.hostname)
+        image = notionImage || post.thumbnail.startsWith("/images/")
+          ? customMapImageUrl(post.thumbnail, undefined, { pageId: post.id, property: "thumbnail" })
+          : thumbnail.toString()
+      }
+    } catch {
+      // Invalid thumbnails use MetaConfig's generated PNG fallback.
+    }
+  }
 
   const meta = {
     title: post.title,
-    date: new Date(date).toISOString(),
-    image: image,
-    description: post.summary || "",
+    date: publishedDate(post),
+    modifiedDate: modifiedDate(post),
+    authors: post.author?.map((author) => author.name.trim()).filter(Boolean),
+    image,
+    description: getArticleDescription(summaryText(post.summary), post.recordMap, post.id),
     type: post.type[0],
-    url: `${CONFIG.link}/${post.slug}`,
-    alternateMarkdownUrl: `${CONFIG.link}/${post.slug}.md`,
+    url: postUrl(post.slug),
+    alternateMarkdownUrl: markdownUrl(post.slug),
   }
 
   return (

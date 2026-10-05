@@ -6,12 +6,11 @@ import { createServerQueryClient } from "src/libs/react-query"
 import { GetStaticProps } from "next"
 import { dehydrate } from "@tanstack/react-query"
 import { getPosts } from "src/apis/notion-client/getPosts"
-import { assertFeedNotEmpty, prefetchFeedPosts } from "src/libs/react-query/prefetchFeedPosts"
+import { prefetchFeedPosts } from "src/libs/react-query/prefetchFeedPosts"
 
 export const getStaticProps: GetStaticProps = async () => {
   const queryClient = createServerQueryClient()
-  const posts = await prefetchFeedPosts(queryClient, await getPosts())
-  assertFeedNotEmpty(posts)
+  await prefetchFeedPosts(queryClient, await getPosts())
 
   return {
     props: { dehydratedState: dehydrate(queryClient) },
@@ -23,9 +22,10 @@ const OntologyPage: NextPageWithLayout = () => (
   <>
     <MetaConfig
       title={`Ontology — ${CONFIG.blog.title}`}
-      description="Semantic entity and relation map of posts"
+      description="글에서 추출한 개체와 관계를 탐색하는 대화형 도구입니다."
       type="website"
       url={`${CONFIG.link}/ontology`}
+      noindex
     />
     <OntologyView />
   </>

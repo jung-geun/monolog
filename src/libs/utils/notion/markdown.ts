@@ -3,6 +3,9 @@ import type { TPost, TPosts, TNotionDatabase } from "src/types"
 import { getBlockById } from "src/libs/utils/notion/unwrapBlock"
 import { normalizeNotionId, buildIdToSlug } from "src/libs/utils/notion/rewriteInternalLinks"
 import { customMapImageUrl } from "src/libs/utils/notion/customMapImageUrl"
+import { getArticleHeadings } from "src/routes/Detail/components/NotionRenderer/headings"
+import { getArticleDescription } from "src/libs/utils/notion/articleSummary"
+import { publishedDate, modifiedDate, summaryText } from "src/libs/seo"
 
 /**
  * Escapes special Markdown characters in ordinary text.
@@ -130,7 +133,7 @@ function renderRichText(
           const targetId = typeof dec[1] === "string" ? dec[1] : ""
           const normId = normalizeNotionId(targetId)
           const slug = idToSlug.get(normId)
-          linkUrl = slug ? `${siteUrl}/${slug}` : null
+          linkUrl = slug ? `${siteUrl}/${encodeURIComponent(slug)}` : null
           break
         }
         // "h" (color) ignored while text stays
@@ -191,6 +194,7 @@ interface RenderContext {
   siteUrl: string
   visitedIds: Set<string>
   listLevel: number
+  headingLevels: Record<string, number>
 }
 
 function renderBlockChildren(
@@ -242,19 +246,17 @@ function renderBlock(block: Block, ctx: RenderContext): string {
       return text
     }
 
-    case "header": {
+    case "header":
+    case "sub_header":
+    case "sub_sub_header":
+    case "header_4": {
       const text = renderRichText(props?.title, ctx.idToSlug, ctx.siteUrl)
-      return `## ${text}`
-    }
-
-    case "sub_header": {
-      const text = renderRichText(props?.title, ctx.idToSlug, ctx.siteUrl)
-      return `### ${text}`
-    }
-
-    case "sub_sub_header": {
-      const text = renderRichText(props?.title, ctx.idToSlug, ctx.siteUrl)
-      return `#### ${text}`
+      const level = ctx.headingLevels[block.id] ?? 2
+      const heading = `${"#".repeat(level)} ${text}`
+      const childChunks = format && "toggleable" in format && format.toggleable
+        ? renderBlockChildren(block.content, ctx)
+        : []
+      return childChunks.length ? `${heading}\n\n${childChunks.join("\n\n")}` : heading
     }
 
     case "bulleted_list": {
@@ -428,7 +430,7 @@ function renderBlock(block: Block, ctx: RenderContext): string {
       const slug = ctx.idToSlug.get(normId)
 
       if (slug) {
-        const canonicalUrl = `${ctx.siteUrl}/${slug}`
+        const canonicalUrl = `${ctx.siteUrl}/${encodeURIComponent(slug)}`
         return `- [${title}](${canonicalUrl})`
       }
       return `- ${title}`
@@ -599,18 +601,22 @@ export function renderPostMarkdown(
   // 1. title
   frontmatterLines.push(`title: ${JSON.stringify(post.title || "")}`)
 
-  // 2. description (only when non-empty)
-  if (post.summary && post.summary.trim() !== "") {
-    frontmatterLines.push(`description: ${JSON.stringify(post.summary)}`)
+  // 2. description: author Summary, else deterministic body excerpt
+  const description = getArticleDescription(summaryText(post.summary), recordMap, post.id)
+  if (description) {
+    frontmatterLines.push(`description: ${JSON.stringify(description)}`)
   }
 
-  // 3. date
-  const dateValue = post.date?.start_date || post.createdTime || ""
-  frontmatterLines.push(`date: ${JSON.stringify(dateValue)}`)
+  // 3. date (valid ISO only)
+  const published = publishedDate(post)
+  if (published) {
+    frontmatterLines.push(`date: ${JSON.stringify(published)}`)
+  }
 
-  // 4. last_modified (only when present)
-  if (post.lastEditedTime) {
-    frontmatterLines.push(`last_modified: ${JSON.stringify(post.lastEditedTime)}`)
+  // 4. last_modified (content modification, valid ISO only)
+  const modified = modifiedDate(post)
+  if (modified) {
+    frontmatterLines.push(`last_modified: ${JSON.stringify(modified)}`)
   }
 
   // 5. type (first post.type value)
@@ -641,10 +647,11 @@ export function renderPostMarkdown(
   addSequence("authors", authorNames)
 
   // 10. canonical_url
-  frontmatterLines.push(`canonical_url: ${JSON.stringify(`${baseUrl}/${post.slug}`)}`)
+  const encodedSlug = encodeURIComponent(post.slug)
+  frontmatterLines.push(`canonical_url: ${JSON.stringify(`${baseUrl}/${encodedSlug}`)}`)
 
   // 11. markdown_url
-  frontmatterLines.push(`markdown_url: ${JSON.stringify(`${baseUrl}/${post.slug}.md`)}`)
+  frontmatterLines.push(`markdown_url: ${JSON.stringify(`${baseUrl}/${encodedSlug}.md`)}`)
 
   frontmatterLines.push("---")
   const frontmatter = frontmatterLines.join("\n")
@@ -663,6 +670,7 @@ export function renderPostMarkdown(
     siteUrl: baseUrl,
     visitedIds,
     listLevel: 0,
+    headingLevels: Object.fromEntries(getArticleHeadings(recordMap, post.id).map(({ block, level }) => [block.id, level])),
   }
 
   const childIds = rootBlock?.content || []
@@ -684,8 +692,8 @@ export function renderPostMarkdown(
 
   const topSections: string[] = [frontmatter, titleH1]
 
-  if (post.summary && post.summary.trim() !== "") {
-    topSections.push(escapeMarkdownText(post.summary))
+  if (description) {
+    topSections.push(escapeMarkdownText(description))
   }
 
   if (bodyChunks.length > 0) {

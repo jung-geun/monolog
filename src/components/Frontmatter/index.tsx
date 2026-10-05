@@ -1,18 +1,28 @@
 import styled from "@emotion/styled"
+import { CONFIG } from "site.config"
+import { calendarDate } from "src/libs/seo"
 
 type Props = {
   title: string
-  date: string
+  date?: string
+  modifiedDate?: string
+  authors?: string[]
   category?: string
   tags?: string[]
   readTime?: number
 }
 
-const Frontmatter = ({ title, date, category, tags, readTime }: Props) => (
+const Frontmatter = ({ title, date, modifiedDate, authors, category, tags, readTime }: Props) => (
   <StyledWrapper>
     <div>---</div>
     <div><span className="key">title</span>: {title}</div>
-    <div><span className="key">date</span>: {date}</div>
+    <div><span className="key">author</span>: {authors?.length ? authors.join(", ") : CONFIG.profile.name}</div>
+    {date && (
+      <div><span className="key">date</span>: <time dateTime={date}>{calendarDate(date)}</time></div>
+    )}
+    {modifiedDate && (
+      <div><span className="key">modified</span>: <time dateTime={modifiedDate}>{calendarDate(modifiedDate)}</time></div>
+    )}
     {category && <div><span className="key">category</span>: {category}</div>}
     {tags && tags.length > 0 && (
       <div><span className="key">tags</span>: [{tags.join(", ")}]</div>

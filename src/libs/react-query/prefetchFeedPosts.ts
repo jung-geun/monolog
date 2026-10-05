@@ -11,7 +11,7 @@ export const FEED_POSTS_FILTER: FilterPostsOptions = {
 }
 
 // Seeds queryKey.posts() so the page hydrates the sidebar/palette post list.
-// usePostsQuery is `enabled: false`, so any page that skips this renders an empty sidebar.
+// Client refresh keeps unchanged ISR articles' sidebars current without rebuilding their bodies.
 export const prefetchFeedPosts = async (
   queryClient: QueryClient,
   allPosts: TPosts
@@ -24,11 +24,3 @@ export const prefetchFeedPosts = async (
   return posts
 }
 
-// ISR guard: when Notion returns nothing during revalidation, throwing makes Next.js
-// keep the previously generated static HTML instead of publishing an empty page.
-// Skipped during `next build` so a cold build can still succeed.
-export const assertFeedNotEmpty = (posts: TPosts): void => {
-  if (posts.length === 0 && process.env.NEXT_PHASE !== "phase-production-build") {
-    throw new Error("getPosts returned 0 posts — preserving previous static HTML")
-  }
-}

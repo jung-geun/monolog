@@ -74,19 +74,23 @@ When a Semver tag is pushed (for example, `v1.2.3`), the workflow publishes:
 |---------------|----------|-------------|
 | `NOTION_TOKEN` | Required | Notion integration token |
 | `NOTION_DATASOURCE_ID` | Required | Notion datasource ID for posts DB (UUID) |
+| `CONTENT_REDIS_URL` or `CONTENT_STATE_DIR` | Required | Durable content registry: Redis 7.2+ with AOF (Compose sets its private `content-redis`), or a directory for local single-host development |
 | `NOTION_COMMENTS_DATASOURCE_ID` | Optional | `data_source` ID for comments DB |
 | `COMMENT_HASH_SALT` | Optional | Salt for anonymous comment identity (`openssl rand -hex 32`) |
-| `REVALIDATE_SECRET` | Optional | Token used by `/api/revalidate`, `/api/init`, `/api/cron/graph` |
+| `REVALIDATE_SECRET` | Optional | Token used by `/api/revalidate`, `/api/init`, `/api/cron/content`, `/api/cron/graph`, `/api/cron/ontology` |
 | `NEXT_PUBLIC_GOOGLE_MEASUREMENT_ID` | Optional | For Google Analytics plugin |
 | `NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION` | Optional | For Google Search Console plugin |
 | `NEXT_PUBLIC_NAVER_SITE_VERIFICATION` | Optional | For Naver Search Advisor plugin |
+| `NEXT_PUBLIC_BING_SITE_VERIFICATION` | Optional | For Bing Webmaster Tools (`msvalidate.01`) |
+| `NOTION_WEBHOOK_VERIFICATION_TOKEN` | Optional | Signing secret for `/api/notion-webhook` (see setup step 7) |
+| `INDEXNOW_KEY` | Optional | Hex IndexNow key (`openssl rand -hex 16`), served at `/<key>.txt` |
 | `NEXT_PUBLIC_UTTERANCES_REPO` | Optional | For Utterances plugin |
 
-`NEXT_PUBLIC_GOOGLE_MEASUREMENT_ID`, `NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION`, and `NEXT_PUBLIC_NAVER_SITE_VERIFICATION` are read when the container starts, not when the image is built. Supply only public values through `--env-file` or Compose `env_file`; omit them to run with Analytics and verification tags disabled.
+`NEXT_PUBLIC_GOOGLE_MEASUREMENT_ID`, `NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION`, `NEXT_PUBLIC_NAVER_SITE_VERIFICATION`, and `NEXT_PUBLIC_BING_SITE_VERIFICATION` are read when the container starts, not when the image is built. Supply only public values through `--env-file` or Compose `env_file`; omit them to run with Analytics and verification tags disabled.
 
 ## 🐳 Docker Compose deployment
 
-The production path is a native local Docker build. It runs the dynamic Next.js application, Redis, and Qdrant on the Mac mini; only the `blog` service is reachable by HAProxy.
+The dynamic Next.js application, cache Redis, durable content Redis, and Qdrant run as a Docker Compose stack behind HAProxy. GitHub Actions publishes the `linux/amd64` production image; the Mac mini setup below is an alternative native-build deployment. Only the `blog` service should be reachable by the reverse proxy.
 
 ### Required Compose inputs
 
@@ -110,7 +114,7 @@ openssl rand -hex 32 # use this for TRUSTED_PROXY_SECRET and independent comment
 | `NOTION_VISIT_STATS_DATASOURCE_ID`, `VISITOR_HASH_SALT` | When visitor stats enabled | Visit data source and independent visitor salt |
 | `ANTHROPIC_API_KEY`, `OPENAI_API_KEY` | When ontology/vector build enabled | Optional ontology extraction and embedding credentials |
 
-`TRUSTED_PROXY_HOPS` is fixed to `1` inside Compose. Redis and Qdrant are private Compose services; do not set their public URLs in `.env`.
+`TRUSTED_PROXY_HOPS` is fixed to `1` inside Compose. Redis, content Redis, and Qdrant are private Compose services; do not set their public URLs in `.env`. `content-redis` starts with AOF enabled and holds the published content registry; it is intentionally separate from the cache Redis, whose existing RDB data would be ignored if AOF were enabled by restart.
 
 ### Mac mini and HAProxy setup
 
@@ -120,6 +124,7 @@ openssl rand -hex 32 # use this for TRUSTED_PROXY_SECRET and independent comment
 4. HAProxy remains the TLS owner and the single trusted hop for `blog.pieroot.xyz`. Do not publish Qdrant or add another TLS proxy.
 5. This unattended-recovery policy deliberately removes macOS at-rest disk encryption: disable FileVault, enable automatic login for `monolog`, enable Docker Desktop startup at login, prevent automatic system sleep while the display is off, and enable restart after power failure. Retaining or re-enabling FileVault requires manual unlock/login after every reboot.
 6. Point the GitHub revalidation workflow's `REVALIDATE_URL` secret to `https://blog.pieroot.xyz`; its `REVALIDATE_SECRET` must equal the Mac `.env` value.
+7. Optional real-time updates: with `NOTION_WEBHOOK_VERIFICATION_TOKEN` empty, create a Notion webhook subscription for `https://blog.pieroot.xyz/api/notion-webhook`, copy the `verification_token` from `make logs`, verify it in Notion, then set it in `.env` and run `make restart`. The 15-minute `/api/cron/content` workflow remains the authoritative reconciliation.
 
 If pre-existing `logs-data` or `image-cache` volumes are root-owned, preserve them and repair ownership once before startup:
 
@@ -133,7 +138,7 @@ docker compose run --rm --user root --entrypoint chown blog -R 1001:1001 /app/lo
 # Validate required interpolation without starting services.
 make config
 
-# Native local build; waits for blog, Redis, and Qdrant health checks.
+# Native local build; waits for blog, Redis, content Redis, and Qdrant health checks.
 make up
 
 # Inspect stack state or follow bounded container logs.
@@ -145,7 +150,7 @@ make restart
 make down
 ```
 
-`make down` intentionally never removes volumes. Back up Redis RDB data and Qdrant snapshots to an existing off-machine destination before treating this Mac as the sole durable ontology/vector store.
+`make down` intentionally never removes volumes. Back up the `content-redis-data` AOF volume, Redis RDB data, and Qdrant snapshots to an existing off-machine destination before treating this Mac as the sole durable content/ontology/vector store.
 
 ### Production checks
 
