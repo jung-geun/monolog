@@ -19,9 +19,12 @@ services:
       TRUSTED_PROXY_HOPS: "1"
       TRUSTED_PROXY_SECRET: ${TRUSTED_PROXY_SECRET:?required}
       REDIS_URL: redis://redis:6379
+      CONTENT_REDIS_URL: redis://content-redis:6379
       QDRANT_URL: http://qdrant:6333
     depends_on:
       redis:
+        condition: service_healthy
+      content-redis:
         condition: service_healthy
       qdrant:
         condition: service_healthy
@@ -58,6 +61,26 @@ services:
       timeout: 5s
       retries: 3
 
+  # Durable content authority. AOF is enabled from its first boot; enabling AOF
+  # on the existing cache Redis by restart would discard its RDB dataset.
+  content-redis:
+    image: redis:7.4-alpine
+    container_name: blog-content-redis
+    command: ["redis-server", "--appendonly", "yes", "--appendfsync", "everysec"]
+    restart: unless-stopped
+    logging:
+      driver: local
+      options:
+        max-size: 10m
+        max-file: '3'
+    volumes:
+      - content-redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
   qdrant:
     image: qdrant/qdrant:v1.18.0
     container_name: blog-qdrant
@@ -80,4 +103,5 @@ volumes:
   logs-data:
   image-cache:
   redis-data:
+  content-redis-data:
   qdrant-storage:

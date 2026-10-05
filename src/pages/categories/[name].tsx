@@ -6,7 +6,7 @@ import Archive from "src/routes/Archive"
 import { getPosts } from "src/apis/notion-client/getPosts"
 import { filterPosts } from "src/libs/utils/notion"
 import { createServerQueryClient } from "src/libs/react-query"
-import { assertFeedNotEmpty, FEED_POSTS_FILTER, prefetchFeedPosts } from "src/libs/react-query/prefetchFeedPosts"
+import { FEED_POSTS_FILTER, prefetchFeedPosts } from "src/libs/react-query/prefetchFeedPosts"
 import { dehydrate } from "@tanstack/react-query"
 
 type Props = {
@@ -31,7 +31,9 @@ export const getStaticProps: GetStaticProps<Props> = async ({ params }) => {
   const queryClient = createServerQueryClient()
   const categoryName = params?.name as string
   const posts = await prefetchFeedPosts(queryClient, await getPosts())
-  assertFeedNotEmpty(posts)
+  if (!posts.some((post) => post.category?.includes(categoryName))) {
+    return { notFound: true, revalidate: 60 }
+  }
 
   return {
     props: {
@@ -46,9 +48,9 @@ const CategoryPage: NextPageWithLayout<Props> = ({ categoryName }) => (
   <>
     <MetaConfig
       title={`#${categoryName} — ${CONFIG.blog.title}`}
-      description={`Posts in the ${categoryName} category`}
+      description={`${categoryName} 분류의 개발 기록과 논문 정리. ${CONFIG.blog.title}에서 관련 글을 찾아보세요.`}
       type="website"
-      url={`${CONFIG.link}/categories/${categoryName}`}
+      url={`${CONFIG.link}/categories/${encodeURIComponent(categoryName)}`}
     />
     <Archive categoryName={categoryName} />
   </>

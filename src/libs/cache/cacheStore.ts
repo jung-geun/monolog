@@ -7,7 +7,6 @@ class NoopBackend implements CacheBackend {
   async get<T>(_key: string): Promise<T | null> { return null }
   async set<T>(_key: string, _data: T, _ttlMs: number): Promise<void> {}
   async delete(_key: string): Promise<void> {}
-  async clear(_prefix?: string): Promise<void> {}
 }
 
 function createL2Backend(): CacheBackend {
@@ -82,6 +81,17 @@ class CacheStore {
     }
     return l2
   }
+  // Mutable aggregate state must bypass another process's stale L1 entry.
+  async getShared<T>(key: string): Promise<T | null> {
+    if (this.l2 instanceof RedisBackend) return this.l2.getStrict<T>(key)
+    return this.l1.get<T>(key)
+  }
+
+  async setShared<T>(key: string, data: T, ttlMs = 0): Promise<void> {
+    if (this.l2 instanceof RedisBackend) await this.l2.setStrict(key, data, ttlMs)
+    await this.l1.set(key, data, ttlMs)
+  }
+
 
   async set<T>(key: string, data: T, ttlMs: number): Promise<void> {
     await Promise.all([this.l1.set(key, data, ttlMs), this.l2.set(key, data, ttlMs)])
@@ -89,10 +99,6 @@ class CacheStore {
 
   async invalidate(key: string): Promise<void> {
     await Promise.all([this.l1.delete(key), this.l2.delete(key)])
-  }
-
-  async clear(prefix?: string): Promise<void> {
-    await Promise.all([this.l1.clear(prefix), this.l2.clear(prefix)])
   }
 }
 

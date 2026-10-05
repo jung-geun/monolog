@@ -6,9 +6,13 @@ import type { NextApiRequest, NextApiResponse } from "next"
 
 jest.mock("src/apis", () => ({
   getPosts: jest.fn(),
-  getPostBySlug: jest.fn(),
   getRecordMap: jest.fn(),
   getRecordMapDatabases: jest.fn(),
+}))
+
+jest.mock("src/libs/content/registry", () => ({
+  getSlugRedirect: jest.fn(async () => null),
+  readContentRecordMap: jest.fn(async () => null),
 }))
 
 jest.mock("src/libs/utils/notion/markdown", () => ({
@@ -28,14 +32,15 @@ jest.mock("site.config", () => ({
 }))
 
 import handler from "src/pages/api/markdown/[slug]"
-import { getPosts, getPostBySlug, getRecordMap, getRecordMapDatabases } from "src/apis"
+import { getPosts, getRecordMap, getRecordMapDatabases } from "src/apis"
+import { readContentRecordMap } from "src/libs/content/registry"
 import { renderPostMarkdown } from "src/libs/utils/notion/markdown"
 import { errorLog } from "src/libs/utils/logger"
 import type { TPost, TPosts } from "src/types"
 import type { ExtendedRecordMap } from "notion-types"
 
 const mockGetPosts = getPosts as jest.MockedFunction<typeof getPosts>
-const mockGetPostBySlug = getPostBySlug as jest.MockedFunction<typeof getPostBySlug>
+const mockReadContentRecordMap = readContentRecordMap as jest.MockedFunction<typeof readContentRecordMap>
 const mockGetRecordMap = getRecordMap as jest.MockedFunction<typeof getRecordMap>
 const mockGetRecordMapDatabases = getRecordMapDatabases as jest.MockedFunction<typeof getRecordMapDatabases>
 const mockRenderPostMarkdown = renderPostMarkdown as jest.MockedFunction<typeof renderPostMarkdown>
@@ -120,24 +125,24 @@ describe("/api/markdown/[slug]", () => {
     expect(res.statusCode).toBe(200)
     expect(res.getHeader("content-type")).toBe("text/markdown; charset=utf-8")
     expect(res.getHeader("content-disposition")).toBe('inline; filename="hello-world.md"')
-    expect(res.getHeader("cache-control")).toBe("public, s-maxage=21600, stale-while-revalidate=3600")
+    expect(res.getHeader("cache-control")).toBe("no-store")
     expect(res.getHeader("link")).toBe('<https://blog.pieroot.xyz/hello-world>; rel="canonical"')
     expect(res.getHeader("content-length")).toBe(String(Buffer.byteLength("# Hello World\n\nContent", "utf8")))
     expect(res.body).toBe("# Hello World\n\nContent")
     expect(res.ended).toBe(true)
   })
 
-  it("formats safe filename for non-ASCII/quote/space slug", async () => {
+  it("formats an ASCII filename for a non-ASCII slug", async () => {
     const specialPost: TPost = {
       ...samplePost,
-      slug: '안녕 "world"!',
+      slug: "안녕-world",
     }
     mockGetPosts.mockResolvedValue([specialPost] as TPosts)
     mockGetRecordMap.mockResolvedValue({ block: {} } as unknown as ExtendedRecordMap)
     mockGetRecordMapDatabases.mockResolvedValue(new Map())
     mockRenderPostMarkdown.mockReturnValue("# Special Post")
 
-    const req = createReq({ method: "GET", query: { slug: '안녕 "world"!' } })
+    const req = createReq({ method: "GET", query: { slug: "안녕-world" } })
     const res = createRes()
 
     await invoke(req, res)
@@ -157,52 +162,32 @@ describe("/api/markdown/[slug]", () => {
 
     await invoke(req, res)
 
-    expect(mockGetRecordMap).toHaveBeenCalledWith("post-1", [samplePost])
     expect(mockRenderPostMarkdown).toHaveBeenCalled()
     expect(res.statusCode).toBe(200)
     expect(res.getHeader("content-type")).toBe("text/markdown; charset=utf-8")
     expect(res.getHeader("content-disposition")).toBe('inline; filename="hello-world.md"')
-    expect(res.getHeader("cache-control")).toBe("public, s-maxage=21600, stale-while-revalidate=3600")
+    expect(res.getHeader("cache-control")).toBe("no-store")
     expect(res.getHeader("link")).toBe('<https://blog.pieroot.xyz/hello-world>; rel="canonical"')
     expect(res.getHeader("content-length")).toBe(String(Buffer.byteLength("# Hello World\n\nContent", "utf8")))
     expect(res.body).toBe("")
     expect(res.ended).toBe(true)
   })
 
-  it("uses getPostBySlug fallback when slug is not in initial getPosts list", async () => {
-    mockGetPosts.mockResolvedValue([])
-    mockGetPostBySlug.mockResolvedValue(samplePost)
-    mockGetRecordMap.mockResolvedValue({ block: {} } as unknown as ExtendedRecordMap)
+  it("serves the published registry body while live Notion is unavailable", async () => {
+    mockGetPosts.mockResolvedValue([samplePost] as TPosts)
+    mockReadContentRecordMap.mockResolvedValueOnce({ block: {} } as unknown as ExtendedRecordMap)
+    mockGetRecordMap.mockRejectedValue(new Error("Notion 502"))
     mockGetRecordMapDatabases.mockResolvedValue(new Map())
-    mockRenderPostMarkdown.mockReturnValue("# Fallback Post")
+    mockRenderPostMarkdown.mockReturnValue("# Published body")
 
     const req = createReq({ method: "GET", query: { slug: "hello-world" } })
     const res = createRes()
 
     await invoke(req, res)
 
-    expect(mockGetPostBySlug).toHaveBeenCalledWith("hello-world")
     expect(res.statusCode).toBe(200)
-    expect(res.body).toBe("# Fallback Post")
-  })
-
-  it("returns 404 when fallback post is ineligible (e.g. status Private)", async () => {
-    const privatePost: TPost = {
-      ...samplePost,
-      status: ["Private"],
-    }
-    mockGetPosts.mockResolvedValue([])
-    mockGetPostBySlug.mockResolvedValue(privatePost)
-
-    const req = createReq({ method: "GET", query: { slug: "hello-world" } })
-    const res = createRes()
-
-    await invoke(req, res)
-
-    expect(res.statusCode).toBe(404)
-    expect(res.getHeader("content-type")).toBe("text/plain; charset=utf-8")
-    expect(res.getHeader("cache-control")).toBe("no-store")
-    expect(res.body).toBe("Not Found\n")
+    expect(res.body).toBe("# Published body")
+    expect(mockGetRecordMap).not.toHaveBeenCalled()
   })
 
   it("returns 400 for missing, empty, or array slug", async () => {
@@ -225,7 +210,6 @@ describe("/api/markdown/[slug]", () => {
 
   it("returns 404 for unknown slug", async () => {
     mockGetPosts.mockResolvedValue([])
-    mockGetPostBySlug.mockResolvedValue(null)
 
     const req = createReq({ method: "GET", query: { slug: "unknown" } })
     const res = createRes()

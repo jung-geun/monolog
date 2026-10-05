@@ -103,6 +103,7 @@ yarn dev
 |---|---|
 | `NOTION_TOKEN` | Notion Internal Integration Token (`ntn_...`) |
 | `NOTION_DATASOURCE_ID` | `blog-table` DB의 ID (UUID with hyphens) |
+| `CONTENT_REDIS_URL` 또는 `CONTENT_STATE_DIR` | 공개 게시물·본문·slug 이력·대기 중인 경로/그래프 작업을 보관하는 내구성 콘텐츠 저장소. 운영·컨테이너는 AOF가 켜진 Redis 7.2+(`CONTENT_REDIS_URL`, Compose의 `content-redis`), 로컬 단일 호스트 개발은 디렉터리(`CONTENT_STATE_DIR=.content-state`). 둘 다 없으면 페이지 렌더와 동기화가 실패합니다 |
 
 ### 댓글 활성 시 필수 (`site.config.js: notionComments.enable: true`)
 
@@ -125,21 +126,30 @@ yarn dev
 | `REDIS_URL` | — | Redis 연결 URL. 설정 시 L2 캐시 활성 (cold start 성능 향상). 예: `redis://localhost:6379`, `rediss://user:pass@host:6380` |
 | `ANTHROPIC_API_KEY` | — | `/ontology`, Graph semantic overlay, RightRail `ai · similar`의 엔티티/관계 추출용 Anthropic API key |
 | `OPENAI_API_KEY` | — | Qdrant 벡터 검색에 저장할 `text-embedding-3-small` 임베딩 생성용 OpenAI API key |
-| `QDRANT_URL` | `http://localhost:6333` | 로컬 개발 또는 외부 Qdrant REST endpoint. Docker Compose `ontology` profile은 `docker-compose.yml`에서 컨테이너용 `http://qdrant:6333`을 직접 설정 |
+| `QDRANT_URL` | `http://localhost:6333` | 로컬 개발 또는 외부 Qdrant REST endpoint. Docker Compose 기본 스택은 `docker-compose.yml`에서 컨테이너용 `http://qdrant:6333`을 직접 설정 |
 | `QDRANT_API_KEY` | — | 인증이 걸린 외부 Qdrant용 API key. 로컬/self-hosted Qdrant는 빈 값 |
 | `CACHE_NAMESPACE` | `monolog` | Redis 키 prefix. 동일 Redis를 staging·preview 등 여러 배포가 공유할 때 충돌 방지 |
 | `GRAPH_BUILD_TIMEOUT_MS` | `120000` | Notion graph complete-build 시간 제한(ms). 제한을 넘긴 partial graph는 Qdrant snapshot으로 저장하지 않음. 최대 `300000` |
-| `REVALIDATE_SECRET` | — | `/api/revalidate` · `/api/init` · `/api/cron/graph` 보호용 Bearer 토큰. GitHub Actions의 `REVALIDATE_SECRET` secret과 **동일 이름·동일 값**. |
+| `REVALIDATE_SECRET` | — | `/api/revalidate` · `/api/init` · `/api/cron/content` · `/api/cron/graph` · `/api/cron/ontology` 보호용 Bearer 토큰. GitHub Actions의 `REVALIDATE_SECRET` secret과 **동일 이름·동일 값**. |
 | `REVALIDATE_HOURS` | `6` | ISR 재생성 주기 (시간) |
-| `NEXT_PUBLIC_SITE_URL` | — | 절대 이미지 프록시 URL prefix |
+| `NEXT_PUBLIC_SITE_URL` | — | 요청 origin 검증의 추가 허용 주소(선택). canonical·sitemap·RSS·IndexNow는 `site.config.js`의 `link`를 사용하고 이미지 프록시는 상대 URL로 저장 |
 | `TRUSTED_PROXY_HOPS` | `0` | 앞단 프록시 hop 수 — `0`이면 XFF 무시, `1`이면 Nginx·LB 1단 신뢰 |
 | `NEXT_PUBLIC_GOOGLE_MEASUREMENT_ID` | — | Google Analytics |
 | `NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION` | — | Google Search Console |
 | `NEXT_PUBLIC_NAVER_SITE_VERIFICATION` | — | Naver Search Advisor |
+| `NEXT_PUBLIC_BING_SITE_VERIFICATION` | — | Bing Webmaster Tools (`msvalidate.01`) |
 | `NEXT_PUBLIC_UTTERANCES_REPO` | — | Utterances 댓글 (`user/repo`) |
 | `SLACK_WEBHOOK` | — | image-proxy 실패 Slack 알림 |
+| `NOTION_WEBHOOK_VERIFICATION_TOKEN` | — | Notion webhook 서명 검증 secret. 비워 둔 채 구독을 만들면 서버 로그에 `verification_token`이 출력되고, 그 값을 Notion에서 검증한 뒤 이 변수에 설정 |
+| `INDEXNOW_KEY` | — | IndexNow 키(16진수 8–128자, 예: `openssl rand -hex 16`). `/<key>.txt`로 제공되고 변경된 공개 URL을 발행 직후 제출 |
+| `INDEXNOW_KEY_LOCATION` | `<CONFIG.link>/<key>.txt` | 같은 origin의 다른 키 파일 위치를 쓸 때만 설정 |
+| `DISCORD_WEBHOOK` | — | 공개 조건(Status·Type·Slug·발행일)을 통과하지 못한 Notion 페이지 경고 (`https://discord.com/api/webhooks/...`) |
+| `CONTENT_NAMESPACE` | `monolog` | `CONTENT_REDIS_URL` 안의 콘텐츠 키 namespace |
+| `CONTENT_LOCK_MS` | `900000` | Redis 콘텐츠 작업 lease(ms). 갱신 중 lease를 잃으면 저장하지 않고 실패 |
 
-`NEXT_PUBLIC_GOOGLE_MEASUREMENT_ID`, `NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION`, `NEXT_PUBLIC_NAVER_SITE_VERIFICATION`는 이미지 빌드 시점이 아니라 컨테이너 시작 시 주입됩니다. 공개 값만 넣고, `docker run --env-file .env …` 또는 Compose의 `env_file`로 설정한 뒤 컨테이너를 재시작하세요. 값이 없으면 Analytics와 검증 메타 태그는 비활성화되며 앱은 정상 실행됩니다.
+`NEXT_PUBLIC_GOOGLE_MEASUREMENT_ID`, `NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION`, `NEXT_PUBLIC_NAVER_SITE_VERIFICATION`, `NEXT_PUBLIC_BING_SITE_VERIFICATION`는 이미지 빌드 시점이 아니라 컨테이너 시작 시 주입됩니다. 공개 값만 넣고, `docker run --env-file .env …` 또는 Compose의 `env_file`로 설정한 뒤 컨테이너를 재시작하세요. 값이 없으면 Analytics와 검증 메타 태그는 비활성화되며 앱은 정상 실행됩니다.
+
+상세 글의 날짜 레이블과 같은 날 수정일 생략은 `site.config.js`의 `timeZone`(기본 `Asia/Seoul`)을 따릅니다. `<time dateTime>`과 JSON-LD에는 UTC ISO 시각을 유지합니다. IndexNow·Discord의 실패는 콘텐츠 발행을 막지 않고 `notificationsPending`으로 별도 집계하며, 일시 장애는 최대 8회 시도 후 제거합니다. 영구 오류·제거된 설정은 즉시 제거합니다.
 
 ### GitHub Actions Secrets (워크플로우 전용)
 
@@ -150,7 +160,8 @@ yarn dev
 |---|---|---|
 | `REVALIDATE_URL` | 필수 | 운영 사이트 base URL (예: `https://your-site.com`, 끝 `/` 없음) |
 | `REVALIDATE_SECRET` | 필수 | 컨테이너의 `REVALIDATE_SECRET` 환경변수와 동일 값 |
-| `DISCORD_WEBHOOK` | 선택 | 성공/실패 Discord 알림 webhook URL |
+
+워크플로우는 15분마다 `POST /api/cron/content`를 호출합니다. 응답이 `200`이 아니면 실패하거나 남은 작업(`pending`)이 있다는 뜻이며, 남은 작업은 저장소에 보존되어 다음 실행에서 이어서 처리됩니다.
 
 ---
 
@@ -158,9 +169,14 @@ yarn dev
 
 | Path | 인증 | 용도 |
 |---|---|---|
-| `GET /api/revalidate?path=...` | `Authorization: Bearer $REVALIDATE_SECRET` | ISR 재검증 + 캐시 wipe. `path` 생략 시 전체 페이지를 background 처리하고 즉시 `{"revalidated":true,"status":"processing"}` 반환 |
-| `GET /api/init` | `Authorization: Bearer $REVALIDATE_SECRET` | 컨테이너 시작 시 ISR 워밍 |
+| `GET\|POST /api/revalidate` | `Authorization: Bearer $REVALIDATE_SECRET` | 수동 증분 동기화. 캐시를 지우지 않고 바뀐 글과 영향받는 경로만 갱신. `path=/slug`는 해당 글 본문을 다시 확인, `path=/categories/x`·`/series/x`·컬렉션 경로는 그 경로만 재생성, `full=true`는 삭제·이동 감지용 전체 메타데이터 대조. 모든 작업이 끝나면 `200`, 남은 작업이 있으면 `503` |
+| `GET\|POST /api/init` | `Authorization: Bearer $REVALIDATE_SECRET` | 컨테이너 시작 워밍. 저장소가 비어 있으면 최초 동기화 후 모든 공개 경로를 재생성. AI 그래프 유지보수는 기다리지 않음(`maintenancePending`) |
+| `GET\|POST /api/cron/content` | `Authorization: Bearer $REVALIDATE_SECRET` | 정기 증분 동기화 + 24시간마다 자동 전체 대조, 대기 중인 그래프·ontology 유지보수와 IndexNow 제출 처리 |
+| `POST /api/notion-webhook` | `X-Notion-Signature` (HMAC-SHA256) | Notion 이벤트를 힌트로 받아 해당 페이지를 실시간 메타데이터로 다시 확인하고 발행. 같은 이벤트 ID는 한 번만 처리 |
 | `POST /api/cron/ontology` | `REVALIDATE_SECRET` Bearer | LLM ontology, Qdrant embeddings, semantic graph edges, RightRail `ai · similar` 데이터를 생성/갱신. `?force=1`이면 캐시 우회 |
+| `GET /robots.txt` · `GET /llms.txt` | — | 크롤러 정책·사이트맵 위치, AI용 공개 글 색인 (공개 글 목록과 동기) |
+| `GET /{slug}.md` | — | 글의 Markdown 대체 표현 (`<link rel="alternate" type="text/markdown">`) |
+| `GET /{INDEXNOW_KEY}.txt` | — | IndexNow 키 검증 파일 |
 | `GET /api/similar?postId=<id-or-slug>&limit=5` | 없음 | Qdrant 기반 `ai · similar` 글 목록 반환. ontology embedding이 아직 없으면 `202` |
 | `GET /api/image-proxy?id=<uuid>&kind=s3` | 없음 (allow-list) | Notion S3 이미지 프록시 (안정 URL) |
 | `GET /api/image-proxy?url=<url>` | 없음 | 레거시 image-proxy (구 ISR 캐시 호환) |
@@ -174,8 +190,8 @@ yarn dev
 방문자 통계는 1년짜리 first-party `HttpOnly` 쿠키(`monolog_visitor_id`)를 사용합니다. Notion에는 salted per-page `VisitKey`만 저장하며 원본 쿠키 값, 원본 IP, User-Agent, cross-page visitor ID는 저장하지 않습니다. 방문자가 쿠키를 삭제하거나 다른 브라우저/기기를 쓰면 새 방문자로 계산됩니다.
 
 ```bash
-# 수동 전체 ISR 갱신
-curl -H "Authorization: Bearer $REVALIDATE_SECRET" "https://your-site.com/api/revalidate"
+# 수동 전체 대조 (삭제·이동 감지 포함, 캐시 wipe 없음)
+curl -X POST -H "Authorization: Bearer $REVALIDATE_SECRET" "https://your-site.com/api/revalidate?full=true"
 ```
 
 ---
@@ -183,7 +199,7 @@ curl -H "Authorization: Bearer $REVALIDATE_SECRET" "https://your-site.com/api/re
 ## Docker
 
 ```bash
-# 기본 스택: blog + redis + qdrant
+# 기본 스택: blog + redis(캐시) + content-redis(내구성 콘텐츠 저장소) + qdrant
 docker compose up -d
 
 # 로컬 변경사항까지 다시 빌드해서 재시작
@@ -201,6 +217,10 @@ docker compose logs -f
 
 - 아키텍처: `linux/amd64`
 - SLSA build provenance attestation 자동 첨부
+
+운영에서 GHCR 이미지를 사용하면 GitHub의 테스트·빌드가 성공한 뒤 `docker compose pull blog`로 가져오고, OCI revision이 배포할 커밋과 일치하는지 확인합니다. 기존 이미지에 rollback 태그를 남기고 `.env`·Compose override·Redis RDB·Qdrant snapshot을 백업한 뒤 `docker compose up -d --no-build --wait`로 교체합니다. 볼륨을 삭제하지 않습니다.
+
+서버 전용 `docker-compose.override.yml`이 `blog`·`redis`·`qdrant`를 외부 네트워크에 연결한다면 새 `content-redis`에도 같은 네트워크를 지정해야 합니다. 첫 배포는 `content-redis`를 먼저 시작하고 `docker compose run -d --name blog-candidate --no-deps -p 127.0.0.1:13000:3000 blog`로 후보 이미지를 실행해 `/api/init` 완료와 실제 페이지를 확인한 뒤 운영 컨테이너를 교체하면 최초 본문 동기화 동안 기존 사이트를 유지할 수 있습니다. 후보 컨테이너 확인이 끝나면 제거합니다.
 
 ### Qdrant ontology/vector search (선택)
 
@@ -253,6 +273,8 @@ volumes:
 
 Redis 미설정 시 in-process 메모리 캐시(L1)만 사용합니다 — 서버 재시작마다 초기화됩니다.
 
+`content-redis`는 TTL 캐시와 분리된 내구성 콘텐츠 저장소입니다. 첫 기동부터 AOF(`--appendonly yes`)가 켜져 있고, 저장은 `WAITAOF`로 로컬 fsync를 확인한 뒤에만 성공합니다. 기존 캐시 `redis`의 설정을 재시작으로 AOF로 바꾸면 기존 RDB 데이터셋을 읽지 않으므로, 두 저장소를 합치지 마세요. 백업 대상에 `content-redis-data` 볼륨을 포함하세요.
+
 ### 볼륨 (`docker-compose.yml`)
 
 ```yaml
@@ -299,6 +321,7 @@ src/
 │   └── EditorChrome/        — TitleBar · ... · LineNumberGutter
 ├── libs/
 │   ├── cache/               — L1 Memory + L2 Redis 포스트 캐시 / BlobFsBackend 이미지 캐시
+│   ├── content/             — 내구성 콘텐츠 레지스트리 (증분 대조 · slug 이력 · 영향 경로 outbox · webhook · IndexNow)
 │   ├── react-query/         — 싱글톤 QueryClient
 │   └── utils/
 │       ├── graph.ts         — 결정론적 노드 레이아웃
@@ -326,8 +349,11 @@ src/pages/
 ├── sitemap.xml.tsx · rss.xml.tsx
 └── api/
     ├── image-proxy.ts       — Notion S3 프록시 + BLOB 캐시 + 만료 복구
-    ├── revalidate.ts        — ISR 재검증
-    ├── init.ts              — 컨테이너 ISR 워밍
+    ├── revalidate.ts        — 수동 증분 동기화
+    ├── init.ts              — 컨테이너 워밍
+    ├── cron/content.ts      — 정기 증분 동기화
+    ├── notion-webhook.ts    — Notion webhook 수신
+    ├── robots.ts · llms.ts · indexnow-key.ts · markdown/[slug].ts
     └── refresh-image.ts     — 단일 이미지 URL 재발급
 
 tests/                       — Jest (jsdom · node · @swc/jest)

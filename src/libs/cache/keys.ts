@@ -4,7 +4,8 @@ const DB_VERSION = "v6"
 // Bump RM_VERSION when convertRichText / processBlock output shape changes
 // (e.g. new mention decorations, new format fields) so existing recordMap
 // caches are invalidated and re-fetched with the new translator.
-const RM_VERSION = "v7"
+// v8 drops raw database properties from the root page block.
+const RM_VERSION = "v8"
 // Bump NG_VERSION when NotionGraph schema changes (e.g. new edge types, node fields)
 // so cached graphs are discarded and rebuilt with the new shape.
 const NG_VERSION = "v4"
@@ -16,9 +17,8 @@ const EMB_VERSION = "v1"
 // Bump ONT_VERSION when PostOntology/Entity/SemanticEdge schema changes.
 const ONT_VERSION = "v2"
 const OG_VERSION = "v2"
-// Bump POSTS_VERSION when TPost shape changes (e.g. new fields like lastEditedTime)
-// so FS-cached posts without the new field are discarded immediately.
-const POSTS_VERSION = "v2"
+// v3 joins rich text and enforces public status, path and publication date.
+const POSTS_VERSION = "v3"
 
 export const keys = {
   posts: (dataSourceId: string) => `posts:${POSTS_VERSION}:${dataSourceId}`,
@@ -31,6 +31,8 @@ export const keys = {
   og: (url: string) => `og:${OG_VERSION}:${url}`,
   notionGraph: (hash: string) => `notionGraph:${NG_VERSION}:${hash}`,
   builtGraph: (hash: string) => `builtGraph:${BG_VERSION}:${hash}`,
+  postGraphExtraction: (postId: string, contentVersion: string) =>
+    `postGraphExtraction:v1:${postId}:${contentVersion}`,
   comments: (slug: string) => `comments:${slug}`,
   embedding: (postId: string, lastEdited: string) => `embedding:${EMB_VERSION}:${postId}:${lastEdited}`,
   postOntology: (postId: string, lastEdited: string) => `postOntology:${ONT_VERSION}:${postId}:${lastEdited}`,

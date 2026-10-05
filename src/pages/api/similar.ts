@@ -1,5 +1,6 @@
 import { NextApiRequest, NextApiResponse } from "next"
 import { getPosts } from "src/apis/notion-client/getPosts"
+import { eligibleGraphPosts, postContentVersion } from "src/apis/notion-client/graphHash"
 import { searchSimilar, normalizeUUID } from "src/apis/vector/qdrantClient"
 import { cacheStore, keys } from "src/libs/cache"
 import { getOntology } from "src/apis/ontology/getOntology"
@@ -20,16 +21,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const rawId = typeof req.query.postId === "string" ? req.query.postId : undefined
   if (!rawId) return res.status(400).json({ error: "postId is required" })
 
-  const limit = Math.min(Number(req.query.limit ?? 5), 20)
+  const requestedLimit = Number(req.query.limit ?? 5)
+  const limit = Number.isFinite(requestedLimit) ? Math.min(Math.max(Math.floor(requestedLimit), 1), 20) : 5
+  // Unpublishing must take effect immediately, so neither request nor results are CDN-cached.
+  res.setHeader("Cache-Control", "no-store")
 
-  // Look up the post to get lastEditedTime for the embedding cache key
-  const posts = await getPosts()
+  const posts = eligibleGraphPosts(await getPosts())
   const post = posts.find((p) => p.id === rawId || p.slug === rawId)
   if (!post) return res.status(404).json({ error: "Post not found" })
 
-  const lastEdited = post.lastEditedTime ?? post.createdTime
-  const embKey = keys.embedding(post.id, lastEdited)
-  const vector = await cacheStore.get<number[]>(embKey)
+  const vector = await cacheStore.get<number[]>(keys.embedding(post.id, postContentVersion(post)))
 
   if (!vector) {
     return res.status(202).json({
@@ -51,17 +52,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
   }
 
-  const results: SimilarPost[] = similar.map((r) => {
-    return {
-      postId: r.payload.postId,
-      slug: r.payload.slug,
-      title: r.payload.title,
-      category: r.payload.category,
+  const postMap = new Map(posts.map((p) => [p.id, p]))
+  const results: SimilarPost[] = similar.flatMap((r) => {
+    const current = postMap.get(r.payload.postId)
+    if (!current || current.id === post.id) return []
+    return [{
+      postId: current.id,
+      slug: current.slug,
+      title: current.title,
+      category: current.category?.[0] ?? "misc",
       score: r.score,
-      rationale: rationaleMap.get(r.payload.postId),
-    }
+      rationale: rationaleMap.get(current.id),
+    }]
   })
 
-  res.setHeader("Cache-Control", "public, s-maxage=3600, stale-while-revalidate=600")
   res.json({ postId: post.id, results })
 }

@@ -3,10 +3,14 @@
  */
 
 import { filterPosts } from "src/libs/utils/notion/filterPosts"
+import type { TPost } from "src/types"
 
-const makePost = (overrides: any = {}) => ({
+const makePost = (overrides: Partial<TPost> = {}): TPost => ({
   title: "Test Post",
   slug: "test-post",
+  id: "test-post-id",
+  date: { start_date: "" },
+  fullWidth: false,
   type: ["Post"],
   status: ["Public"],
   createdTime: "2024-01-01",
@@ -16,7 +20,8 @@ const makePost = (overrides: any = {}) => ({
 describe("filterPosts", () => {
   const originalNodeEnv = process.env.NODE_ENV
   const setNodeEnv = (value: string | undefined) => {
-    ;(process.env as any).NODE_ENV = value
+    if (value === undefined) Reflect.deleteProperty(process.env, "NODE_ENV")
+    else Reflect.set(process.env, "NODE_ENV", value)
   }
 
   beforeEach(() => {
@@ -62,16 +67,17 @@ describe("filterPosts", () => {
     expect(out.map((p) => p.id)).toEqual(["past"])
   })
 
-  it("lets future posts through in development", () => {
+  it("keeps scheduled and private content out of public outputs in development", () => {
     setNodeEnv("development")
     const future = new Date()
     future.setDate(future.getDate() + 2)
 
     const posts = [
       makePost({ id: "future", createdTime: future.toISOString().slice(0, 10) }),
+      makePost({ id: "private", slug: "private-post", status: ["Private"] }),
     ]
 
     const out = filterPosts(posts, { acceptStatus: ["Public"], acceptType: ["Post"] })
-    expect(out.map((p) => p.id)).toEqual(["future"])
+    expect(out).toEqual([])
   })
 })

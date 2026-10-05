@@ -31,15 +31,15 @@ const CONFIG = {
   // blog setting (required)
   blog: {
     title: "pieroot log",
-    description: "welcome to pieroot's logs!",
+    description: "시스템 개발자 jung-geun의 기술 블로그. 개발 과정에서 배운 내용과 논문, 프로젝트 기록을 공유합니다.",
     scheme: "system", // 'light' | 'dark' | 'system'
   },
 
   // CONFIG configration (required)
   link: "https://blog.pieroot.xyz",
   since: 2026, // If leave this empty, current year will be used.
-  lang: "ko-kr", // ['en-US', 'zh-CN', 'zh-HK', 'zh-TW', 'ja-JP', 'es-ES', 'ko-KR']
-  ogImageGenerateURL: "https://og-image-korean.vercel.app", // The link to generate OG image, don't end with a slash
+  lang: "ko-KR",
+  timeZone: "Asia/Seoul",
 
   // notion configuration (required)
   notionConfig: {
@@ -64,18 +64,6 @@ const CONFIG = {
         postRail: "",
         feedBottom: "",
       },
-    },
-  },
-  googleSearchConsole: {
-    enable: Boolean(process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION),
-    config: {
-      siteVerification: process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION || "",
-    },
-  },
-  naverSearchAdvisor: {
-    enable: false,
-    config: {
-      siteVerification: process.env.NEXT_PUBLIC_NAVER_SITE_VERIFICATION || "",
     },
   },
   notionComments: {

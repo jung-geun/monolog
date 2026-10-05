@@ -6,4 +6,5 @@ export const getRuntimePublicConfigFromEnvironment = (
   googleMeasurementId: environment["NEXT_PUBLIC_GOOGLE_MEASUREMENT_ID"] || "",
   googleSiteVerification: environment["NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION"] || "",
   naverSiteVerification: environment["NEXT_PUBLIC_NAVER_SITE_VERIFICATION"] || "",
+  bingSiteVerification: environment["NEXT_PUBLIC_BING_SITE_VERIFICATION"] || "",
 })

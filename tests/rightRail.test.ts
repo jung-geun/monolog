@@ -29,8 +29,10 @@ describe("extractToc", () => {
   it("keeps inline-code fragments in outline headings", () => {
     const toc = extractToc({
       block: {
+        root: { value: { id: "root", type: "page", content: ["heading-with-code"] } },
         "heading-with-code": {
           value: {
+            id: "heading-with-code",
             type: "sub_header",
             properties: {
               title: [
@@ -45,7 +47,7 @@ describe("extractToc", () => {
     } as unknown as ExtendedRecordMap)
 
     expect(toc).toEqual([
-      { id: "heading-with-code", text: "2. local_settings.py 설정", level: 2 },
+      { id: "heading-with-code", text: "2. local_settings.py 설정", level: 1 },
     ])
   })
 })

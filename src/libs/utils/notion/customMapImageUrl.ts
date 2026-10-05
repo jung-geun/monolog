@@ -128,7 +128,6 @@ export const customMapImageUrl = (url: string, block?: Block, context?: CustomMa
 
   // Proxy the final Notion image URL through our image proxy so that all
   // thumbnails (main feed + detail pages) consistently go through a single
-  // caching layer. Using an absolute URL when NEXT_PUBLIC_SITE_URL is set
-  // avoids issues with double-wrapping in nested rendering contexts.
+  // caching layer. Keep the proxy URL local so next/image accepts it.
   return createProxyRequestUrl(finalUrl, metadata)
 }

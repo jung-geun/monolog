@@ -1,4 +1,4 @@
-import { getOfficialNotionClient } from "src/apis/notion-client/notionClient"
+import { getPostGraphExtraction } from "src/apis/notion-client/buildNotionGraph"
 import { callWithTool } from "src/apis/llm/anthropicClient"
 import { embedText } from "src/apis/llm/openaiEmbedding"
 import { ensureCollection, upsertEmbedding, normalizeUUID } from "src/apis/vector/qdrantClient"
@@ -6,49 +6,11 @@ import { cacheStore, keys } from "src/libs/cache"
 import { TPost } from "src/types"
 import { PostOntology, EntityKind } from "src/types/ontology"
 import { debugLog, warnLog } from "src/libs/utils/logger"
+import { postContentVersion } from "src/apis/notion-client/graphHash"
 
 const MIN_TEXT_LENGTH = 200
 const POST_ONTOLOGY_TTL_MS = 7 * 24 * 60 * 60 * 1000
 
-const TEXT_BLOCK_TYPES = new Set([
-  "paragraph", "heading_1", "heading_2", "heading_3",
-  "bulleted_list_item", "numbered_list_item", "to_do",
-  "toggle", "quote", "callout",
-])
-
-async function fetchPostText(pageId: string): Promise<string> {
-  const notion = getOfficialNotionClient()
-  const parts: string[] = []
-
-  async function walk(blockId: string, depth: number): Promise<void> {
-    if (depth > 2) return
-    let cursor: string | undefined
-    do {
-      const res = await notion.blocks.children.list({
-        block_id: blockId,
-        start_cursor: cursor,
-        page_size: 100,
-      })
-      for (const block of res.results as any[]) {
-        const type = block.type as string
-        if (TEXT_BLOCK_TYPES.has(type)) {
-          for (const rt of (block[type]?.rich_text || []) as any[]) {
-            if (rt.plain_text) parts.push(rt.plain_text)
-          }
-        } else if (type === "code") {
-          for (const rt of (block.code?.rich_text || []) as any[]) {
-            if (rt.plain_text) parts.push(rt.plain_text)
-          }
-        }
-        if (block.has_children) await walk(block.id, depth + 1)
-      }
-      cursor = res.has_more ? (res.next_cursor ?? undefined) : undefined
-    } while (cursor)
-  }
-
-  await walk(pageId, 0)
-  return parts.join(" ").trim()
-}
 
 type LLMEntityOutput = {
   name: string
@@ -107,7 +69,7 @@ export async function extractPostOntology(
   post: TPost,
   { bypassCache = false }: { bypassCache?: boolean } = {}
 ): Promise<PostOntology> {
-  const lastEdited = post.lastEditedTime ?? post.createdTime
+  const lastEdited = postContentVersion(post)
   const cacheKey = keys.postOntology(post.id, lastEdited)
 
   if (!bypassCache) {
@@ -115,13 +77,7 @@ export async function extractPostOntology(
     if (cached) return cached
   }
 
-  let text: string
-  try {
-    text = await fetchPostText(post.id)
-  } catch (err) {
-    warnLog(`[extractPostOntology] failed to fetch text for "${post.slug}":`, err)
-    text = post.title
-  }
+  const { text } = await getPostGraphExtraction(post)
 
   if (text.length < MIN_TEXT_LENGTH) {
     debugLog(`[extractPostOntology] "${post.slug}" text too short (${text.length}), using title only`)
@@ -140,9 +96,8 @@ export async function extractPostOntology(
     })),
   }
 
-  await cacheStore.set(cacheKey, result, POST_ONTOLOGY_TTL_MS)
 
-  // embed + upsert Qdrant (fire-and-forget errors are non-fatal)
+  // Commit extraction only after its vector is stored; failures must remain retryable.
   try {
     await ensureCollection()
     const vector = await embedText(`${post.title}\n\n${llmResult.summary}\n\n${text.slice(0, 2000)}`)
@@ -159,7 +114,9 @@ export async function extractPostOntology(
     await cacheStore.set(embKey, vector, POST_ONTOLOGY_TTL_MS)
   } catch (err) {
     warnLog(`[extractPostOntology] embedding/upsert failed for "${post.slug}":`, err)
+    throw err
   }
+  await cacheStore.set(cacheKey, result, POST_ONTOLOGY_TTL_MS)
 
   return result
 }

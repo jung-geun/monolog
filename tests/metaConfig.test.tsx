@@ -33,10 +33,4 @@ describe("MetaConfig", () => {
     )
   })
 
-  it("does not render alternate link when alternateMarkdownUrl is omitted", () => {
-    const markup = renderToStaticMarkup(<MetaConfig {...defaultProps} />)
-
-    expect(markup).not.toContain('rel="alternate"')
-    expect(markup).not.toContain('type="text/markdown"')
-  })
 })

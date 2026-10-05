@@ -10,3 +10,4 @@ logs/
 coverage/
 tests/
 docker-compose.override.yml
+.content-state/

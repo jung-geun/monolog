@@ -1,5 +1,6 @@
 import { debugLog } from "src/libs/utils/logger"
 import { TPosts, TPostStatus, TPostType } from "src/types"
+import { isSafePostSlug } from "./publication"
 
 export type FilterPostsOptions = {
   acceptStatus?: TPostStatus[]
@@ -28,7 +29,7 @@ export function filterPosts(
 
   const filteredPosts = posts
     .filter((post) => {
-      if (!post.title || !post.slug) return false
+      if (!post.title?.trim() || !isSafePostSlug(post.slug)) return false
 
       const postDate =
         parsePostDate(post.date?.start_date) ??
@@ -36,18 +37,15 @@ export function filterPosts(
 
       if (!postDate) return false
 
-      const isDev = process.env.NODE_ENV === "development"
-      return isDev || postDate <= now
+      return postDate <= now
     })
     .filter((post) => {
       const postStatus = post.status?.[0]
-      const isDev = process.env.NODE_ENV === "development"
-      const isPrivate = postStatus === "Private"
-      return acceptStatus.includes(postStatus as any) || (isDev && isPrivate)
+      return acceptStatus.includes(postStatus)
     })
     .filter((post) => {
       const postType = post.type?.[0]
-      return acceptType.includes(postType as any)
+      return acceptType.includes(postType)
     })
 
   debugLog(`🔍 [filterPosts] Result: ${filteredPosts.length} posts`)

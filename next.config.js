@@ -8,8 +8,13 @@ module.exports = {
   },
   async rewrites() {
     return {
-      beforeFiles: [],
-      afterFiles: [{ source: "/:slug\\.md", destination: "/api/markdown/:slug" }],
+      beforeFiles: [
+        { source: "/robots.txt", destination: "/api/robots" },
+        { source: "/llms.txt", destination: "/api/llms" },
+        { source: "/:key([a-fA-F0-9]{8,128})\\.txt", destination: "/api/indexnow-key?key=:key" },
+        { source: "/:slug\\.md", destination: "/api/markdown/:slug" },
+      ],
+      afterFiles: [],
       fallback: [],
     }
   },

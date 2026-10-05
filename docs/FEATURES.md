@@ -72,10 +72,10 @@ About 라우트는 다음 위젯들을 한 화면에 묶어 보여줍니다.
 포스트가 카테고리별 군집으로 자연스럽게 응집되는 옵시디언 스타일 노드 그래프.
 
 ### 데이터 — 페이지별 해시 기반 캐시 + Qdrant 스냅샷
-- 현재 포스트 목록에서 `sha1(sorted pageId:lastEditedTime)` 해시를 계산해 재빌드 필요 여부를 판단
-- 해시가 일치하는 Qdrant `post_graph_snapshots` 스냅샷이 있으면 그 `BuiltGraph`를 먼저 재사용하고, 없거나 stale이면 raw/built graph를 다시 생성
+- 현재 공개 글의 본문 해시(레지스트리 초기화 전에는 수정 시각)와 그래프에 영향을 주는 메타데이터로 재빌드 필요 여부를 판단
+- 해시가 일치하는 Qdrant `post_graph_snapshots` 스냅샷이 있으면 그 `BuiltGraph`를 재사용하고, 바뀐 글의 엣지만 다시 추출해 raw/built graph를 갱신
 - `/graphs/notion-graph.json`는 그대로 JSON fetch 엔드포인트이며, 클라이언트 `/graph` 페이지는 여기서 그래프를 가져옴
-- `instrumentation.ts`가 부팅 500ms 뒤 `refreshGraphSnapshotInQdrant()`를 호출해 캐시와 persisted snapshot을 함께 워밍 (`NEXT_GRAPH_WARM=0`으로 opt-out)
+- `/api/cron/content`가 콘텐츠 outbox의 대기 작업을 처리해 캐시와 persisted snapshot을 갱신. 초기화·수동 revalidate·webhook은 AI 유지보수를 기다리지 않으며, `yarn warm:graph`로 수동 워밍 가능
 
 ### 엣지 종류
 한 페어가 여러 타입으로 연결될 수 있고, CONNECTED 패널에서는 자동 머지되어 1줄로 표시됩니다.
@@ -126,6 +126,16 @@ DB 블록 주입은 **createPortal** 기반 — react-notion-x가 그린 자리�
 
 ---
 
+## Durable content registry (`src/libs/content`)
+- 공개 게시물 메타데이터·본문 recordMap·slug 이력·대기 작업 outbox를 `CONTENT_REDIS_URL`(Redis 7.2+, AOF + `WAITAOF`) 또는 `CONTENT_STATE_DIR`에 원자적으로 저장. TTL 캐시 만료·재시작·Notion 장애와 무관하게 마지막 발행본을 렌더
+- 증분 대조: `last_edited_time` overlap 스캔 + 24시간마다 전체 대조(삭제·데이터소스 이동 감지). 같은 분 안의 연속 편집은 분이 지난 뒤 1회 재확인
+- 바뀐 글만 본문을 다시 가져오고, 상세·카테고리·시리즈·컬렉션 등 영향 경로만 ISR 재생성. 메타데이터만 바뀌면 본문 버전(`contentHash`)과 임베딩 유지
+- slug 변경 → 이전 주소 308 리다이렉트, 비공개·삭제 → 이전 alias까지 제거, slug 충돌 → 양쪽 모두 비노출, 예약 발행 → 발행 시각 이후 첫 대조에서 공개
+- 입력: Notion webhook(`/api/notion-webhook`, HMAC 서명 · 이벤트 ID 중복 제거), 15분 주기 `/api/cron/content`, 수동 `/api/revalidate`
+- 실패한 경로·그래프 유지보수·IndexNow·Discord 알림은 영속 outbox에서 재시도. webhook·수동·초기화 요청은 발행만 기다리고 AI 그래프 작업은 cron에서 처리
+
+---
+
 ## Dual-layer post cache (Memory + Filesystem)
 - **L1**: 프로세스 내 `Map` 캐시 (FIFO eviction, 200 entries)
 - **L2**: `.notion-cache/*.json` 파일시스템 캐시 (Docker 볼륨 영속)
@@ -135,10 +145,10 @@ DB 블록 주입은 **createPortal** 기반 — react-notion-x가 그린 자리�
 
 | 키 | TTL (기본 6h 기준) |
 |---|---|
-| `posts:<dsId>` | `revalidateTime / 2` (3시간) |
-| `recordMap:v6:<pageId>:<lastEdited>` | `revalidateTime` (6시간) |
-| `database:v3:<dbId>:<lastEdited>` | 30분 |
-| `notionGraph:v2:<hash>` | `GRAPH_TTL_MS` (기본 6시간) |
+| `posts:v3:<dsId>` | `revalidateTime / 2` (3시간, 레지스트리 초기화 전 cold path 전용) |
+| `recordMap:v8:<pageId>:<lastEdited>` | `revalidateTime` (6시간) |
+| `database:v6:<dbId>:<lastEdited>` | 30분 |
+| `notionGraph:v4:<hash>` | `GRAPH_TTL_MS` (기본 6시간) |
 | image BLOB (S3 UUID 키) | 30일 |
 | image BLOB (blockId 폴백 키) | 7일 |
 
@@ -165,15 +175,20 @@ DB 블록 주입은 **createPortal** 기반 — react-notion-x가 그린 자리�
 
 ---
 
-## SEO / 발행
-- **`/sitemap.xml`** — SSR 동적 생성 + CDN s-maxage 캐싱
+## SEO / AEO / GEO
+- **메타데이터** — 모든 라우트에 canonical, Open Graph·Twitter 절대 이미지, JSON-LD(`WebSite` · `Person` · `BlogPosting`/`WebPage` · `BreadcrumbList`). 상세 글은 작성자·발행일·의미 있는 수정일·요약을 HTML에도 표시
+- **본문 SSR** — 본문·코드·KaTeX 수식을 서버에서 렌더하고, 제목 계층을 h2부터 건너뜀 없이 정규화(TOC·Markdown 공통). Summary가 없으면 본문 첫 문단 발췌를 설명으로 사용
+- **`/sitemap.xml`** — 공개 글·분류·시리즈, `lastmod`는 의미 있는 본문 수정 시각
 - **`/rss.xml`** — RSS 2.0 SSR 피드 (`<channel>` + 글마다 `<item>`, FileTree·`_document` `<link rel="alternate">` 정렬)
-- 정기 revalidate GitHub Action (`revalidate.yml`) — 3일마다 자동 호출 + Discord webhook 알림
+- **`/robots.txt` · `/llms.txt` · `/{slug}.md`** — 공개 글 목록과 같은 레지스트리에서 동적 생성
+- **IndexNow** — 발행·수정·slug 변경·삭제된 URL을 발행 직후 제출 (`INDEXNOW_KEY`, `/<key>.txt`)
+- **검색 서비스 검증** — Google·Naver·Bing 메타 태그를 컨테이너 시작 시 주입
+- 정기 동기화 GitHub Action (`revalidate.yml`) — 15분마다 `/api/cron/content` 호출, 남은 작업이 있으면 실패로 표시
 
 ---
 
 ## 컨테이너 ISR warmup
-Docker 컨테이너 entrypoint가 `next start` 후 자동으로 `/api/init`을 호출해 모든 포스트 ISR 캐시를 미리 채웁니다 (3회 retry). Cold start가 사라집니다. 그래프는 `instrumentation.ts`가 별도로 워밍 — 두 캐시 모두 첫 사용자 요청 전에 준비.
+Docker 컨테이너 entrypoint가 standalone 서버를 시작한 뒤 자동으로 `/api/init`을 호출합니다 (3회 retry). 레지스트리가 비어 있으면 최초 동기화로 구축하고 모든 공개 경로를 재생성하며, 이미 있으면 바뀐 글만 확인한 뒤 경로를 워밍합니다. 그래프·ontology의 대기 작업은 `/api/cron/content`가 처리합니다.
 
 수동 워밍:
 
@@ -185,7 +200,7 @@ curl -H "Authorization: Bearer $REVALIDATE_SECRET" "https://your-site.com/api/in
 ---
 
 ## 기타
-- 자동 ISR 갱신 (`REVALIDATE_HOURS`, `/api/revalidate`)
+- 증분 동기화 (`/api/cron/content` 15분 주기, Notion webhook, `/api/revalidate`)
 - Mermaid 다이어그램, KaTeX 수식, Prism 코드 하이라이팅
 - YouTube · Vimeo · Loom · GoogleDrive · audio 임베드
 - Light / Dark scheme 쿠키 영속 (`prefers-color-scheme` fallback)

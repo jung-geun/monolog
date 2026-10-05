@@ -1,10 +1,14 @@
 import { getOfficialNotionClient } from "./notionClient"
 import { getPosts } from "./getPosts"
-import { NotionGraph, NotionGraphEdge, NotionGraphNode, PostNode, RawEdge, SeriesNode, TagNode } from "src/types/notionGraph"
+import { NotionGraph, NotionGraphEdge, NotionGraphNode, RawEdge, SeriesNode, TagNode } from "src/types/notionGraph"
 import { TPost } from "src/types"
 import { CONFIG } from "site.config"
 import { debugLog, warnLog } from "src/libs/utils/logger"
 import { computeReadTime, readTimeTypeWeight } from "src/libs/utils/readTime"
+import { z } from "zod"
+import { cacheStore, keys } from "src/libs/cache"
+import { eligibleGraphPosts, postContentVersion } from "./graphHash"
+import type { Client } from "@notionhq/client"
 
 const MAX_DEPTH = 2
 const MAX_RETRIES = 5
@@ -24,9 +28,14 @@ async function notionRequest<T>(fn: () => Promise<T>): Promise<T> {
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     try {
       return await fn()
-    } catch (err: any) {
-      if (err?.status === 429) {
-        const retryAfter = parseInt(err?.headers?.["retry-after"] || "0", 10)
+    } catch (err: unknown) {
+      const rateLimit = z.object({ status: z.literal(429), headers: z.unknown().optional() }).safeParse(err)
+      if (rateLimit.success) {
+        const headers = rateLimit.data.headers
+        const retryHeader = headers instanceof Headers
+          ? headers.get("retry-after")
+          : z.object({ "retry-after": z.string() }).safeParse(headers).data?.["retry-after"]
+        const retryAfter = parseInt(retryHeader || "0", 10)
         const waitMs = retryAfter > 0 ? retryAfter * 1000 : delay
         await new Promise((r) => setTimeout(r, waitMs))
         delay = Math.min(delay * 2, 8000)
@@ -38,143 +47,93 @@ async function notionRequest<T>(fn: () => Promise<T>): Promise<T> {
   throw new Error("Max retries exceeded for Notion request")
 }
 
-function extractRichTextEdges(
-  rootPageId: string,
-  richTextArr: any[],
-  knownIds: Set<string>,
-  knownNormalizedIds: Map<string, string>,
-  rawEdges: RawEdge[]
-) {
-  for (const rt of richTextArr || []) {
-    if (rt.type === "mention" && rt.mention?.type === "page") {
-      const targetId = rt.mention.page.id as string
-      if (knownIds.has(targetId) && targetId !== rootPageId) {
-        rawEdges.push({
-          source: rootPageId,
-          target: targetId,
-          type: "mention",
-          context: rt.plain_text?.slice(0, CONTEXT_LIMIT),
-        })
-      }
-    } else if (rt.type === "text" && rt.text?.link?.url) {
-      const url = rt.text.link.url as string
-      // Match trailing notion UUID (32 hex chars or hyphenated 36-char form)
-      const match = url.match(/([0-9a-f]{32}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\s*$/)
-      if (match) {
-        const normalized = match[1].replace(/-/g, "")
-        const targetId = knownNormalizedIds.get(normalized)
-        if (targetId && targetId !== rootPageId) {
-          rawEdges.push({
-            source: rootPageId,
-            target: targetId,
-            type: "link",
-            context: rt.plain_text?.slice(0, CONTEXT_LIMIT),
-          })
-        }
-      }
-    }
-  }
+const richTextSchema = z.object({
+  type: z.string(), plain_text: z.string().optional(),
+  mention: z.object({ type: z.string(), page: z.object({ id: z.string() }).optional() }).optional(),
+  text: z.object({ link: z.object({ url: z.string() }).nullable().optional() }).optional(),
+})
+const blockSchema = z.object({ id: z.string(), type: z.string(), has_children: z.boolean().optional() }).catchall(z.unknown())
+const blockContentSchema = z.object({
+  rich_text: z.array(richTextSchema).optional(), caption: z.array(richTextSchema).optional(),
+  type: z.string().optional(), page_id: z.string().optional(), cells: z.array(z.array(z.unknown())).optional(),
+})
+
+type ReadTimeAccumulator = { text: string; imageCount: number; codeLines: number; otherSec: number }
+export type PostGraphExtraction = { references: RawEdge[]; readTime: ReadTimeAccumulator; text: string }
+const TEXT_BLOCK_TYPES: Record<string, boolean> = {
+  paragraph: true, heading_1: true, heading_2: true, heading_3: true,
+  bulleted_list_item: true, numbered_list_item: true, to_do: true,
+  toggle: true, quote: true, callout: true,
 }
-
-function getRichTextFromBlock(block: any): any[] {
-  const type = block.type as string
-  return block[type]?.rich_text || []
-}
-
-type ReadTimeAccumulator = {
-  text: string
-  imageCount: number
-  codeLines: number
-  otherSec: number
-}
-
-const TEXT_BLOCK_TYPES = new Set([
-  "paragraph", "heading_1", "heading_2", "heading_3",
-  "bulleted_list_item", "numbered_list_item", "to_do",
-  "toggle", "quote", "callout",
-])
-
-function accumulateBlock(block: any, acc: ReadTimeAccumulator): void {
-  const type = block.type as string
-
-  if (TEXT_BLOCK_TYPES.has(type)) {
-    for (const rt of (block[type]?.rich_text || []) as any[]) {
-      acc.text += rt.plain_text ?? ""
-    }
-  } else if (type === "code") {
-    const codeText = ((block.code?.rich_text || []) as any[])
-      .map((rt: any) => rt.plain_text ?? "")
-      .join("")
-    acc.codeLines += (codeText.match(/\n/g)?.length ?? 0) + 1
-  } else if (type === "image") {
-    acc.imageCount += 1
-    for (const rt of (block.image?.caption || []) as any[]) {
-      acc.text += rt.plain_text ?? ""
-    }
-  } else if (type === "video" || type === "file" || type === "pdf" || type === "embed") {
-    acc.otherSec += 30
-  } else if (type === "bookmark" || type === "link_preview") {
-    acc.otherSec += 5
-  } else if (type === "equation") {
-    acc.otherSec += 10
-  } else if (type === "table_row") {
-    acc.otherSec += ((block.table_row?.cells || []) as any[][]).length * 1.5
-  }
-}
+const EXTRACTION_TTL_MS = 30 * 24 * 60 * 60 * 1000
+const extractionsInFlight = new Map<string, Promise<PostGraphExtraction>>()
 
 async function walkBlocks(
-  notion: ReturnType<typeof getOfficialNotionClient>,
-  rootPageId: string,
-  currentId: string,
-  depth: number,
-  visited: Set<string>,
-  rawEdges: RawEdge[],
-  knownIds: Set<string>,
-  knownNormalizedIds: Map<string, string>,
-  acc: ReadTimeAccumulator
+  notion: Client, rootPageId: string,
+  currentId: string, depth: number, visited: Set<string>, extraction: PostGraphExtraction,
+  textParts: string[], deadline: number
 ): Promise<void> {
   if (depth > MAX_DEPTH || visited.has(currentId)) return
   visited.add(currentId)
-
-  let cursor: string | undefined = undefined
+  let cursor: string | undefined
   do {
-    const res = await notionRequest(() =>
-      notion.blocks.children.list({
-        block_id: currentId,
-        start_cursor: cursor,
-        page_size: 100,
-      })
-    )
-
-    for (const block of res.results as any[]) {
-      const rt = getRichTextFromBlock(block)
-      extractRichTextEdges(rootPageId, rt, knownIds, knownNormalizedIds, rawEdges)
-      accumulateBlock(block, acc)
-
-      if (block.type === "link_to_page") {
-        const lt = block.link_to_page
-        if (lt?.type === "page_id" && knownIds.has(lt.page_id) && lt.page_id !== rootPageId) {
-          rawEdges.push({ source: rootPageId, target: lt.page_id, type: "link_to_page" })
+    if (Date.now() >= deadline) throw new Error("Graph extraction timed out")
+    const res = await notionRequest(() => notion.blocks.children.list({
+      block_id: currentId, start_cursor: cursor, page_size: 100,
+    }))
+    for (const rawBlock of res.results) {
+      const block = blockSchema.parse(rawBlock)
+      const content = blockContentSchema.parse(block[block.type] ?? {})
+      const richText = content.rich_text ?? []
+      // Keep references to non-public/unknown pages too. Membership is resolved at graph assembly.
+      for (const rt of richText) {
+        if (rt.type === "mention" && rt.mention?.type === "page" && rt.mention.page) {
+          extraction.references.push({ source: rootPageId, target: rt.mention.page.id, type: "mention", context: rt.plain_text?.slice(0, CONTEXT_LIMIT) })
+        } else if (rt.type === "text" && rt.text?.link?.url) {
+          const match = rt.text.link.url.match(/([0-9a-f]{32}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\s*$/i)
+          if (match) extraction.references.push({ source: rootPageId, target: match[1], type: "link", context: rt.plain_text?.slice(0, CONTEXT_LIMIT) })
         }
       }
-
-      if (block.has_children) {
-        await walkBlocks(
-          notion,
-          rootPageId,
-          block.id,
-          depth + 1,
-          visited,
-          rawEdges,
-          knownIds,
-          knownNormalizedIds,
-          acc
-        )
+      const acc = extraction.readTime
+      if (TEXT_BLOCK_TYPES[block.type]) {
+        for (const rt of richText) { acc.text += rt.plain_text ?? ""; if (rt.plain_text) textParts.push(rt.plain_text) }
+      } else if (block.type === "code") {
+        const code = richText.map((rt) => rt.plain_text ?? "").join("")
+        acc.codeLines += (code.match(/\n/g)?.length ?? 0) + 1
+        if (code) textParts.push(code)
+      } else if (block.type === "image") {
+        acc.imageCount += 1
+        for (const rt of content.caption ?? []) acc.text += rt.plain_text ?? ""
+      } else if (["video", "file", "pdf", "embed"].includes(block.type)) acc.otherSec += 30
+      else if (["bookmark", "link_preview"].includes(block.type)) acc.otherSec += 5
+      else if (block.type === "equation") acc.otherSec += 10
+      else if (block.type === "table_row") acc.otherSec += (content.cells?.length ?? 0) * 1.5
+      if (block.type === "link_to_page" && content.type === "page_id" && content.page_id) {
+        extraction.references.push({ source: rootPageId, target: content.page_id, type: "link_to_page" })
       }
+      if (block.has_children) await walkBlocks(notion, rootPageId, block.id, depth + 1, visited, extraction, textParts, deadline)
     }
-
     cursor = res.has_more ? (res.next_cursor ?? undefined) : undefined
   } while (cursor)
+}
+
+export async function getPostGraphExtraction(post: TPost): Promise<PostGraphExtraction> {
+  const key = keys.postGraphExtraction(post.id, postContentVersion(post))
+  const pending = extractionsInFlight.get(key)
+  if (pending) return pending
+  const work = (async () => {
+    const cached = await cacheStore.get<PostGraphExtraction>(key)
+    if (cached) return cached
+    debugLog(`[buildNotionGraph] walking blocks for "${post.slug}"`)
+    const extraction: PostGraphExtraction = { references: [], readTime: { text: "", imageCount: 0, codeLines: 0, otherSec: 0 }, text: "" }
+    const textParts: string[] = []
+    await walkBlocks(getOfficialNotionClient(), post.id, post.id, 0, new Set(), extraction, textParts, Date.now() + GRAPH_BUILD_TIMEOUT_MS)
+    extraction.text = textParts.join(" ").trim()
+    await cacheStore.set(key, extraction, EXTRACTION_TTL_MS)
+    return extraction
+  })()
+  extractionsInFlight.set(key, work)
+  try { return await work } finally { extractionsInFlight.delete(key) }
 }
 
 export function normalizeHubId(prefix: string, name: string): string {
@@ -263,60 +222,28 @@ function dedupeAndWeight(rawEdges: RawEdge[]): NotionGraphEdge[] {
   return Array.from(map.values())
 }
 
-export async function buildNotionGraph(): Promise<NotionGraph> {
-  const notion = getOfficialNotionClient()
-  const posts = await getPosts()
-
-  const knownIds = new Set(posts.map((p) => p.id))
-  // Normalized (no hyphens) → original ID lookup for URL matching
-  const knownNormalizedIds = new Map(
-    posts.map((p) => [p.id.replace(/-/g, ""), p.id])
-  )
-
+export async function buildNotionGraph(inputPosts?: TPost[]): Promise<NotionGraph> {
+  const posts = eligibleGraphPosts(inputPosts ?? await getPosts())
+  const knownNormalizedIds = new Map(posts.map((p) => [p.id.replace(/-/g, "").toLowerCase(), p.id]))
   const rawEdges: RawEdge[] = []
   const readTimes = new Map<string, number>()
   const buildStart = Date.now()
-  let timedOut = false
-
-  function inChunks<T>(arr: T[], size: number): T[][] {
-    const result: T[][] = []
-    for (let i = 0; i < arr.length; i += size) result.push(arr.slice(i, i + size))
-    return result
-  }
-
-  outer: for (const batch of inChunks(posts, CONCURRENCY)) {
-    if (Date.now() - buildStart >= GRAPH_BUILD_TIMEOUT_MS) {
-      timedOut = true
-      warnLog(`[buildNotionGraph] timeout — returning partial graph (${rawEdges.length} raw edges collected)`)
-      break outer
-    }
-    await Promise.all(
-      batch.map(async (post) => {
-        if (Date.now() - buildStart >= GRAPH_BUILD_TIMEOUT_MS) return
-        debugLog(`[buildNotionGraph] walking blocks for "${post.slug}"`)
-        const visited = new Set<string>()
-        const acc: ReadTimeAccumulator = { text: "", imageCount: 0, codeLines: 0, otherSec: 0 }
-        try {
-          await walkBlocks(
-            notion,
-            post.id,
-            post.id,
-            0,
-            visited,
-            rawEdges,
-            knownIds,
-            knownNormalizedIds,
-            acc
-          )
-        } catch (err) {
-          warnLog(`[buildNotionGraph] skipping "${post.slug}" due to error:`, err)
+  let partial = false
+  for (let i = 0; i < posts.length; i += CONCURRENCY) {
+    if (Date.now() - buildStart >= GRAPH_BUILD_TIMEOUT_MS) { partial = true; break }
+    await Promise.all(posts.slice(i, i + CONCURRENCY).map(async (post) => {
+      try {
+        const extraction = await getPostGraphExtraction(post)
+        for (const reference of extraction.references) {
+          const target = knownNormalizedIds.get(reference.target.replace(/-/g, "").toLowerCase())
+          if (target && target !== post.id) rawEdges.push({ ...reference, target })
         }
-        readTimes.set(
-          post.id,
-          computeReadTime({ ...acc, typeWeight: readTimeTypeWeight(post.type) })
-        )
-      })
-    )
+        readTimes.set(post.id, computeReadTime({ ...extraction.readTime, typeWeight: readTimeTypeWeight(post.type) }))
+      } catch (err) {
+        partial = true
+        warnLog(`[buildNotionGraph] extraction failed for "${post.slug}":`, err)
+      }
+    }))
   }
 
   const postNodes: NotionGraphNode[] = posts.map((p) => ({
@@ -345,6 +272,6 @@ export async function buildNotionGraph(): Promise<NotionGraph> {
     generatedAt: new Date().toISOString(),
     nodes,
     edges,
-    ...(timedOut ? { partial: true } : {}),
+    ...(partial ? { partial: true } : {}),
   }
 }

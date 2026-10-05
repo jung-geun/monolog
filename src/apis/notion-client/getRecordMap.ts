@@ -1,4 +1,5 @@
 import { ExtendedRecordMap } from "notion-types"
+import { isFullPage, isFullBlock, type Client, type BlockObjectResponse } from "@notionhq/client"
 import { getOfficialNotionClient } from "./notionClient"
 import { getUser } from "./getUser"
 import { optimizeRecordMap } from "src/libs/utils/notion/optimizeRecordMap"
@@ -9,6 +10,8 @@ import { TPosts } from "src/types"
 import { cacheStore, keys } from "src/libs/cache"
 import { CONFIG } from "site.config"
 import { debugLog } from "src/libs/utils/logger"
+import { normalizeNotionPost } from "./postModel"
+import { absoluteUrl } from "src/libs/seo"
 
 const RECORD_MAP_TTL_MS = CONFIG.revalidateTime * 1000
 
@@ -96,8 +99,7 @@ function shouldProxyUrl(url: string): boolean {
 /**
  * Recursively fetch child blocks
  */
-async function fetchChildBlocks(blockId: string, notion: any, recordMap: ExtendedRecordMap, allPosts?: TPosts): Promise<string[]> {
-  try {
+async function fetchChildBlocks(blockId: string, pageId: string, notion: Client, recordMap: ExtendedRecordMap, allPosts?: TPosts): Promise<string[]> {
     const childIds: string[] = []
 
     // Notion children.list is paginated. Iterate through pages
@@ -106,25 +108,26 @@ async function fetchChildBlocks(blockId: string, notion: any, recordMap: Extende
     const MAX_FETCH = 5000 // safety cap to avoid runaway fetching
 
     do {
-      const resp: any = await notion.blocks.children.list({
+      const resp = await notion.blocks.children.list({
         block_id: blockId,
         page_size: 100,
         start_cursor: cursor,
       })
 
       for (const block of resp.results) {
+        if (!isFullBlock(block)) throw new Error("Notion returned incomplete child blocks")
         childIds.push(block.id)
         // process each block (this may in turn fetch deeper children)
-        await processBlock(block, blockId, notion, recordMap, allPosts)
+        await processBlock(block, blockId, pageId, notion, recordMap, allPosts)
       }
 
       fetched += resp.results.length
-      if (fetched >= MAX_FETCH) {
-        console.warn(`Reached max child fetch limit for block ${blockId} (${MAX_FETCH}), stopping pagination`)
-        break
+      if (fetched >= MAX_FETCH && resp.has_more) {
+        throw new Error(`Child block limit exceeded for ${blockId}; preserving the previous complete page`)
       }
 
-      cursor = resp.has_more ? resp.next_cursor : undefined
+      if (resp.has_more && !resp.next_cursor) throw new Error("Notion returned incomplete child pagination")
+      cursor = resp.has_more ? resp.next_cursor ?? undefined : undefined
     } while (cursor)
 
     if (childIds.length > 0) {
@@ -132,10 +135,6 @@ async function fetchChildBlocks(blockId: string, notion: any, recordMap: Extende
     }
 
     return childIds
-  } catch (error) {
-    console.error(`Failed to fetch children for block ${blockId}:`, error)
-    return []
-  }
 }
 
 /**
@@ -439,10 +438,24 @@ function embedHeight(src: string): number | null {
   return null
 }
 
+// Only official uploads need refreshing. Keep external media URLs untouched.
+function attachmentSource(
+  data: { type: string; file?: { url: string }; external?: { url: string }; name?: string },
+  pageId: string,
+  blockId: string
+): string | undefined {
+  if (data.type !== 'file') return data.external?.url
+  if (!data.file?.url) return undefined
+  const params = new URLSearchParams({ pageId, blockId })
+  const filename = data.name || decodeURIComponent(new URL(data.file.url).pathname.split('/').pop() || '')
+  if (filename) params.set('filename', filename)
+  return absoluteUrl(`/api/attachment?${params}`)
+}
+
 /**
  * Process a single block and add it to recordMap
  */
-async function processBlock(block: any, parentId: string, notion: any, recordMap: ExtendedRecordMap, allPosts?: TPosts): Promise<void> {
+async function processBlock(block: any, parentId: string, pageId: string, notion: any, recordMap: ExtendedRecordMap, allPosts?: TPosts): Promise<void> {
   const properties: any = {}
   const format: any = {}
   // forcedMappedType lets a case override the post-switch typeMapping lookup
@@ -536,9 +549,10 @@ async function processBlock(block: any, parentId: string, notion: any, recordMap
       case 'video':
       case 'file':
       case 'pdf':
-        const fileUrl = blockData.file?.url || blockData.external?.url
+        const fileUrl = attachmentSource(blockData, pageId, block.id)
         if (fileUrl) {
           properties.source = [[fileUrl]]
+          if (block.type === 'file' && blockData.name) properties.title = [[blockData.name]]
           if (blockData.caption && blockData.caption.length > 0) {
             properties.caption = rt(blockData.caption)
           }
@@ -715,7 +729,7 @@ async function processBlock(block: any, parentId: string, notion: any, recordMap
 
       case 'audio':
         // Audio block - similar to video/file
-        const audioUrl = blockData.file?.url || blockData.external?.url
+        const audioUrl = attachmentSource(blockData, pageId, block.id)
         if (audioUrl) {
           properties.source = [[audioUrl]]
           // Add format for audio display
@@ -799,7 +813,7 @@ async function processBlock(block: any, parentId: string, notion: any, recordMap
 
   // Fetch children if has_children is true
   if (block.has_children) {
-    const childIds = await fetchChildBlocks(block.id, notion, recordMap, allPosts)
+    const childIds = await fetchChildBlocks(block.id, pageId, notion, recordMap, allPosts)
     if (childIds.length > 0) {
       blockValue.content = childIds
     }
@@ -817,133 +831,70 @@ async function processBlock(block: any, parentId: string, notion: any, recordMap
  * 
  * Note: This returns a compatible structure for react-notion-x
  */
-export const getRecordMap = async (pageId: string, allPosts?: TPosts): Promise<ExtendedRecordMap | null> => {
+export const getRecordMap = async (
+  pageId: string,
+  allPosts?: TPosts,
+  options?: { bypassCache?: boolean; lastEditedTime?: string }
+): Promise<ExtendedRecordMap | null> => {
   const notion = getOfficialNotionClient()
-
-  // Peek at last_edited_time to build a version-aware cache key.
-  // This is a lightweight single API call; the heavy block-tree fetch is skipped on hit.
-  let lastEdited = "unknown"
-  try {
+  let lastEdited = options?.lastEditedTime ?? allPosts?.find((post) => post.id === pageId)?.lastEditedTime
+  if (!lastEdited) {
     const meta = await notion.pages.retrieve({ page_id: pageId })
-    lastEdited = (meta as any).last_edited_time ?? "unknown"
-  } catch {
-    // fallback: use pageId-only key (may serve stale content)
+    if (!("last_edited_time" in meta)) throw new Error("Notion returned incomplete page metadata")
+    lastEdited = meta.last_edited_time
   }
 
-  const cached = await cacheStore.get<ExtendedRecordMap>(keys.recordMap(pageId, lastEdited))
-  if (cached) {
-    debugLog(`✅ Cache hit for recordMap: ${pageId}`)
-    return cached
+  const key = keys.recordMap(pageId, lastEdited)
+  if (!options?.bypassCache) {
+    const cached = await cacheStore.get<ExtendedRecordMap>(key)
+    if (cached) return cached
   }
 
-  const result = await fetchRecordMap(pageId, lastEdited, allPosts, notion)
-  if (result) {
-    await cacheStore.set(keys.recordMap(pageId, lastEdited), result, RECORD_MAP_TTL_MS)
-  }
+  const result = await fetchRecordMap(pageId, allPosts, notion)
+  if (result) await cacheStore.set(key, result, RECORD_MAP_TTL_MS)
   return result
 }
 
 async function fetchRecordMap(
   pageId: string,
-  lastEdited: string,
   allPosts: TPosts | undefined,
-  notion: any
+  notion: Client
 ): Promise<ExtendedRecordMap | null> {
-  let retryCount = 0
-  const maxRetries = 3
+  debugLog(`📡 Fetching page content for ${pageId}`)
+  const page = await notion.pages.retrieve({ page_id: pageId })
+  if (!isFullPage(page)) throw new Error("Notion returned incomplete page metadata")
+  if (page.archived || page.in_trash) return null
 
-  while (retryCount < maxRetries) {
-    try {
-      debugLog(`📡 Fetching page content for ${pageId}`)
-
-      // Get page metadata
-      const page = await notion.pages.retrieve({ page_id: pageId })
-
-      // Get page blocks (content)
-      // Fetch all top-level blocks for the page (paginated)
-      const allBlocks: any[] = []
-      let topCursor: string | undefined = undefined
-      do {
-        const pageResp: any = await notion.blocks.children.list({
-          block_id: pageId,
-          page_size: 100,
-          start_cursor: topCursor,
-        })
-        allBlocks.push(...pageResp.results)
-        topCursor = pageResp.has_more ? pageResp.next_cursor : undefined
-      } while (topCursor)
-
-      const blocks = { results: allBlocks }
-      debugLog(`✅ Retrieved page ${pageId} with ${blocks.results.length} blocks`)
-
-      // Transform to ExtendedRecordMap format for react-notion-x compatibility
-      const recordMap: ExtendedRecordMap = {
-        block: {},
-        collection: {},
-        collection_view: {},
-        notion_user: {},
-        collection_query: {},
-        signed_urls: {},
-      }
-
-      // Add page block
-      recordMap.block[pageId] = {
-        role: 'reader',
-        value: {
-          id: pageId,
-          version: 1,
-          type: 'page',
-          properties: (page as any).properties || {},
-          created_time: (page as any).created_time,
-          last_edited_time: (page as any).last_edited_time,
-          parent_id: '',
-          parent_table: 'space',
-          alive: true,
-          content: blocks.results.map((block: any) => block.id),
-        } as any,
-      }
-
-      // Process all child blocks (including nested children)
-      for (const block of blocks.results) {
-        await processBlock(block, pageId, notion, recordMap, allPosts)
-      }
-
-      // Resolve `['u', userId]` decorations emitted by user mentions: fetch
-      // each unique user once (cache + dedup) and populate notion_user.
-      // RNX's `case "u":` returns null when notion_user[id] is missing, so
-      // skipping this pass would make user mentions vanish entirely.
-      await populateUserMentions(recordMap)
-
-      // Phase 3 — populate OG metadata for bookmark / link_preview blocks.
-      // Independent fetch graph from recordMap (own cache key, own TTL).
-      // SSRF + timeout + 1MB cap inside getOgMetadata.
-      await populateBookmarkMetadata(recordMap)
-
-      // Optimize record map and flatten synced blocks
-      const optimizedRecordMap = optimizeRecordMap(recordMap)
-
-      return optimizedRecordMap
-
-    } catch (error: any) {
-      retryCount++
-      console.error(`❌ getRecordMap attempt ${retryCount}/${maxRetries} failed for ${pageId}:`, error.message)
-
-      if (error.code === 'object_not_found') {
-        console.error(`❌ Page ${pageId} not found or not accessible`)
-        return null
-      }
-
-      if (retryCount === maxRetries) {
-        console.error(`❌ getRecordMap failed for ${pageId} after all retries`)
-        return null
-      }
-
-      // Exponential backoff
-      const waitTime = Math.pow(2, retryCount) * 1500
-      debugLog(`⏳ Waiting ${waitTime / 1000} seconds before retry...`)
-      await new Promise(resolve => setTimeout(resolve, waitTime))
+  const blocks: BlockObjectResponse[] = []
+  let cursor: string | undefined
+  do {
+    const response = await notion.blocks.children.list({ block_id: pageId, page_size: 100, start_cursor: cursor })
+    for (const block of response.results) {
+      if (!isFullBlock(block)) throw new Error("Notion returned incomplete page blocks")
+      blocks.push(block)
     }
-  }
+    if (response.has_more && !response.next_cursor) throw new Error("Notion returned incomplete page pagination")
+    cursor = response.has_more ? response.next_cursor ?? undefined : undefined
+  } while (cursor)
 
-  return null
+  const recordMap: ExtendedRecordMap = {
+    block: {}, collection: {}, collection_view: {}, notion_user: {}, collection_query: {}, signed_urls: {},
+  }
+  // Never serialize database properties into public page HTML. Keep only the
+  // visible title and the fields required by the renderer.
+  recordMap.block[pageId] = {
+    role: "reader",
+    value: {
+      id: pageId, version: 1, type: "page", properties: { title: [[normalizeNotionPost(page).title]] },
+      created_time: Date.parse(page.created_time), last_edited_time: Date.parse(page.last_edited_time),
+      created_by_table: "notion_user", created_by_id: page.created_by.id,
+      last_edited_by_table: "notion_user", last_edited_by_id: page.last_edited_by.id,
+      parent_id: "", parent_table: "space", alive: true, content: blocks.map(block => block.id),
+      format: {}, permissions: [],
+    },
+  }
+  for (const block of blocks) await processBlock(block, pageId, pageId, notion, recordMap, allPosts)
+  await populateUserMentions(recordMap)
+  await populateBookmarkMetadata(recordMap)
+  return optimizeRecordMap(recordMap)
 }

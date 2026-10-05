@@ -1,10 +1,5 @@
 import { extractS3ImageId } from 'src/libs/utils/image/cache/hashUtils'
 
-const SITE_PREFIX = (() => {
-  const site = process.env.NEXT_PUBLIC_SITE_URL || ''
-  return site ? site.replace(/\/$/, '') : ''
-})()
-
 const DIRECT_PROXY_HOSTS = new Set([
   'opengraph.githubassets.com',
   'github.githubassets.com',
@@ -59,7 +54,7 @@ export function isAlreadyProxied(url: string): boolean {
   }
 }
 
-/** Prefix site origin when available and build the proxied URL. */
+/** Build an origin-relative URL accepted by Next.js image optimization. */
 export function createProxyRequestUrl(targetUrl: string, meta?: ImageProxyMetadata): string {
   const params = new URLSearchParams()
   const normalizedTargetUrl = unwrapAllowedNotionImageUrl(targetUrl)
@@ -84,7 +79,7 @@ export function createProxyRequestUrl(targetUrl: string, meta?: ImageProxyMetada
   }
 
   const query = params.toString()
-  return `${SITE_PREFIX}${IMAGE_PROXY_PATH}?${query}`
+  return `${IMAGE_PROXY_PATH}?${query}`
 }
 
 /**

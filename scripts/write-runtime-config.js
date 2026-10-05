@@ -4,12 +4,14 @@ const path = require("path")
 const verificationMetaNames = [
   ["google-site-verification", "googleSiteVerification"],
   ["naver-site-verification", "naverSiteVerification"],
+  ["msvalidate.01", "bingSiteVerification"],
 ]
 
 const publicConfig = (environment = process.env) => ({
   googleMeasurementId: environment.NEXT_PUBLIC_GOOGLE_MEASUREMENT_ID || "",
   googleSiteVerification: environment.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION || "",
   naverSiteVerification: environment.NEXT_PUBLIC_NAVER_SITE_VERIFICATION || "",
+  bingSiteVerification: environment.NEXT_PUBLIC_BING_SITE_VERIFICATION || "",
 })
 
 const escapeHtmlAttribute = (value) =>
@@ -48,6 +50,7 @@ const renderRuntimeConfig = (config) => `window.__MONOLOG_RUNTIME_CONFIG__ = Obj
   [
     ["google-site-verification", config.googleSiteVerification],
     ["naver-site-verification", config.naverSiteVerification],
+    ["msvalidate.01", config.bingSiteVerification],
   ].forEach(function ([name, content]) {
     if (!content || document.querySelector('meta[name="' + name + '"]')) return;
 
@@ -73,7 +76,7 @@ const stripVerificationMetaTags = (html) =>
   verificationMetaNames.reduce(
     (result, [name]) =>
       result.replace(
-        new RegExp(`<meta\\b[^>]*\\bname=(?:["']${name}["']|${name})[^>]*>\\s*`, "gi"),
+        new RegExp(`<meta\\b[^>]*\\bname=(?:["']${name.replace(/\./g, "\\.")}["']|${name.replace(/\./g, "\\.")})[^>]*>\\s*`, "gi"),
         ""
       ),
     html.replace(
