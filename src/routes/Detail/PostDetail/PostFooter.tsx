@@ -9,7 +9,10 @@ const Footer: React.FC<Props> = () => {
   return (
     <StyledWrapper>
       <button type="button" onClick={() => router.push("/")}>← Back</button>
-      <button type="button" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}>
+      <button type="button" onClick={() => window.scrollTo({
+        top: 0,
+        behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+      })}>
         ↑ Top
       </button>
     </StyledWrapper>

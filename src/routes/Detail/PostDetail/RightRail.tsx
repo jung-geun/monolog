@@ -82,7 +82,10 @@ const RightRail = ({ recordMap, post }: Props) => {
               className={`toc-item level-${entry.level}${activeId === entry.id ? " active" : ""}`}
               onClick={(e) => {
                 e.preventDefault()
-                document.getElementById(entry.id)?.scrollIntoView({ behavior: "smooth", block: "start" })
+                document.getElementById(entry.id)?.scrollIntoView({
+                  behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+                  block: "start",
+                })
               }}
             >
               {entry.text}

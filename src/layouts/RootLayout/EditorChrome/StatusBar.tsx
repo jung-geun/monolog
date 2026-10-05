@@ -1,15 +1,10 @@
 import { useState, useEffect } from "react"
 import styled from "@emotion/styled"
-import { keyframes } from "@emotion/react"
 
 type Props = {
   items: string[]
 }
 
-const pulse = keyframes`
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.4; }
-`
 
 const StatusBar = ({ items }: Props) => {
   const [ip, setIp] = useState("0.0.0.0")
@@ -82,7 +77,7 @@ const StyledWrapper = styled.div`
       background: ${({ theme }) => theme.colors.editor.accent};
       box-shadow: 0 0 6px ${({ theme }) => theme.colors.editor.accent};
       flex-shrink: 0;
-      animation: ${pulse} 3s ease-in-out infinite;
+      animation: monolog-dot-arrive 420ms var(--motion-ease);
     }
     .ssh-label { color: ${({ theme }) => theme.colors.editor.fg}; font-weight: 600; }
     .host { color: ${({ theme }) => theme.colors.editor.fg}; }
@@ -131,5 +126,9 @@ const StyledWrapper = styled.div`
         display: none;
       }
     }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .ssh-segment .dot { animation: none; }
   }
 `

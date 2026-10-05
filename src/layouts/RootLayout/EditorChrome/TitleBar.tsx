@@ -40,6 +40,9 @@ const StyledWrapper = styled.div`
       height: 10px;
       border-radius: 50%;
       background: ${({ theme }) => theme.colors.editor.fg4};
+      animation: monolog-dot-arrive 320ms var(--motion-ease);
+      &:nth-child(2) { animation-delay: 45ms; }
+      &:nth-child(3) { animation-delay: 90ms; }
       &.close {
         background: #e8a04a;
       }
@@ -61,5 +64,9 @@ const StyledWrapper = styled.div`
     font-size: 11px;
     color: ${({ theme }) => theme.colors.editor.fg3};
     white-space: nowrap;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .traffic-lights .dot { animation: none; }
   }
 `

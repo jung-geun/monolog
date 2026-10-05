@@ -52,7 +52,7 @@ const RecentPostsCompact = () => {
                   )}
                   <div className="flex items-center justify-between">
                     <p className="font-mono text-xs text-mute">{dateOnly}</p>
-                    <span className={`font-mono text-xs text-mute transition-colors ${style.arrowHover}`}>
+                    <span className={`font-mono text-xs text-mute motion-safe:transition-[color,translate] duration-150 motion-safe:group-hover:translate-x-1 motion-safe:group-focus-visible:translate-x-1 ${style.arrowHover}`}>
                       →
                     </span>
                   </div>

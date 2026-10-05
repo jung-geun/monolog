@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState, useMemo, type ReactNode } from "react"
 import { useRouter } from "next/compat/router"
-import styled, { CSSObject } from "@emotion/styled"
-import { keyframes } from "@emotion/react"
+import styled from "@emotion/styled"
 import useCommandPalette from "src/hooks/useCommandPalette"
 import usePostsQuery from "src/hooks/usePostsQuery"
 import { useCategoriesQuery } from "src/hooks/useCategoriesQuery"
@@ -224,6 +223,10 @@ const StyledPanel = styled.div`
   border-radius: 6px;
   overflow: hidden;
   font-family: var(--font-mono, monospace);
+  transform-origin: top center;
+  animation: monolog-panel-enter 240ms var(--motion-ease);
+
+  @media (prefers-reduced-motion: reduce) { animation: none; }
 
   .search-row {
     display: flex;
@@ -284,6 +287,9 @@ const StyledPanel = styled.div`
     padding: 8px 18px;
     cursor: pointer;
     border-left: 2px solid transparent;
+    transition: background var(--motion-fast), border-color var(--motion-fast);
+
+    &:active .cmd-icon { transform: scale(0.85); }
 
     &.active {
       background: ${({ theme }) => theme.colors.editor.accentSoft};
@@ -295,6 +301,11 @@ const StyledPanel = styled.div`
     .cmd-icon {
       font-size: 14px;
       color: ${({ theme }) => theme.colors.editor.fg3};
+      transition: transform var(--motion-fast) var(--motion-ease);
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      &:active .cmd-icon { transform: none; }
     }
 
     .cmd-info {

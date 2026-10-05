@@ -191,6 +191,7 @@ const StyledWrapper = styled.div`
     background: ${({ theme }) => theme.colors.editor.bg2};
     border-radius: 3px;
     animation: pulse 1.4s ease-in-out infinite;
+    @media (prefers-reduced-motion: reduce) { animation: none; }
 
     @keyframes pulse {
       0%, 100% { opacity: 0.5; }

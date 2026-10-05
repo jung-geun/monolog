@@ -75,7 +75,9 @@ const ActivityBar = () => {
         aria-label="Toggle theme"
         onClick={() => setScheme(scheme === "light" ? "dark" : "light")}
       >
-        {scheme === "light" ? <SunIcon /> : <MoonIcon />}
+        <span className="theme-icon" key={scheme} aria-hidden="true">
+          {scheme === "light" ? <SunIcon /> : <MoonIcon />}
+        </span>
       </button>
 
       <button className="icon-btn disabled" title="settings" aria-label="settings">
@@ -120,12 +122,26 @@ const StyledWrapper = styled.aside`
     border-right: none;
     border-bottom: none;
     padding: 0;
-    transition: color 0.15s;
+    transition: color var(--motion-fast), background var(--motion-fast);
 
-    svg { display: block; }
+    svg {
+      display: block;
+      transition: transform var(--motion-fast) var(--motion-ease);
+    }
+
+    .theme-icon { animation: monolog-icon-turn 280ms var(--motion-ease); }
 
     &:hover:not(.disabled) {
       color: ${({ theme }) => theme.colors.editor.fg};
+      background: ${({ theme }) => theme.colors.editor.bg3};
+      svg { transform: translateY(-1px) scale(1.08); }
+    }
+
+    &:active:not(.disabled) svg { transform: scale(0.9); }
+
+    &:focus-visible {
+      outline: 1px solid ${({ theme }) => theme.colors.editor.accent};
+      outline-offset: 2px;
     }
 
     &.active {
@@ -142,5 +158,11 @@ const StyledWrapper = styled.aside`
   @media (max-width: ${({ theme }) => theme.variables.breakpoint}px) {
     padding: 8px 0;
     > * + * { margin-top: 4px; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .icon-btn .theme-icon { animation: none; }
+    .icon-btn:hover:not(.disabled) svg,
+    .icon-btn:active:not(.disabled) svg { transform: none; }
   }
 `
