@@ -124,7 +124,7 @@ openssl rand -hex 32 # use this for TRUSTED_PROXY_SECRET and independent comment
 4. HAProxy remains the TLS owner and the single trusted hop for `blog.pieroot.xyz`. Do not publish Qdrant or add another TLS proxy.
 5. This unattended-recovery policy deliberately removes macOS at-rest disk encryption: disable FileVault, enable automatic login for `monolog`, enable Docker Desktop startup at login, prevent automatic system sleep while the display is off, and enable restart after power failure. Retaining or re-enabling FileVault requires manual unlock/login after every reboot.
 6. Point the GitHub revalidation workflow's `REVALIDATE_URL` secret to `https://blog.pieroot.xyz`; its `REVALIDATE_SECRET` must equal the Mac `.env` value.
-7. Optional real-time updates: with `NOTION_WEBHOOK_VERIFICATION_TOKEN` empty, create a Notion webhook subscription for `https://blog.pieroot.xyz/api/notion-webhook`, copy the `verification_token` from `make logs`, verify it in Notion, then set it in `.env` and run `make restart`. The 15-minute `/api/cron/content` workflow remains the authoritative reconciliation.
+7. Optional real-time updates: with `NOTION_WEBHOOK_VERIFICATION_TOKEN` empty, create a Notion webhook subscription for `https://blog.pieroot.xyz/api/notion-webhook`, copy the `verification_token` from `make logs`, verify it in Notion, then set it in `.env` and run `make restart`. GitHub's 15-minute `/api/cron/content` schedule is best-effort, not a propagation guarantee. Linux production hosts use the host cron runner described in [docs/USAGE.md](./docs/USAGE.md), with GitHub Actions as a backup.
 
 If pre-existing `logs-data` or `image-cache` volumes are root-owned, preserve them and repair ownership once before startup:
 

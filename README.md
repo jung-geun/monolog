@@ -39,7 +39,7 @@ S3 presigned URL이 ISR마다 만료돼도 프록시 URL(`?id=<uuid>&kind=s3`)�
 외부 SaaS 없이 방문자 댓글을 본인 Notion `comments` DB에 직접 적재합니다. `SHA-256(slug + ipHash + salt)` 앞 4자로 자동 닉네임 생성, honeypot + IP rate limit 스팸 방어, Notion `Status` 필드 하나로 모더레이션.
 
 ### 증분 콘텐츠 동기화 + Cold start 없는 워밍
-Notion webhook과 15분 주기 대조가 바뀐 글만 다시 가져오고 영향받는 경로만 재생성합니다. 발행본은 내구성 콘텐츠 레지스트리(AOF Redis)에 저장돼 Notion 장애·재시작 중에도 유지되고, slug 변경은 이전 주소에서 308로 이어집니다. Docker entrypoint는 `next start` 후 `/api/init`으로 레지스트리를 준비하고 모든 공개 경로를 워밍합니다.
+Notion webhook과 운영 호스트의 15분 cron 대조가 바뀐 글만 다시 가져오고 영향받는 경로만 재생성합니다. 발행본은 내구성 콘텐츠 레지스트리(AOF Redis)에 저장돼 Notion 장애·재시작 중에도 유지되고, slug 변경은 이전 주소에서 308로 이어집니다. Docker entrypoint는 `next start` 후 `/api/init`으로 레지스트리를 준비하고 모든 공개 경로를 워밍합니다. GitHub Actions schedule은 지연·누락 가능한 보조 트리거입니다.
 
 ---
 
