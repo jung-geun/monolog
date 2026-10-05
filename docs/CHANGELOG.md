@@ -57,6 +57,10 @@ monolog의 버전별 변경 이력. 프로젝트 개요는 [`../README.md`](../R
 - **배포 전 의존성 보안 패치** — Next.js 16.3.8, sharp 0.35.5 및 undici·DOMPurify·js-yaml을 기존 메이저 안에서 갱신. `brace-expansion` 1/2/5 계열도 상위 의존성별로 패치해 메이저 강제 교체를 피함. 런타임 Yarn 감사는 취약점 0건.
 - **개발 도구의 잔여 보안 경고** — `eslint-config-next → fast-glob → micromatch → braces@3.0.3`의 [GHSA-vfj7-8cjw-p6xm](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm)은 패치 버전이 없어 전체 Yarn 감사에 High 1건이 남음. 이 경로는 린트용이며 standalone 운영 이미지에는 해당 패키지를 포함하지 않음.
 
+### CI
+- **Build Project 병렬 실행** — `test.yml`의 `build` 잡에서 `needs: test`를 제거해 Run Tests와 동시에 시작. 변경 전 실측(성공 36회): 크리티컬 패스 median 176s / p90 196s. 변경 후 수치는 아직 측정 전이며, step 시간 모델의 예측은 median ~115.5s / p90 ~128s. 측정 방법, 잡별 고정비, 후속 작업은 [`CI.md`](CI.md).
+- **CI 형태 계약 테스트** — `tests/ciWorkflow.test.ts`가 `test.yml`의 잡 병렬성, `yarn test`·`yarn build` step(skip·soft-fail·`defaults` 금지), 트리거·branch 필터, 읽기 전용 토큰을 고정하고, PR·외부 계정·Dependabot push가 시작할 수 있는 모든 워크플로우가 GitHub-hosted runner를 쓰는지 검사. 이 YAML 검사와 워크플로우의 `if:` 가드는 유지하되, PR이 이를 수정할 수 있으므로 저장소 설정으로도 보장해야 하며 그 설정은 아직 미적용([`CI.md`](CI.md#self-hosted-runner-보안)). Test Suite 결과는 아직 required check나 GHCR 발행이 소비하지 않음([`CI.md`](CI.md#게이팅)).
+
 ---
 
 ## v1.4.0
