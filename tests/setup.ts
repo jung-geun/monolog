@@ -4,38 +4,25 @@ import '@testing-library/jest-dom'
 import 'whatwg-fetch'
 
 // Mock Next.js router
-const mockRouterEvents = {
-  on: jest.fn(),
-  off: jest.fn(),
-  emit: jest.fn(),
-}
-const mockRouterInstance = {
-  route: '/',
-  pathname: '/',
-  query: '',
-  asPath: '',
-  push: jest.fn(),
-  pop: jest.fn(),
-  reload: jest.fn(),
-  back: jest.fn(),
-  prefetch: jest.fn(),
-  beforePopState: jest.fn(),
-  events: mockRouterEvents,
-}
-
 jest.mock('next/router', () => ({
-  __esModule: true,
-  default: mockRouterInstance,
   useRouter() {
-    return mockRouterInstance
-  },
-}))
-
-jest.mock('next/compat/router', () => ({
-  __esModule: true,
-  default: mockRouterInstance,
-  useRouter() {
-    return mockRouterInstance
+    return {
+      route: '/',
+      pathname: '/',
+      query: '',
+      asPath: '',
+      push: jest.fn(),
+      pop: jest.fn(),
+      reload: jest.fn(),
+      back: jest.fn(),
+      prefetch: jest.fn(),
+      beforePopState: jest.fn(),
+      events: {
+        on: jest.fn(),
+        off: jest.fn(),
+        emit: jest.fn(),
+      },
+    }
   },
 }))
 
@@ -55,13 +42,6 @@ if (typeof window !== 'undefined') {
       dispatchEvent: jest.fn(),
     })),
   })
-  if (typeof Element !== 'undefined' && !Element.prototype.animate) {
-    Element.prototype.animate = jest.fn().mockImplementation(() => ({
-      cancel: jest.fn(),
-      finish: jest.fn(),
-      playState: 'running',
-    })) as any
-  }
 
   // Mock IntersectionObserver
   ;(global as any).IntersectionObserver = jest.fn().mockImplementation(() => ({
