@@ -54,6 +54,8 @@ monolog의 버전별 변경 이력. 프로젝트 개요는 [`../README.md`](../R
 - **AdSense 하단 앵커 공백 제거** — Google Auto ads가 `body`에 주입하는 하단 패딩을 무효화해 광고 축소·닫기 뒤 StatusBar 아래 빈 영역을 제거하고, 앵커 위치를 하단으로 고정.
 - **링크 임베드 썸네일 복원** — GitHub Open Graph 이미지를 Notion 이미지 엔드포인트로 중첩하지 않고 허용된 로컬 이미지 프록시로 직접 전달해 북마크 카드의 우측 미리보기를 표시.
 - **단위 테스트 격리** — `next/jest`가 로컬 `.env`를 읽더라도 단위 테스트에서는 Redis L2를 비활성화해 실제 Redis 연결이 Jest 종료를 막지 않도록 수정. 통합 테스트 설정은 유지.
+- **배포 전 의존성 보안 패치** — Next.js 16.3.8, sharp 0.35.5 및 undici·DOMPurify·js-yaml을 기존 메이저 안에서 갱신. `brace-expansion` 1/2/5 계열도 상위 의존성별로 패치해 메이저 강제 교체를 피함. 런타임 Yarn 감사는 취약점 0건.
+- **개발 도구의 잔여 보안 경고** — `eslint-config-next → fast-glob → micromatch → braces@3.0.3`의 [GHSA-vfj7-8cjw-p6xm](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm)은 패치 버전이 없어 전체 Yarn 감사에 High 1건이 남음. 이 경로는 린트용이며 standalone 운영 이미지에는 해당 패키지를 포함하지 않음.
 
 ---
 
