@@ -36,7 +36,11 @@ jobs:
         uses: actions/setup-node@v7
         with:
           node-version: ${{ matrix.node-version }}
-          cache: 'yarn'
+          cache: ${{ (github.event_name != 'workflow_dispatch' || inputs.runner != 'self-hosted') && 'yarn' || '' }}
+
+      - name: Enable declared Yarn
+        if: github.event_name == 'workflow_dispatch' && inputs.runner == 'self-hosted'
+        run: corepack enable && corepack install
 
       - name: Install dependencies
         run: yarn install --frozen-lockfile
@@ -73,7 +77,11 @@ jobs:
         uses: actions/setup-node@v7
         with:
           node-version: '22.x'
-          cache: 'yarn'
+          cache: ${{ (github.event_name != 'workflow_dispatch' || inputs.runner != 'self-hosted') && 'yarn' || '' }}
+
+      - name: Enable declared Yarn
+        if: github.event_name == 'workflow_dispatch' && inputs.runner == 'self-hosted'
+        run: corepack enable && corepack install
 
       - name: Install dependencies
         run: yarn install --frozen-lockfile
