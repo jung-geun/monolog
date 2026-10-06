@@ -31,7 +31,9 @@ const EditorShellInner = ({ children }: { children: ReactNode }) => {
     const start = (url: string, { shallow }: { shallow: boolean }) => {
       const route = url.split("#")[0]
       const fromHistory = historyTarget === route
+      historyTarget = null
       if (shallow || route === currentRoute) return
+      skipEntry = fromHistory
       pendingRoute = url
       cancelEntry()
       setNavigation("loading")
@@ -43,7 +45,7 @@ const EditorShellInner = ({ children }: { children: ReactNode }) => {
       setNavigation("complete")
       // History traversal and anchor targets must not replay document entry.
       if (reducedMotion.matches || skipEntry || url.includes("#") || window.scrollY > 80) return
-      entryAnimation = contentRef.current?.animate?.([
+      entryAnimation = contentRef.current?.animate([
         { opacity: 0.84, transform: "translateY(8px)" },
         { opacity: 1, transform: "none" },
       ], { duration: 320, easing: "cubic-bezier(0.22, 1, 0.36, 1)" })
