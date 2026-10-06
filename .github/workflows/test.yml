@@ -6,6 +6,15 @@ on:
   pull_request:
     branches: [ main, dev ]
   workflow_dispatch:
+    inputs:
+      runner:
+        description: Runner for manual tests and builds
+        type: choice
+        required: true
+        default: hosted
+        options:
+          - hosted
+          - self-hosted
 
 permissions:
   contents: read
@@ -13,7 +22,7 @@ permissions:
 jobs:
   test:
     name: Run Tests
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(github.event_name == 'workflow_dispatch' && inputs.runner == 'self-hosted' && '["self-hosted","Linux","X64"]' || '["ubuntu-latest"]') }}
 
     strategy:
       matrix:
@@ -53,7 +62,7 @@ jobs:
 
   build:
     name: Build Project
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(github.event_name == 'workflow_dispatch' && inputs.runner == 'self-hosted' && '["self-hosted","Linux","X64"]' || '["ubuntu-latest"]') }}
     needs: test
 
     steps:
