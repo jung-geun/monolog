@@ -323,6 +323,16 @@ yarn test:watch
 yarn test:coverage
 ```
 
+### 수동 CI runner 선택
+
+`Test Suite`의 일반 push·PR 검사와 수동 실행 기본값은 GitHub hosted `ubuntu-latest`를 사용합니다. Hosted runner를 확보할 수 없을 때는 수동 실행에서만 기존 `self-hosted`·`Linux`·`X64` runner를 선택할 수 있습니다.
+
+```bash
+gh workflow run test.yml --ref main -f runner=self-hosted
+```
+
+`--ref`에는 검증할 저장소 브랜치·태그를 지정합니다. Self-hosted 경로는 Node.js 설치 후 Corepack으로 `package.json`의 `packageManager`에 선언된 Yarn을 활성화하고 동일한 테스트·빌드를 실행합니다. 해당 호스트에서 프로젝트 코드가 실행되므로 신뢰하는 브랜치만 수동으로 선택하세요.
+
 ---
 
 ## 디렉터리 구조
