@@ -94,6 +94,7 @@ const CodeContent = ({ block, defaultLanguage = "typescript", className }: Props
       <Figure className="notion-code-figure">
         <Frame className="notion-code-frame">
           <div className="code-toolbar">
+            <span className="code-language">{notionLanguage}</span>
             <button type="button" aria-label="코드 복사" title="코드 복사" onClick={copy} disabled={copying}>
               <FiCopy aria-hidden="true" />
             </button>
@@ -125,29 +126,40 @@ const Frame = styled.div`
 
   .code-toolbar {
     display: flex;
-    justify-content: flex-end;
-    padding: 8px 12px 0;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 4px 12px 0;
+  }
+
+  .code-language {
+    font-family: var(--font-mono, monospace);
+    font-size: 11px;
+    line-height: 16px;
+    color: var(--color-ink, rgb(var(--c-ink)));
+    user-select: none;
   }
 
   button {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 34px;
-    height: 34px;
+    width: 24px;
+    height: 24px;
     border: 1px solid var(--color-hairline, rgb(var(--c-hairline)));
     border-radius: 6px;
     color: var(--color-ink, rgb(var(--c-ink)));
     background: var(--color-card, rgb(var(--c-card)));
     cursor: pointer;
   }
+  button svg { width: 13px; height: 13px; }
   button:hover { background: var(--color-sunken, rgb(var(--c-sunken))); }
   button:focus-visible { outline: 2px solid var(--color-signal, rgb(var(--c-signal))); outline-offset: 2px; }
   button:disabled { cursor: wait; opacity: 0.6; }
 
   pre.notion-code {
     margin: 0;
-    padding: 12px 16px 16px;
+    padding: 4px 16px 12px;
     max-height: 30rem;
     overflow: auto;
     border: 0;

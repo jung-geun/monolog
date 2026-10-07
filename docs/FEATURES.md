@@ -10,8 +10,8 @@ monolog의 주요 기능 상세. 프로젝트 개요와 핵심 차별점은 [`..
 | 컴포넌트 | 설명 |
 |---|---|
 | **TitleBar** | macOS traffic-light + `pieroot.log — {filename}` + git 브랜치 |
-| **ActivityBar** | explorer / search / graph / commands / theme toggle (44px) |
-| **FileTree** | `posts/` · `categories/` · `series/` · `projects/` · `drafts/` · `public/` 트리 (240px, 토글 슬라이드). 항목 hover 시 글 메타(제목 · 카테고리 · 날짜 · summary) 프리뷰 카드 |
+| **ActivityBar** | explorer / search / graph / commands / theme toggle (44px). Search·Graph는 explorer 패널 열림과 무관하게 현재 경로를 강조 |
+| **FileTree** | `posts/` · `categories/` · `series/` · `projects/` · `drafts/` · `public/` 트리 (240px, 토글 슬라이드). 최신 15개 글 뒤에 열린 탭의 이전 글을 중복 없이 추가하고 현재 글을 강조. 추가 항목은 탭을 닫으면 제거하며, 피드에 없는 상세 공개 글도 로드된 메타데이터로 표시. 항목 hover 시 글 메타 프리뷰 카드 |
 | **TabBar** | 라우트별 탭 (`README.md`, `categories/<name>.md`, `series/<name>.md`, `graph.md`, …). 프리뷰 탭, `⌘+Shift+W` 닫기 |
 | **StatusBar** | `ssh pieroot@log` + branch · 동기화 · entries · encoding · syntax (22px) |
 | **LineNumberGutter** | 본문 좌측 라인 넘버 — **콘텐츠 길이에 맞춰 자동 확장/축소** (`ResizeObserver` + `position:absolute` 라인 컨테이너로 자기 측정 루프 회피) |
@@ -38,9 +38,11 @@ monolog의 주요 기능 상세. 프로젝트 개요와 핵심 차별점은 [`..
 ## 자동 광고 배치
 - AdSense Auto ads가 홈·목록 카드 사이와 글의 블록 사이를 판단할 수 있도록 목록 항목을 독립된 `article`, 홈 그룹을 이름 있는 `section`으로 표시. 본문은 단일 Notion 렌더러를 유지하며 Google이 삽입한 광고가 전체 콘텐츠 너비를 사용하고 잘리지 않도록 처리.
 - 비어 있는 수동 광고 슬롯은 광고가 채워지지 않았을 때 공백을 남기지 않음. 가짜 슬롯 ID·고정 광고 위치·빈 광고 박스는 추가하지 않음.
+- 넓은 데스크톱에서는 본문 최대 760px과 목차 240px을 최대 1000px 영역으로 묶어 남는 폭을 오른쪽 바깥 여백으로 유지. 좁은 화면에는 광고용 공백을 예약하지 않음. 사이드 레일 게재에는 AdSense의 **Side rail ads** 활성화가 필요하며, 오른쪽만 사용하려면 고급 설정의 **Right only**를 선택. [공식 사이드 레일 위치 설정](https://support.google.com/adsense/answer/9305577?hl=en#side-rail-ads).
 - AdSense 계정에서 Auto ads와 인페이지 형식을 켜야 하며 실제 위치·빈도·게재 여부는 Google이 결정. HTML 구조 개선이 광고 게재를 보장하지 않음. [공식 Auto ads 설정](https://support.google.com/adsense/answer/9261805).
 
 ## 코드 블록
+- 언어명과 24px 복사 버튼을 작은 헤더에 표시. 코드 상단 패딩을 4px로 줄이며 원문에 포함된 빈 줄이나 들여쓰기는 제거하지 않음.
 - 복사 버튼은 코드 스크롤 영역 바깥에 있어 내부 가로·세로 스크롤 중에도 같은 위치를 유지. Clipboard API를 사용할 수 없으면 기존 레거시 복사 경로를 시도하며, 실제 성공 후 `복사되었습니다.`, 두 경로 모두 실패하면 오류 toast를 표시. 알림은 스크린리더에 전달. Mermaid는 코드의 세로 높이 제한을 적용하지 않음.
 - 블록 코드에는 인라인 코드용 패딩을 적용하지 않음. 첫 줄에만 생기던 CSS 들여쓰기를 제거하며 원문 공백·탭·줄바꿈은 그대로 보존. 문법 강조·캡션·Mermaid 렌더링 유지.
 
@@ -182,7 +184,7 @@ DB 블록 주입은 **createPortal** 기반 — react-notion-x가 그린 자리�
 
 ## Reading aids
 - **ReadingProgress** — `.scroll-area` 진행률 2px accent 바
-- **RightRail (240px)** — TOC + 시리즈 글 목록 + 동일 카테고리 related 3개 + Qdrant 기반 `ai · similar`(선택 기능) + 공유 태그 mini-graph SVG
+- **RightRail (240px)** — 본문 바로 옆의 TOC + 시리즈 글 목록 + 동일 카테고리 related 3개 + Qdrant 기반 `ai · similar`(선택 기능) + BuiltGraph의 글 연결 mini-graph SVG
 - **Frontmatter** — YAML 형식 메타데이터 블록 (모노스페이스, key가 accent3 컬러)
 - **SeriesNav** — 본문 하단 시리즈 Prev/Next 박스
 - **SPA 내부 링크** — 본문의 다른 글로 향하는 링크는 capture-phase 인터셉터로 `router.push`로 전환, 새로고침 없는 페이지 이동

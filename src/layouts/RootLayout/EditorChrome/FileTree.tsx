@@ -2,13 +2,29 @@ import { useEffect, useRef, useState, useCallback } from "react"
 import Link from "next/link"
 import { useRouter } from "next/compat/router"
 import styled from "@emotion/styled"
+import { queryOptions, skipToken, useQueries } from "@tanstack/react-query"
 import usePostsQuery from "src/hooks/usePostsQuery"
 import { useCategoriesQuery } from "src/hooks/useCategoriesQuery"
 import { useSeriesQuery } from "src/hooks/useSeriesQuery"
 import { CONFIG } from "site.config"
 import { DEFAULT_CATEGORY } from "src/constants"
+import { queryKey } from "src/constants/queryKey"
 import { useRouteChrome } from "./RouteChromeContext"
-import type { TPost } from "src/types"
+import type { PostDetail, TPost } from "src/types"
+
+const RECENT_POST_LIMIT = 15
+
+// A post document lives at a single-segment path (`/<slug>`); hash and query
+// belong to the tab's location, not to the document identity.
+const slugFromHref = (href: string): string | undefined => {
+  const match = /^\/([^/?#]+)(?:[?#]|$)/.exec(href)
+  if (!match) return undefined
+  try {
+    return decodeURIComponent(match[1])
+  } catch {
+    return match[1]
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Hover preview tooltip
@@ -123,6 +139,7 @@ const PostTreeItem = ({ post, isActive, href }: TreeItemProps) => {
         ref={ref}
         href={href}
         className={`file-item${isActive ? " active" : ""}`}
+        aria-current={isActive ? "page" : undefined}
         title={post.title}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
@@ -167,9 +184,34 @@ const FileTree = () => {
   const categories = useCategoriesQuery()
   const series = useSeriesQuery()
   const activeSlug = typeof router?.query.slug === "string" ? router.query.slug : undefined
-  const { isFileTreeOpen, expanded, toggleSection } = useRouteChrome()
+  const { isFileTreeOpen, expanded, toggleSection, tabs } = useRouteChrome()
 
-  const recentPosts = posts.slice(0, 15)
+  const recentPosts = posts.slice(0, RECENT_POST_LIMIT)
+  // Open documents outside the recent list, in tab order, plus the current
+  // document. Whether each is a post is decided by metadata, not by its tab.
+  const openSlugs = new Set<string>()
+  for (const tab of tabs) {
+    const slug = slugFromHref(tab.href)
+    if (slug) openSlugs.add(slug)
+  }
+  if (activeSlug) openSlugs.add(activeSlug)
+  for (const post of recentPosts) openSlugs.delete(post.slug)
+  const candidateSlugs = [...openSlugs]
+  // Observing the hydrated detail of each open document keeps its metadata
+  // cached while the tab stays open, so detail-only posts (absent from the
+  // feed) remain listed after switching tabs. Closing the tab drops the observer.
+  const openDetails = useQueries({
+    queries: candidateSlugs.map((slug) =>
+      queryOptions<PostDetail>({ queryKey: queryKey.post(slug), queryFn: skipToken, enabled: false })
+    ),
+  })
+  const feedBySlug = new Map(posts.map((post) => [post.slug, post]))
+  const openPosts = candidateSlugs.flatMap((slug, index): TPost[] => {
+    const post = feedBySlug.get(slug) ?? openDetails[index]?.data
+    if (!post || post.type[0] === "Page") return []
+    if (CONFIG.aboutSlug && post.slug === CONFIG.aboutSlug) return []
+    return [post]
+  })
   const categoryEntries = Object.entries(categories).filter(
     ([name]) => name !== DEFAULT_CATEGORY
   )
@@ -187,7 +229,7 @@ const FileTree = () => {
       />
       {expanded.posts && (
         <div id="tree-section-posts">
-          {recentPosts.map((p) => (
+          {[...recentPosts, ...openPosts].map((p) => (
             <PostTreeItem
               key={p.slug}
               post={p}
