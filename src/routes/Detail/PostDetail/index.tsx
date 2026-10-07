@@ -227,7 +227,7 @@ const StyledWrapper = styled.div`
   .notion-content {
     .notion-page { padding: 0 !important; }
 
-    code, .notion-inline-code {
+    code:not(pre code), .notion-inline-code {
       background: var(--color-sunken, rgb(var(--c-sunken)));
       color: var(--color-signal, rgb(var(--c-signal)));
       border-radius: 4px;

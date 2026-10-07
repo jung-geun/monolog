@@ -62,6 +62,8 @@ const PostCard: React.FC<Props> = ({ data }) => {
 export default PostCard
 
 const StyledWrapper = styled(Link)`
+  display: block;
+
   article {
     overflow: hidden;
     position: relative;

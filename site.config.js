@@ -62,7 +62,6 @@ const CONFIG = {
       slots: {
         postBottom: "",
         postRail: "",
-        feedBottom: "",
       },
     },
   },

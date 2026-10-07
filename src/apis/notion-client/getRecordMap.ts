@@ -649,11 +649,20 @@ async function processBlock(block: any, parentId: string, pageId: string, notion
         }
         break
 
+      case 'heading_1':
+      case 'heading_2':
+      case 'heading_3':
+      case 'heading_4':
+        // RNX renders heading children only for toggleable headings.
+        if (blockData.is_toggleable) format.toggleable = true
+        break
+
       case 'column_list':
+        // Equal default widths are assigned after children are fetched.
+        break
+
       case 'column':
-        // Phase 4 limit: official API does not expose `format.column_ratio`;
-        // columns therefore render with default equal widths regardless of
-        // how the page was authored. Permanent constraint.
+        if (typeof blockData.width_ratio === 'number') format.column_ratio = blockData.width_ratio
         break
 
       case 'table':
@@ -761,6 +770,7 @@ async function processBlock(block: any, parentId: string, pageId: string, notion
     'heading_1': 'header',
     'heading_2': 'sub_header',
     'heading_3': 'sub_sub_header',
+    'heading_4': 'header_4',
     'bulleted_list_item': 'bulleted_list',
     'numbered_list_item': 'numbered_list',
     'to_do': 'to_do',
@@ -816,6 +826,15 @@ async function processBlock(block: any, parentId: string, pageId: string, notion
     const childIds = await fetchChildBlocks(block.id, pageId, notion, recordMap, allPosts)
     if (childIds.length > 0) {
       blockValue.content = childIds
+      // The API omits width_ratio for equal columns; RNX would otherwise use 0.5 each.
+      if (block.type === 'column_list') {
+        for (const childId of childIds) {
+          const column = unwrapBlock(recordMap.block[childId])
+          if (column?.type === 'column' && typeof column.format?.column_ratio !== 'number') {
+            column.format = { ...column.format, column_ratio: 1 / childIds.length }
+          }
+        }
+      }
     }
   }
 

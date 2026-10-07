@@ -11,12 +11,12 @@ const RecentPostsCompact = () => {
   if (!recent.length) return null
 
   return (
-    <div className="mb-10">
+    <section className="mb-10" aria-labelledby="recent-posts-heading">
       <div className="flex items-baseline justify-between mb-3">
-        <h2 className="font-sans text-base font-semibold text-strong">Recent Posts</h2>
+        <h2 id="recent-posts-heading" className="font-sans text-base font-semibold text-strong">Recent Posts</h2>
         <span className="font-mono text-xs text-mute">{posts.length} entries</span>
       </div>
-      <div className="space-y-3">
+      <div className="recent-posts-flow">
         {recent.map((post) => {
           const category = post.category?.[0] ?? ""
           const style = getCategoryStyle(category)
@@ -24,10 +24,10 @@ const RecentPostsCompact = () => {
           const tags = post.tags?.slice(0, 3).map((t) => `#${t}`).join(" · ") ?? ""
 
           return (
-            <Link
-              key={post.id}
-              href={`/${post.slug}`}
-              className={`group block rounded-[12px] border border-hairline bg-card overflow-hidden transition-colors ${style.cardBorder} hover:bg-card/85`}
+            <article key={post.id} className="mb-3">
+              <Link
+                href={`/${post.slug}`}
+                className={`group block rounded-[12px] border border-hairline bg-card overflow-hidden transition-colors ${style.cardBorder} hover:bg-card/85`}
             >
               <div className={`grid ${post.thumbnail ? "grid-cols-[6px_1fr_auto]" : "grid-cols-[6px_1fr]"}`}>
                 <div className={`bg-hairline ${style.stripHover} transition-colors`} />
@@ -70,6 +70,7 @@ const RecentPostsCompact = () => {
                 )}
               </div>
             </Link>
+            </article>
           )
         })}
       </div>
@@ -83,7 +84,7 @@ const RecentPostsCompact = () => {
           </Link>
         </p>
       )}
-    </div>
+    </section>
   )
 }
 
