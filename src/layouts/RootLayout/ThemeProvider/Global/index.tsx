@@ -59,7 +59,8 @@ const LIGHT_VARS = `
 const LIGHT_PRISM = `
   /* Light-mode Prism overrides — VS Code Light+ syntax palette. */
   .notion .notion-code,
-  .notion-code {
+  .notion-code,
+  .notion-code-frame {
     background-color: #f2f2f2 !important;
     border: 1px solid #e5e5e5;
   }
@@ -118,7 +119,8 @@ const LIGHT_PRISM = `
 const DARK_PRISM = `
   /* Dark-mode Prism overrides — VS Code Dark+ syntax palette. */
   .notion .notion-code,
-  .notion-code {
+  .notion-code,
+  .notion-code-frame {
     background-color: #202020 !important;
     border: 1px solid #2b2b2b;
   }

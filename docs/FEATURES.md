@@ -35,6 +35,15 @@ monolog의 주요 기능 상세. 프로젝트 개요와 핵심 차별점은 [`..
 ## 본문 상단 히어로 썸네일
 `PostDetail`(non-about) 분기에서 Frontmatter 위에 16:9 히어로 썸네일이 `priority` 로딩으로 깔립니다. About 페이지는 위젯 영역으로 대체.
 
+## 자동 광고 배치
+- AdSense Auto ads가 홈·목록 카드 사이와 글의 블록 사이를 판단할 수 있도록 목록 항목을 독립된 `article`, 홈 그룹을 이름 있는 `section`으로 표시. 본문은 단일 Notion 렌더러를 유지하며 Google이 삽입한 광고가 전체 콘텐츠 너비를 사용하고 잘리지 않도록 처리.
+- 비어 있는 수동 광고 슬롯은 광고가 채워지지 않았을 때 공백을 남기지 않음. 가짜 슬롯 ID·고정 광고 위치·빈 광고 박스는 추가하지 않음.
+- AdSense 계정에서 Auto ads와 인페이지 형식을 켜야 하며 실제 위치·빈도·게재 여부는 Google이 결정. HTML 구조 개선이 광고 게재를 보장하지 않음. [공식 Auto ads 설정](https://support.google.com/adsense/answer/9261805).
+
+## 코드 블록
+- 복사 버튼은 코드 스크롤 영역 바깥에 있어 내부 가로·세로 스크롤 중에도 같은 위치를 유지. 복사 성공 후 `복사되었습니다.`, 권한 거부 등 실패 시 오류 toast를 표시하며 알림은 스크린리더에 전달.
+- 블록 코드에는 인라인 코드용 패딩을 적용하지 않음. 첫 줄에만 생기던 CSS 들여쓰기를 제거하며 원문 공백·탭·줄바꿈은 그대로 보존. 문법 강조·캡션·Mermaid 렌더링 유지.
+
 ---
 
 ## 시리즈 (Series)
@@ -133,6 +142,15 @@ About 라우트는 다음 위젯들을 한 화면에 묶어 보여줍니다.
 DB 블록 주입은 **createPortal** 기반 — react-notion-x가 그린 자리에 portal target 노드를 끼워 넣어 페이지 전환 시 reconciler 충돌(`removeChild NotFoundError`)을 원천 차단합니다.
 
 ---
+## 공식 Notion 블록 지원 범위
+- `heading_4`, 토글 제목의 `is_toggleable`, `column.width_ratio`를 현재 렌더러가 이해하는 형태로 변환. 생략된 열 너비는 실제 열 개수에 맞춰 균등 배분.
+- 변환 캐시는 `recordMap:v9`. 이미 발행된 내구성 본문은 캐시 버전 변경만으로 재작성하지 않으므로 기존 글에 적용하려면 해당 글의 정상 변경 동기화 또는 인증된 `/api/revalidate?path=/slug` 본문 재확인이 필요. `full=true`는 전체 메타데이터 대조이며 모든 본문 강제 재작성 옵션이 아님.
+- 2026-10-07 기준 최신 안정판: [Notion SDK 5.27.0](https://github.com/makenotion/notion-sdk-js/releases/tag/v5.27.0), [react-notion-x / notion-types / notion-utils 8.0.8](https://github.com/NotionX/react-notion-x/releases/tag/v8.0.8). 현재 SDK 5.21.0·렌더러 7.10.0에서도 위 변환이 가능하며 이번 변경은 의존성 버전을 바꾸지 않음.
+- 탭은 RNX 7.10.1 이상이 지원하지만 현재 설치판에는 렌더 분기가 없음. 회의록·레거시 template·동기화 원본 참조는 별도 변환 정책이 필요. 공식 API의 `unsupported.block_type`은 종류만 알려주며 블록 내용은 제공하지 않으므로 SDK 갱신만으로 복원할 수 없음.
+- [업로드 HTML 블록](https://developers.notion.com/reference/block#html-blocks)은 별도 `html` 타입이 아닌 업로드 기반 `embed`. 읽기 응답은 만료되는 서명 `embed.url`이며 현재는 인라인 실행 대신 링크로 표시. 안전한 인터랙티브 지원에는 공개 페이지·블록 검증을 통한 URL 갱신과 전용 샌드박스 iframe이 필요하며 앱 출처의 HTML 삽입이나 일반 iframe 호스트 허용만으로 대체하지 않음.
+
+---
+
 
 ## Durable content registry (`src/libs/content`)
 - 공개 게시물 메타데이터·본문 recordMap·slug 이력·대기 작업 outbox를 `CONTENT_REDIS_URL`(Redis 7.2+, AOF + `WAITAOF`) 또는 `CONTENT_STATE_DIR`에 원자적으로 저장. TTL 캐시 만료·재시작·Notion 장애와 무관하게 마지막 발행본을 렌더
@@ -154,7 +172,7 @@ DB 블록 주입은 **createPortal** 기반 — react-notion-x가 그린 자리�
 | 키 | TTL (기본 6h 기준) |
 |---|---|
 | `posts:v3:<dsId>` | `revalidateTime / 2` (3시간, 레지스트리 초기화 전 cold path 전용) |
-| `recordMap:v8:<pageId>:<lastEdited>` | `revalidateTime` (6시간) |
+| `recordMap:v9:<pageId>:<lastEdited>` | `revalidateTime` (6시간) |
 | `database:v6:<dbId>:<lastEdited>` | 30분 |
 | `notionGraph:v4:<hash>` | `GRAPH_TTL_MS` (기본 6시간) |
 | image BLOB (S3 UUID 키) | 30일 |

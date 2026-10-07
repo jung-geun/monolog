@@ -20,9 +20,9 @@ import {
 } from "src/libs/utils/notion/rewriteInternalLinks"
 import usePostsQuery from "src/hooks/usePostsQuery"
 import { NotionRenderer as CoreNotionRenderer } from "react-notion-x"
-import { Code as RawCode } from "react-notion-x/build/third-party/code"
+import { Code } from "./Code"
 import { Equation } from "./Equation"
-import type { ComponentProps } from "react"
+import ArticleFlow from "src/components/ArticleFlow"
 import { normalizeArticleHeadings } from "./headings"
 
 // core styles shared by all of react-notion-x (required)
@@ -49,31 +49,6 @@ declare global {
 // Keep the article core, code text and KaTeX output synchronous on server and
 // client; only browser-dependent media/modal widgets below are client-only.
 
-// Wrap Code with a localized error boundary so a single block crash does not
-// collapse the entire page. Falls back to a plain <pre> with the raw text.
-const Code: FC<ComponentProps<typeof RawCode>> = (props) => {
-  const title = props.block.properties?.title?.map((segment) => segment[0]).join("") ?? ""
-  return (
-    <SafeBlock
-      name="Code"
-      fallback={
-        <pre style={{
-          padding: "0.75rem 1rem",
-          borderRadius: "0.5rem",
-          background: "rgba(127,127,127,0.12)",
-          overflowX: "auto",
-          fontSize: "0.85rem",
-          lineHeight: 1.5,
-          margin: "1rem 0",
-        }}>
-          <code>{title}</code>
-        </pre>
-      }
-    >
-      <RawCode {...props} />
-    </SafeBlock>
-  )
-}
 
 // react-notion-x 의 components.Collection 슬롯을 우리 DB 렌더러로 교체.
 // react-notion-x 가 본인 트리 안에서 직접 렌더하므로, portal 기반 sibling 인젝션이
@@ -669,21 +644,23 @@ const NotionRenderer: FC<Props> = ({ recordMap }) => {
         strategy="lazyOnload"
         onLoad={refreshKatex}
       />
-      <CoreNotionRenderer
-        darkMode={scheme === "dark"}
-        recordMap={renderedRecordMap ?? recordMap}
-        components={{
-          Code,
-          Collection,
-          Equation,
-          Modal,
-          Pdf,
-          nextImage: Image,
-          nextLink: Link,
-        }}
-        mapPageUrl={mapPageUrl}
-        mapImageUrl={mapImageUrlWrapper}
-      />
+      <ArticleFlow>
+        <CoreNotionRenderer
+          darkMode={scheme === "dark"}
+          recordMap={renderedRecordMap ?? recordMap}
+          components={{
+            Code,
+            Collection,
+            Equation,
+            Modal,
+            Pdf,
+            nextImage: Image,
+            nextLink: Link,
+          }}
+          mapPageUrl={mapPageUrl}
+          mapImageUrl={mapImageUrlWrapper}
+        />
+      </ArticleFlow>
     </StyledWrapper>
   )
 }
@@ -817,22 +794,6 @@ const StyledWrapper = styled.div`
     border-radius: 4px;
   }
   
-  /* Always show code block copy button */
-  .notion-code-copy {
-    opacity: 1 !important;
-    visibility: visible !important;
-  }
-  
-  .notion-code-copy-button {
-    opacity: 1 !important;
-    visibility: visible !important;
-    cursor: pointer;
-    transition: opacity 0.2s ease;
-    
-    &:hover {
-      opacity: 0.7 !important;
-    }
-  }
   
   /* KaTeX math styling for dark mode */
   .katex {

@@ -4,8 +4,8 @@ const DB_VERSION = "v6"
 // Bump RM_VERSION when convertRichText / processBlock output shape changes
 // (e.g. new mention decorations, new format fields) so existing recordMap
 // caches are invalidated and re-fetched with the new translator.
-// v8 drops raw database properties from the root page block.
-const RM_VERSION = "v8"
+// v9 preserves heading 4, toggle-heading children, and column width ratios.
+const RM_VERSION = "v9"
 // Bump NG_VERSION when NotionGraph schema changes (e.g. new edge types, node fields)
 // so cached graphs are discarded and rebuilt with the new shape.
 const NG_VERSION = "v4"

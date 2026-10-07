@@ -2,7 +2,7 @@ import React, { ReactNode, useEffect } from "react"
 import { ThemeProvider } from "./ThemeProvider"
 import useScheme from "src/hooks/useScheme"
 import useGtagEffect from "./useGtagEffect"
-import Prism from "prismjs/prism"
+import Prism from "prismjs"
 import 'prismjs/components/prism-markup-templating.js'
 import 'prismjs/components/prism-markup.js'
 import 'prismjs/components/prism-bash.js'

@@ -1,6 +1,6 @@
 {
   "name": "monolog",
-  "version": "1.18.1",
+  "version": "1.18.2",
   "packageManager": "yarn@1.22.22",
   "license": "MIT",
   "repository": {
@@ -84,6 +84,7 @@
     "@types/gtag.js": "^0.0.20",
     "@types/jest": "^30.0.0",
     "@types/node": "^25.7.0",
+    "@types/prismjs": "^1.26.6",
     "@types/react": "^19.2.5",
     "@types/react-dom": "^19.2.3",
     "eslint": "^9.0.0",
