@@ -60,6 +60,7 @@
     "jest/**/js-yaml": "^3.15.2",
     "@jest/**/js-yaml": "^3.15.2",
     "postcss": "^8.5.23",
+    "source-map-js": "^1.2.2",
     "uuid": "^14.0.0",
     "ws": "^8.21.3",
     "next/**/sharp": "^0.35.4",

@@ -35,6 +35,7 @@ export default Feed
 
 const StyledWrapper = styled.div`
   flex: 1;
+  overflow-x: clip;
 
   .body {
     padding: 36px 44px 80px;

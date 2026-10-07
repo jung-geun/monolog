@@ -151,6 +151,7 @@ const StyledWrapper = styled.div`
 
   .scroll-area {
     flex: 1;
+    overflow-x: clip;
   }
 
   .content-grid {

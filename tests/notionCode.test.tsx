@@ -35,11 +35,16 @@ const block: CodeBlock = {
 let container: HTMLDivElement
 let root: Root
 let clipboardDescriptor: PropertyDescriptor | undefined
+let legacyCopyDescriptor: PropertyDescriptor | undefined
+const legacyCopy = jest.fn(() => false)
 const writeText = jest.fn(() => Promise.resolve())
 
 beforeEach(() => {
   jest.useFakeTimers()
   writeText.mockReset()
+  legacyCopy.mockReset().mockReturnValue(false)
+  legacyCopyDescriptor = Object.getOwnPropertyDescriptor(document, "execCommand")
+  Object.defineProperty(document, "execCommand", { configurable: true, value: legacyCopy })
   clipboardDescriptor = Object.getOwnPropertyDescriptor(navigator, "clipboard")
   Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } })
   container = document.createElement("div")
@@ -55,6 +60,11 @@ afterEach(() => {
     Object.defineProperty(navigator, "clipboard", clipboardDescriptor)
   } else {
     Reflect.deleteProperty(navigator, "clipboard")
+  }
+  if (legacyCopyDescriptor) {
+    Object.defineProperty(document, "execCommand", legacyCopyDescriptor)
+  } else {
+    Reflect.deleteProperty(document, "execCommand")
   }
   jest.useRealTimers()
 })
@@ -88,4 +98,16 @@ it("reports a denied clipboard write as failure and permits a later successful a
   await act(async () => button.click())
   expect(button.disabled).toBe(false)
   expect(document.querySelector('[role="status"]')?.textContent).toBe("복사되었습니다.")
+})
+
+it("retains successful copying and keyboard focus when only legacy clipboard support is available", async () => {
+  Object.defineProperty(navigator, "clipboard", { configurable: true, value: undefined })
+  legacyCopy.mockReturnValue(true)
+  const button = container.querySelector<HTMLButtonElement>("button")!
+  button.focus()
+
+  await act(async () => button.click())
+
+  expect(document.querySelector('[role="status"]')?.textContent).toBe("복사되었습니다.")
+  expect(document.activeElement).toBe(button)
 })

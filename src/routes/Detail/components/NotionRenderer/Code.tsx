@@ -18,6 +18,25 @@ import { SafeBlock } from "./SafeBlock"
 // the other Notion languages. Keep controls out of the scrollable source text.
 type Props = { block: CodeBlock; defaultLanguage?: string; className?: string }
 
+const copyLegacy = (content: string) => {
+  if (typeof document.execCommand !== "function") throw new Error("Clipboard unavailable")
+  const focused = document.activeElement
+  const field = document.createElement("textarea")
+  field.value = content
+  field.readOnly = true
+  field.tabIndex = -1
+  field.setAttribute("aria-hidden", "true")
+  field.style.cssText = "position:fixed;top:0;left:0;opacity:0"
+  document.body.appendChild(field)
+  try {
+    field.select()
+    if (!document.execCommand("copy")) throw new Error("Clipboard write failed")
+  } finally {
+    field.remove()
+    if (focused instanceof HTMLElement) focused.focus({ preventScroll: true })
+  }
+}
+
 export const Code = (props: Props) => (
   <SafeBlock name="Code" fallback={<pre className="notion-code"><code>{props.block.properties.title?.map(segment => segment[0]).join("") ?? ""}</code></pre>}>
     <CodeContent {...props} />
@@ -56,7 +75,12 @@ const CodeContent = ({ block, defaultLanguage = "typescript", className }: Props
       await navigator.clipboard.writeText(content)
       result = "복사되었습니다."
     } catch {
-      result = "복사하지 못했습니다. 클립보드 권한을 확인해주세요."
+      try {
+        copyLegacy(content)
+        result = "복사되었습니다."
+      } catch {
+        result = "복사하지 못했습니다. 클립보드 권한을 확인해주세요."
+      }
     }
     if (!mounted.current) return
     setCopying(false)
@@ -130,6 +154,7 @@ const Frame = styled.div`
     border-radius: 0 0 6px 6px;
     background: transparent !important;
   }
+  pre.notion-code.language-mermaid { max-height: none; }
   pre.notion-code > code {
     display: block;
     margin: 0;
