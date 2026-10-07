@@ -19,6 +19,10 @@ const ActivityBar = () => {
   const pathname = router?.pathname
   const [scheme, setScheme] = useScheme()
   const { isFileTreeOpen, toggleFileTree } = useRouteChrome()
+  // Route links reflect the current document; the explorer button reflects
+  // panel state. The two are independent.
+  const isSearchRoute = pathname === "/search"
+  const isGraphRoute = pathname === "/graph"
 
   const handleCommandsClick = () => {
     window.dispatchEvent(new CustomEvent("open-command-palette"))
@@ -38,18 +42,20 @@ const ActivityBar = () => {
 
       <Link
         href="/search"
-        className={`icon-btn${!isFileTreeOpen && pathname === "/search" ? " active" : ""}`}
+        className={`icon-btn${isSearchRoute ? " active" : ""}`}
         title="search"
         aria-label="search"
+        aria-current={isSearchRoute ? "page" : undefined}
       >
         <SearchIcon />
       </Link>
 
       <Link
         href="/graph"
-        className={`icon-btn${!isFileTreeOpen && pathname === "/graph" ? " active" : ""}`}
+        className={`icon-btn${isGraphRoute ? " active" : ""}`}
         title="graph"
         aria-label="graph"
+        aria-current={isGraphRoute ? "page" : undefined}
       >
         <GraphIcon />
       </Link>

@@ -144,6 +144,9 @@ const PostDetail: React.FC = () => {
 
 export default PostDetail
 
+const BODY_MAX_WIDTH = 760
+const RAIL_WIDTH = 240
+
 const StyledWrapper = styled.div`
   display: flex;
   flex-direction: column;
@@ -154,29 +157,33 @@ const StyledWrapper = styled.div`
     overflow-x: clip;
   }
 
+  /*
+   * Body + context rail form one capped, start-aligned envelope. Wider editors leave the surplus
+   * as real page margin on the right instead of an empty stretch inside the body track.
+   */
   .content-grid {
     display: grid;
-    grid-template-columns: 1fr 240px;
+    grid-template-columns: minmax(0, 1fr) ${RAIL_WIDTH}px;
+    width: 100%;
+    max-width: ${BODY_MAX_WIDTH + RAIL_WIDTH}px;
     min-height: 100%;
 
     @media (max-width: ${({ theme }) => theme.variables.breakpoint}px) {
-      grid-template-columns: 1fr;
+      grid-template-columns: minmax(0, 1fr);
+      max-width: none;
     }
 
     &--about {
-      grid-template-columns: 1fr;
+      grid-template-columns: minmax(0, 1fr);
+      max-width: none;
 
       .body { max-width: 900px; }
-
-      @media (max-width: ${({ theme }) => theme.variables.breakpoint}px) {
-        grid-template-columns: 1fr;
-      }
     }
   }
 
   .body {
     padding: 40px 56px 64px;
-    max-width: 760px;
+    max-width: ${BODY_MAX_WIDTH}px;
     min-width: 0;
 
     @media (max-width: ${({ theme }) => theme.variables.breakpoint}px) {
