@@ -73,17 +73,38 @@ it("does not announce success until the clipboard operation succeeds", async () 
   let finish!: () => void
   writeText.mockImplementation(() => new Promise<void>(resolve => { finish = resolve }))
   const button = container.querySelector<HTMLButtonElement>("button")!
+  button.focus()
 
   act(() => button.click())
-  expect(button.disabled).toBe(true)
+  expect(button.getAttribute("aria-disabled")).toBe("true")
+  expect(document.activeElement).toBe(button)
   expect(document.querySelector('[role="status"]')).toBeNull()
 
   await act(async () => finish())
-  expect(button.disabled).toBe(false)
+  expect(button.getAttribute("aria-disabled")).toBe("false")
+  expect(document.activeElement).toBe(button)
   expect(document.querySelector('[role="status"]')?.textContent).toBe("복사되었습니다.")
 
   act(() => jest.runOnlyPendingTimers())
   expect(document.querySelector('[role="status"]')).toBeNull()
+})
+
+it("ignores rapid activations while copying and permits a later copy", async () => {
+  let finish!: () => void
+  writeText.mockImplementation(() => new Promise<void>(resolve => { finish = resolve }))
+  const button = container.querySelector<HTMLButtonElement>("button")!
+
+  act(() => {
+    button.click()
+    button.click()
+  })
+  act(() => button.click())
+  expect(writeText).toHaveBeenCalledTimes(1)
+
+  await act(async () => finish())
+  writeText.mockResolvedValueOnce(undefined)
+  await act(async () => button.click())
+  expect(writeText).toHaveBeenCalledTimes(2)
 })
 
 it("reports a denied clipboard write as failure and permits a later successful attempt", async () => {
@@ -91,12 +112,10 @@ it("reports a denied clipboard write as failure and permits a later successful a
   const button = container.querySelector<HTMLButtonElement>("button")!
 
   await act(async () => button.click())
-  expect(button.disabled).toBe(false)
   expect(document.querySelector('[role="status"]')?.textContent).toBe("복사하지 못했습니다. 클립보드 권한을 확인해주세요.")
 
   writeText.mockResolvedValueOnce(undefined)
   await act(async () => button.click())
-  expect(button.disabled).toBe(false)
   expect(document.querySelector('[role="status"]')?.textContent).toBe("복사되었습니다.")
 })
 

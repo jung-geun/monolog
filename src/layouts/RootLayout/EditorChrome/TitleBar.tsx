@@ -4,12 +4,19 @@ type Props = {
   filename: string
 }
 
+const exitSite = () => {
+  window.close()
+  if (!window.closed) window.location.replace("about:blank")
+}
+
 const TitleBar = ({ filename }: Props) => (
   <StyledWrapper>
     <div className="traffic-lights">
-      <span className="dot close" />
-      <span className="dot" />
-      <span className="dot" />
+      <button type="button" className="window-close" aria-label="사이트 닫기 / 나가기" title="사이트 닫기 / 나가기" onClick={exitSite}>
+        <span className="dot close" aria-hidden="true" />
+      </button>
+      <span className="dot" aria-hidden="true" />
+      <span className="dot" aria-hidden="true" />
     </div>
     <div className="title">pieroot.log — {filename}</div>
     <div className="branch">main</div>
@@ -34,6 +41,19 @@ const StyledWrapper = styled.div`
 
   .traffic-lights {
     display: flex;
+    align-items: center;
+    .window-close {
+      all: unset;
+      display: grid;
+      place-items: center;
+      width: 24px;
+      height: 24px;
+      cursor: pointer;
+      border-radius: 4px;
+      &:hover { background: ${({ theme }) => theme.colors.editor.bg3}; }
+      &:focus-visible { outline: 2px solid ${({ theme }) => theme.colors.editor.accent}; }
+      &:active .dot { transform: scale(0.85); }
+    }
     > * + * { margin-left: 6px; }
     .dot {
       width: 10px;

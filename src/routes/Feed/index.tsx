@@ -14,7 +14,7 @@ const Feed = () => {
     () => ["main", "✓ synced", `${posts.length} entries`, "UTF-8", "LF", "Markdown"],
     [posts.length]
   )
-  useRegisterChrome("README.md", statusItems)
+  useRegisterChrome("README.md", statusItems, "readme")
 
   return (
     <StyledWrapper>

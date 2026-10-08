@@ -14,12 +14,12 @@ const PageDetail: React.FC = () => {
   const data = usePostQuery()
 
   const isAbout = Boolean(CONFIG.aboutSlug) && data?.slug === CONFIG.aboutSlug
-  const filename = isAbout ? "about.md" : `${data?.slug ?? "page"}.md`
+  const filename = data ? (isAbout ? "about.md" : `${data.slug}.md`) : ""
   const statusItems = useMemo(
     () => ["main", filename, "Markdown"],
     [filename]
   )
-  useRegisterChrome(filename, statusItems)
+  useRegisterChrome(filename, statusItems, isAbout ? "about" : "page")
 
   if (!data) return null
 

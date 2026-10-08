@@ -19,10 +19,10 @@
 ## 이 프로젝트만의 특징
 
 ### Editor chrome — 모든 라우트가 IDE
-TitleBar · ActivityBar · FileTree · TabBar · StatusBar · LineNumberGutter가 전 라우트에 일관되게 깔립니다. 글 하나를 읽는 경험이 IDE에서 파일을 여는 경험과 같습니다. 각 라우트는 `useRegisterChrome(filename, statusItems)`로 자기 메타를 동적 등록합니다.
+TitleBar · ActivityBar · FileTree · TabBar · StatusBar · LineNumberGutter가 전 라우트에 일관되게 깔립니다. 글 하나를 읽는 경험이 IDE에서 파일을 여는 경험과 같습니다. 각 라우트는 `useRegisterChrome(filename, statusItems, kind)`로 자기 메타와 탭 종류를 동적 등록합니다.
 
 ### `⌘K` 커맨드 팔레트 + 다중 탭
-`⌘K` 하나로 Actions · Posts · Tags · Categories를 검색해 어디든 점프합니다. 글은 탭으로 열리고 `⌘+Shift+W`로 닫힙니다. 탭 간 전환은 항상 새로고침 없는 SPA 이동 — FileTree · 본문 내 링크 모두 `router.push`로 처리됩니다.
+`⌘K` 하나로 Actions · Posts · Tags · Categories를 검색해 어디든 점프합니다. 글 탭은 `Alt/Option+W`로 닫고 `Alt/Option+Shift+T`로 다시 열 수 있습니다. 브라우저가 `Cmd/Ctrl+W`·`Cmd/Ctrl+Shift+T`를 페이지에 전달할 때만 같은 동작을 처리합니다. 사용자가 동의하면 열린 탭과 최근 닫은 글 주소를 이 브라우저에 저장해 새로고침 후 복원합니다. 탭 간 전환은 항상 새로고침 없는 SPA 이동 — FileTree · 본문 내 링크 모두 `router.push`로 처리됩니다.
 
 ### 옵시디언 스타일 force-directed 그래프
 d3-force 시뮬레이션으로 글들이 연결 강도에 따라 자연스럽게 응집·분산됩니다. 엣지는 `mention` · `link` · `link_to_page` · `shared-tag` · `shared-series` · `series-next` 6가지 종류를 지원합니다.
@@ -54,7 +54,7 @@ Notion webhook과 운영 호스트의 15분 cron 대조가 바뀐 글만 다시 
 | Graph | d3-force · d3-drag · d3-zoom · d3-selection |
 | Color | Radix Colors 2 (custom palette) |
 | Test | Jest 30 + @swc/jest |
-| Container | Docker multi-arch (`linux/amd64`, `linux/arm64`), GHCR |
+| Container | Docker Compose + GHCR (`linux/amd64` 운영 이미지) |
 
 ---
 

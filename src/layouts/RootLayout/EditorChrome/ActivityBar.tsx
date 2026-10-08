@@ -19,10 +19,10 @@ const ActivityBar = () => {
   const pathname = router?.pathname
   const [scheme, setScheme] = useScheme()
   const { isFileTreeOpen, toggleFileTree } = useRouteChrome()
-  // Route links reflect the current document; the explorer button reflects
-  // panel state. The two are independent.
+  // Panel visibility and the current document are independent.
   const isSearchRoute = pathname === "/search"
   const isGraphRoute = pathname === "/graph"
+  const isExplorerRoute = !isSearchRoute && !isGraphRoute
 
   const handleCommandsClick = () => {
     window.dispatchEvent(new CustomEvent("open-command-palette"))
@@ -31,7 +31,7 @@ const ActivityBar = () => {
   return (
     <StyledWrapper>
       <button
-        className={`icon-btn${isFileTreeOpen ? " active" : ""}`}
+        className={`icon-btn${isFileTreeOpen && isExplorerRoute ? " active" : ""}`}
         title="explorer"
         aria-label="explorer"
         aria-pressed={isFileTreeOpen}

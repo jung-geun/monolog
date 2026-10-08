@@ -2,6 +2,7 @@ import { useMemo } from "react"
 import styled from "@emotion/styled"
 import React from "react"
 import Image from "next/image"
+import { FiExternalLink } from "react-icons/fi"
 import usePostQuery from "src/hooks/usePostQuery"
 import usePostsQuery from "src/hooks/usePostsQuery"
 import NotionRenderer from "../components/NotionRenderer"
@@ -20,20 +21,20 @@ import ContactBlock from "src/routes/Detail/PageDetail/components/ContactBlock"
 import StackGrid from "src/routes/Detail/PageDetail/components/StackGrid"
 import StatsGrid from "src/routes/Feed/StatsGrid"
 import { getStats } from "src/libs/utils/stats"
-import { publishedDate, modifiedDate, calendarDate, summaryText } from "src/libs/seo"
+import { markdownUrl, publishedDate, modifiedDate, calendarDate, summaryText } from "src/libs/seo"
 import { getArticleDescription } from "src/libs/utils/notion/articleSummary"
 
 const PostDetail: React.FC = () => {
   const data = usePostQuery()
   const allPosts = usePostsQuery()
 
-  const filename = data ? `${data.slug}.md` : "loading.md"
+  const isAbout = Boolean(CONFIG.aboutSlug) && data?.slug === CONFIG.aboutSlug
+  const filename = data ? `${data.slug}.md` : ""
   const statusItems = useMemo(() => ["main", "Reading", "Markdown"], [])
-  useRegisterChrome(filename, statusItems)
+  useRegisterChrome(filename, statusItems, isAbout ? "about" : "post")
 
   if (!data) return null
 
-  const isAbout = Boolean(CONFIG.aboutSlug) && data.slug === CONFIG.aboutSlug
   const category = data.category?.[0] || undefined
   const published = publishedDate(data)
   const modified = modifiedDate(data)
@@ -90,9 +91,21 @@ const PostDetail: React.FC = () => {
   }
 
   return (
-    <StyledWrapper>
+    <StyledWrapper className="post-detail">
       <ReadingProgress />
 
+      <div className="post-actions">
+        <a
+          className="markdown-link"
+          href={markdownUrl(data.slug)}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label="Markdown으로 보기 (새 창)"
+        >
+          Markdown으로 보기
+          <FiExternalLink aria-hidden="true" />
+        </a>
+      </div>
       <div className="scroll-area">
         <div className="content-grid">
           <div className="body">
@@ -152,30 +165,28 @@ const StyledWrapper = styled.div`
   flex-direction: column;
   flex: 1;
 
+  &.post-detail {
+    --post-actions-height: 48px;
+  }
+
   .scroll-area {
     flex: 1;
     overflow-x: clip;
   }
 
-  /*
-   * Body + context rail form one capped, start-aligned envelope. Wider editors leave the surplus
-   * as real page margin on the right instead of an empty stretch inside the body track.
-   */
+  /* Keep the context rail at the editor's right edge; only the article is capped. */
   .content-grid {
     display: grid;
     grid-template-columns: minmax(0, 1fr) ${RAIL_WIDTH}px;
     width: 100%;
-    max-width: ${BODY_MAX_WIDTH + RAIL_WIDTH}px;
     min-height: 100%;
 
     @media (max-width: ${({ theme }) => theme.variables.breakpoint}px) {
       grid-template-columns: minmax(0, 1fr);
-      max-width: none;
     }
 
     &--about {
       grid-template-columns: minmax(0, 1fr);
-      max-width: none;
 
       .body { max-width: 900px; }
     }
@@ -211,6 +222,41 @@ const StyledWrapper = styled.div`
     color: var(--color-strong, rgb(var(--c-strong)));
     line-height: 1.25;
     letter-spacing: -0.03em;
+  }
+
+  .post-actions {
+    display: flex;
+    position: sticky;
+    top: ${({ theme }) => theme.variables.titleBarHeight + theme.variables.tabBarHeight}px;
+    z-index: 10;
+    height: var(--post-actions-height);
+    flex-shrink: 0;
+    align-items: center;
+    padding: 6px 56px;
+    border-bottom: 1px solid ${({ theme }) => theme.colors.editor.line};
+    background: ${({ theme }) => theme.colors.editor.bg};
+
+    @media (max-width: ${({ theme }) => theme.variables.breakpoint}px) {
+      padding: 6px 20px;
+    }
+  }
+
+  .markdown-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 32px;
+    padding: 6px 10px;
+    border: 1px solid ${({ theme }) => theme.colors.editor.line};
+    border-radius: 6px;
+    background: ${({ theme }) => theme.colors.editor.bg2};
+    color: ${({ theme }) => theme.colors.editor.fg};
+    font-size: 13px;
+    text-decoration: none;
+
+    &:hover { color: ${({ theme }) => theme.colors.editor.accent}; }
+    &:focus-visible { outline: 2px solid ${({ theme }) => theme.colors.editor.accent}; outline-offset: 2px; }
+    svg { width: 14px; height: 14px; }
   }
 
   .post-summary {

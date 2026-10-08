@@ -9,15 +9,18 @@ monolog의 주요 기능 상세. 프로젝트 개요와 핵심 차별점은 [`..
 
 | 컴포넌트 | 설명 |
 |---|---|
-| **TitleBar** | macOS traffic-light + `pieroot.log — {filename}` + git 브랜치 |
-| **ActivityBar** | explorer / search / graph / commands / theme toggle (44px). Search·Graph는 explorer 패널 열림과 무관하게 현재 경로를 강조 |
-| **FileTree** | `posts/` · `categories/` · `series/` · `projects/` · `drafts/` · `public/` 트리 (240px, 토글 슬라이드). 최신 15개 글 뒤에 열린 탭의 이전 글을 중복 없이 추가하고 현재 글을 강조. 추가 항목은 탭을 닫으면 제거하며, 피드에 없는 상세 공개 글도 로드된 메타데이터로 표시. 항목 hover 시 글 메타 프리뷰 카드 |
-| **TabBar** | 라우트별 탭 (`README.md`, `categories/<name>.md`, `series/<name>.md`, `graph.md`, …). 프리뷰 탭, `⌘+Shift+W` 닫기 |
+| **TitleBar** | macOS traffic-light + `pieroot.log — {filename}` + git 브랜치. 주황색 닫기 버튼은 브라우저가 허용하면 창을 닫고, 막으면 `about:blank`로 나감 |
+| **ActivityBar** | explorer / search / graph / commands / theme toggle (44px). explorer 강조는 패널이 열려 있고 Search·Graph가 아닌 화면에서만 표시. Search·Graph는 explorer 패널 열림과 무관하게 현재 경로를 강조 |
+| **FileTree** | `posts/` · `categories/` · `series/` · `projects/` · `drafts/` · `public/` 트리 (240px, 토글 슬라이드). 최신 15개 글 뒤에 열린 탭의 이전 글을 중복 없이 추가하고 현재 글을 강조. 추가 항목은 탭을 닫으면 제거하며, 피드에 없는 상세 공개 글도 로드된 메타데이터로 표시. 항목 hover 시 글 메타 프리뷰 카드. 모바일의 열린 패널과 배경은 탭바·읽기 진행률보다 앞에 표시 |
+| **TabBar** | 라우트별 탭 (`README.md`, `categories/<name>.md`, `series/<name>.md`, `graph.md`, …). 현재 글 닫기 `Alt/Option+W`, 마지막으로 닫은 글 다시 열기 `Alt/Option+Shift+T`와 다시 열기 버튼 제공. `Cmd/Ctrl+W`·`Cmd/Ctrl+Shift+T`는 브라우저가 페이지로 전달할 때만 처리. 사용자가 동의하면 열린 탭과 최근 닫은 글 제목·주소만 이 브라우저 `localStorage`에 저장해 새로고침 후 복원. 거부는 이번 방문에만 적용하며, 저장 해제 시 저장된 두 항목을 삭제하고 이후에는 저장하지 않음 |
 | **StatusBar** | `ssh pieroot@log` + branch · 동기화 · entries · encoding · syntax (22px) |
 | **LineNumberGutter** | 본문 좌측 라인 넘버 — **콘텐츠 길이에 맞춰 자동 확장/축소** (`ResizeObserver` + `position:absolute` 라인 컨테이너로 자기 측정 루프 회피) |
 | **CommandPalette** | `⌘K` / `Ctrl+K` — Actions · Posts · Tags · Categories 검색 이동 |
 
-각 라우트는 `useRegisterChrome(filename, statusItems)`로 자기 chrome 메타를 동적 등록합니다.
+각 라우트는 `useRegisterChrome(filename, statusItems, kind)`로 자기 chrome 메타와 탭 종류를 동적 등록합니다.
+
+- 글 내 앵커의 해시 이동과 앵커 주소 새로고침은 같은 문서 탭을 사용합니다. 쿼리가 다른 주소는 구분하며, 다시 열 때는 저장한 전체 주소를 사용합니다.
+- 브라우저 저장소 접근·쓰기 실패 시 새 탭 저장을 중단합니다. 이전 세션은 남아 있을 수 있으므로 저장 해제·삭제 버튼은 계속 제공하며, 저장소가 삭제도 막으면 저장 불가 상태를 유지합니다.
 
 ### 독서를 방해하지 않는 모션
 - **글 열기·페이지 전환** — 기존 화면을 숨기거나 전환 완료를 지연하지 않음. 새 문서는 320ms 동안 최대 8px 올라오고, 탭 아래 2px 신호선이 이동 중에만 흐른 뒤 420ms에 사라짐. 빠른 연속 이동은 이전 진입 모션을 취소하고 마지막 요청의 완료·취소 상태를 따름.
@@ -35,15 +38,18 @@ monolog의 주요 기능 상세. 프로젝트 개요와 핵심 차별점은 [`..
 ## 본문 상단 히어로 썸네일
 `PostDetail`(non-about) 분기에서 Frontmatter 위에 16:9 히어로 썸네일이 `priority` 로딩으로 깔립니다. About 페이지는 위젯 영역으로 대체.
 
+## Markdown으로 보기
+글 화면 최상단, 탭바 바로 아래의 **Markdown으로 보기** 버튼이 해당 글의 `/{slug}.md` 전문을 새 창으로 엽니다. 스크롤 중에도 상단에 유지하며 오른쪽 사이드바·목차 이동·모바일 Explorer를 가리지 않도록 배치합니다. 현재 글 화면은 그대로 유지하며 새 창 접근을 `noopener noreferrer`로 차단합니다. 기존 Markdown 주소 생성·공개 글 엔드포인트를 그대로 사용합니다.
+
 ## 자동 광고 배치
 - AdSense Auto ads가 홈·목록 카드 사이와 글의 블록 사이를 판단할 수 있도록 목록 항목을 독립된 `article`, 홈 그룹을 이름 있는 `section`으로 표시. 본문은 단일 Notion 렌더러를 유지하며 Google이 삽입한 광고가 전체 콘텐츠 너비를 사용하고 잘리지 않도록 처리.
 - 비어 있는 수동 광고 슬롯은 광고가 채워지지 않았을 때 공백을 남기지 않음. 가짜 슬롯 ID·고정 광고 위치·빈 광고 박스는 추가하지 않음.
-- 넓은 데스크톱에서는 본문 최대 760px과 목차 240px을 최대 1000px 영역으로 묶어 남는 폭을 오른쪽 바깥 여백으로 유지. 좁은 화면에는 광고용 공백을 예약하지 않음. 사이드 레일 게재에는 AdSense의 **Side rail ads** 활성화가 필요하며, 오른쪽만 사용하려면 고급 설정의 **Right only**를 선택. [공식 사이드 레일 위치 설정](https://support.google.com/adsense/answer/9305577?hl=en#side-rail-ads).
+- 데스크톱에서는 본문만 최대 760px로 제한하고 240px 목차·관련 글 사이드바는 사이트 오른쪽 끝에 유지. 남는 폭은 본문과 사이드바 사이에 두며, 960px 이하에서는 기존 단일 열과 사이드바 숨김을 유지하고 광고용 공백을 예약하지 않음. 사이드 레일 게재에는 AdSense의 **Side rail ads** 활성화가 필요하며, 오른쪽만 사용하려면 고급 설정의 **Right only**를 선택. [공식 사이드 레일 위치 설정](https://support.google.com/adsense/answer/9305577?hl=en#side-rail-ads).
 - AdSense 계정에서 Auto ads와 인페이지 형식을 켜야 하며 실제 위치·빈도·게재 여부는 Google이 결정. HTML 구조 개선이 광고 게재를 보장하지 않음. [공식 Auto ads 설정](https://support.google.com/adsense/answer/9261805).
 
 ## 코드 블록
 - 언어명과 24px 복사 버튼을 작은 헤더에 표시. 코드 상단 패딩을 4px로 줄이며 원문에 포함된 빈 줄이나 들여쓰기는 제거하지 않음.
-- 복사 버튼은 코드 스크롤 영역 바깥에 있어 내부 가로·세로 스크롤 중에도 같은 위치를 유지. Clipboard API를 사용할 수 없으면 기존 레거시 복사 경로를 시도하며, 실제 성공 후 `복사되었습니다.`, 두 경로 모두 실패하면 오류 toast를 표시. 알림은 스크린리더에 전달. Mermaid는 코드의 세로 높이 제한을 적용하지 않음.
+- 복사 버튼은 코드 스크롤 영역 바깥에 있어 내부 가로·세로 스크롤 중에도 같은 위치를 유지. 복사 대기·완료 중 키보드 포커스를 보존하며 진행 중에는 중복 복사를 막음. Clipboard API를 사용할 수 없으면 기존 레거시 복사 경로를 시도하며, 실제 성공 후 `복사되었습니다.`, 두 경로 모두 실패하면 오류 toast를 표시. 알림은 스크린리더에 전달. Mermaid는 코드의 세로 높이 제한을 적용하지 않음.
 - 블록 코드에는 인라인 코드용 패딩을 적용하지 않음. 첫 줄에만 생기던 CSS 들여쓰기를 제거하며 원문 공백·탭·줄바꿈은 그대로 보존. 문법 강조·캡션·Mermaid 렌더링 유지.
 
 ---
@@ -184,7 +190,7 @@ DB 블록 주입은 **createPortal** 기반 — react-notion-x가 그린 자리�
 
 ## Reading aids
 - **ReadingProgress** — `.scroll-area` 진행률 2px accent 바
-- **RightRail (240px)** — 본문 바로 옆의 TOC + 시리즈 글 목록 + 동일 카테고리 related 3개 + Qdrant 기반 `ai · similar`(선택 기능) + BuiltGraph의 글 연결 mini-graph SVG
+- **RightRail (240px)** — 사이트 오른쪽 끝의 TOC + 시리즈 글 목록 + 동일 카테고리 related 3개 + Qdrant 기반 `ai · similar`(선택 기능) + BuiltGraph의 글 연결 mini-graph SVG. 본문만 최대 760px로 제한하고 남는 폭은 본문과 사이드바 사이에 유지하며, 960px 이하에서는 숨김
 - **Frontmatter** — YAML 형식 메타데이터 블록 (모노스페이스, key가 accent3 컬러)
 - **SeriesNav** — 본문 하단 시리즈 Prev/Next 박스
 - **SPA 내부 링크** — 본문의 다른 글로 향하는 링크는 capture-phase 인터셉터로 `router.push`로 전환, 새로고침 없는 페이지 이동

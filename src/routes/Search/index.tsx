@@ -51,7 +51,7 @@ const Search = () => {
     () => ["search", q ? `q="${q}"` : "ready", `${hits.length} hits`, "fuzzy"],
     [q, hits.length]
   )
-  useRegisterChrome("search", statusItems)
+  useRegisterChrome("search", statusItems, "page")
 
   return (
     <StyledWrapper>

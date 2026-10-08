@@ -50,7 +50,7 @@ const Archive = ({ categoryName }: Props) => {
     () => ["main", `category: ${categoryName}`, `${posts.length} entries`, "Markdown"],
     [categoryName, posts.length]
   )
-  useRegisterChrome(filename, statusItems)
+  useRegisterChrome(filename, statusItems, "category")
 
   const catNames = Object.keys(categories).filter((n) => n !== DEFAULT_CATEGORY)
   const catKey = toCatKey(categoryName)

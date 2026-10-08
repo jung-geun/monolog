@@ -8,6 +8,7 @@ import TabBar from "src/layouts/RootLayout/EditorChrome/TabBar"
 import {
   RouteChromeProvider,
   useRegisterChrome,
+  type TabKind,
 } from "src/layouts/RootLayout/EditorChrome/RouteChromeContext"
 import { queryKey } from "src/constants/queryKey"
 import { createTheme } from "src/styles/theme"
@@ -42,8 +43,8 @@ const feed = Array.from({ length: 17 }, (_, i) => makePost(`p${String(i + 1).pad
 const detail = (post: TPost): PostDetail => ({ ...post, recordMap: {} as PostDetail["recordMap"] })
 
 const statusItems = ["main"]
-const Document = ({ filename }: { filename: string }) => {
-  useRegisterChrome(filename, statusItems)
+const Document = ({ filename, kind }: { filename: string; kind: TabKind }) => {
+  useRegisterChrome(filename, statusItems, kind)
   return null
 }
 
@@ -52,6 +53,7 @@ describe("editor chrome navigation", () => {
   let root: Root
   let client: QueryClient
   let filename = "README.md"
+  let kind: TabKind = "readme"
 
   const render = () =>
     act(() =>
@@ -61,20 +63,21 @@ describe("editor chrome navigation", () => {
             <RouteChromeProvider>
               <ActivityBar />
               <FileTree />
-              <TabBar />
-              <Document key={mockRouter.asPath} filename={filename} />
+              <TabBar preferencesOpen={false} onTogglePreferences={() => {}} />
+              <Document key={mockRouter.asPath} filename={filename} kind={kind} />
             </RouteChromeProvider>
           </ThemeProvider>
         </QueryClientProvider>
       )
     )
 
-  const navigate = (asPath: string, nextFilename: string, pathname = "/[slug]") => {
+  const navigate = (asPath: string, nextFilename: string, pathname = "/[slug]", nextKind: TabKind = "post") => {
     mockRouter.asPath = asPath
     mockRouter.pathname = pathname
     const slug = asPath.split(/[?#]/)[0].slice(1)
     mockRouter.query = pathname === "/[slug]" ? { slug: decodeURIComponent(slug) } : {}
     filename = nextFilename
+    kind = nextKind
     render()
   }
 
@@ -100,6 +103,7 @@ describe("editor chrome navigation", () => {
     mockRouter.asPath = "/"
     mockRouter.query = {}
     filename = "README.md"
+    kind = "readme"
   })
 
   afterEach(() => {
@@ -110,26 +114,32 @@ describe("editor chrome navigation", () => {
   })
 
   it("marks search and graph by route whether the explorer is open or closed", () => {
-    navigate("/search", "search", "/search")
+    navigate("/search", "search", "/search", "page")
     const explorer = container.querySelector('button[aria-label="explorer"]') as HTMLButtonElement
     const search = () => container.querySelector('a[aria-label="search"]')
     const graph = () => container.querySelector('a[aria-label="graph"]')
 
     expect(explorer.getAttribute("aria-pressed")).toBe("true")
     expect(search()?.getAttribute("aria-current")).toBe("page")
+    expect(explorer.classList.contains("active")).toBe(false)
     expect(graph()?.hasAttribute("aria-current")).toBe(false)
 
     act(() => explorer.click())
     expect(explorer.getAttribute("aria-pressed")).toBe("false")
     expect(search()?.getAttribute("aria-current")).toBe("page")
 
-    navigate("/graph", "graph.md", "/graph")
+    navigate("/graph", "graph.md", "/graph", "graph")
     expect(search()?.hasAttribute("aria-current")).toBe(false)
     expect(graph()?.getAttribute("aria-current")).toBe("page")
 
     act(() => explorer.click())
     expect(explorer.getAttribute("aria-pressed")).toBe("true")
     expect(graph()?.getAttribute("aria-current")).toBe("page")
+    expect(explorer.classList.contains("active")).toBe(false)
+
+    navigate("/p02", "p02.md")
+    expect(explorer.classList.contains("active")).toBe(true)
+    expect(graph()?.hasAttribute("aria-current")).toBe(false)
   })
 
   it("keeps an open older post listed across tab switches until its tab closes", () => {
@@ -146,7 +156,7 @@ describe("editor chrome navigation", () => {
     expect(currentPostEntries()).toEqual(["◧p02.md"])
 
     // Non-post documents with .md tabs never enter the posts list.
-    navigate("/graph", "graph.md", "/graph")
+    navigate("/graph", "graph.md", "/graph", "graph")
     expect(postEntries()).toEqual([...recentEntries, "◧p16.md"])
     expect(currentPostEntries()).toEqual([])
 
@@ -174,8 +184,8 @@ describe("editor chrome navigation", () => {
     expect(postEntries()).toEqual([...recentEntries, "◧hidden-note.md"])
     expect(currentPostEntries()).toEqual(["◧hidden-note.md"])
 
-    navigate("/about", "about.md")
-    navigate("/now", "now.md")
+    navigate("/about", "about.md", "/[slug]", "about")
+    navigate("/now", "now.md", "/[slug]", "page")
     expect(postEntries()).toEqual([...recentEntries, "◧hidden-note.md"])
     expect(currentPostEntries()).toEqual([])
 

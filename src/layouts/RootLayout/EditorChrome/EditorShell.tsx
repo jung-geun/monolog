@@ -5,6 +5,7 @@ import Router from "next/router"
 import ActivityBar from "./ActivityBar"
 import FileTree from "./FileTree"
 import TabBar from "./TabBar"
+import TabSessionControls from "./TabSessionControls"
 import TitleBar from "./TitleBar"
 import StatusBar from "./StatusBar"
 import { RouteChromeProvider, useRouteChrome } from "./RouteChromeContext"
@@ -14,6 +15,12 @@ const EditorShellInner = ({ children }: { children: ReactNode }) => {
   const events = useRouter()?.events
   const contentRef = useRef<HTMLDivElement>(null)
   const [navigation, setNavigation] = useState<"idle" | "loading" | "complete">("idle")
+  const [preferencesOpen, setPreferencesOpen] = useState(false)
+  const preferencesButtonRef = useRef<HTMLButtonElement>(null)
+  const closePreferences = () => {
+    setPreferencesOpen(false)
+    preferencesButtonRef.current?.focus()
+  }
 
   useEffect(() => {
     if (!events) return
@@ -91,7 +98,12 @@ const EditorShellInner = ({ children }: { children: ReactNode }) => {
           aria-hidden="true"
         />
         <div className="editor-body">
-          <TabBar />
+          <TabBar
+            ref={preferencesButtonRef}
+            preferencesOpen={preferencesOpen}
+            onTogglePreferences={() => setPreferencesOpen((open) => !open)}
+          />
+          <TabSessionControls preferencesOpen={preferencesOpen} onClosePreferences={closePreferences} />
           <div className="route-signal" data-navigation={navigation} aria-hidden="true" />
           <div className="page-content" ref={contentRef} aria-busy={navigation === "loading"}>
             {children}
@@ -188,7 +200,7 @@ const StyledWrapper = styled.div`
       right: 0;
       bottom: ${({ theme }) => theme.variables.statusBarHeight}px;
       background: rgba(0, 0, 0, 0.45);
-      z-index: 15;
+      z-index: 40;
       opacity: 0;
       pointer-events: none;
       transition: opacity var(--motion-fast);
