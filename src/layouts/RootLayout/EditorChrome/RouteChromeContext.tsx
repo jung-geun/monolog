@@ -8,10 +8,15 @@ import React, {
   useRef,
 } from "react"
 import { useRouter } from "next/compat/router"
-
-// ---------------------------------------------------------------------------
-// Tab types
-// ---------------------------------------------------------------------------
+import {
+  CLOSED_POST_LIMIT,
+  README_TAB,
+  TAB_CONSENT_KEY,
+  TAB_SESSION_KEY,
+  isLocalTabHref,
+  parseTabSession,
+  serializeTabSession,
+} from "./tabSessionStorage"
 
 export type TabKind = "readme" | "post" | "category" | "series" | "graph" | "about" | "page"
 
@@ -23,17 +28,9 @@ export type Tab = {
   closeable: boolean
 }
 
-const README_TAB: Tab = {
-  id: "readme",
-  kind: "readme",
-  label: "README.md",
-  href: "/",
-  closeable: false,
-}
+export type TabStorageConsent = "loading" | "prompt" | "enabled" | "disabled" | "unavailable"
 
-// ---------------------------------------------------------------------------
-// Chrome config (status bar items)
-// ---------------------------------------------------------------------------
+type TabSession = { tabs: Tab[]; activeTabId: string; closedPosts: Tab[] }
 
 export type ChromeConfig = {
   filename: string
@@ -45,28 +42,23 @@ const defaultChrome: ChromeConfig = {
   statusItems: ["main", "✓ synced", "UTF-8", "Markdown"],
 }
 
-// ---------------------------------------------------------------------------
-// Context value
-// ---------------------------------------------------------------------------
-
-type RouteChromeContextValue = {
-  // Tab API
+export type RouteChromeContextValue = {
   tabs: Tab[]
   activeTabId: string
   openTab: (tab: Tab) => void
   closeTab: (id: string) => void
   switchTab: (id: string) => void
-
-  // Legacy chrome API (for StatusBar)
+  closeActivePost: () => void
+  reopenLastPost: () => void
+  canReopenPost: boolean
+  tabStorageConsent: TabStorageConsent
+  allowTabStorage: () => void
+  disallowTabStorage: () => void
   chrome: ChromeConfig
   setChrome: (config: ChromeConfig) => void
-
-  // File tree panel
   isFileTreeOpen: boolean
   setFileTreeOpen: (open: boolean) => void
   toggleFileTree: () => void
-
-  // File tree section expand/collapse
   expanded: Record<string, boolean>
   toggleSection: (key: string) => void
 }
@@ -86,6 +78,12 @@ const RouteChromeContext = createContext<RouteChromeContextValue>({
   openTab: () => {},
   closeTab: () => {},
   switchTab: () => {},
+  closeActivePost: () => {},
+  reopenLastPost: () => {},
+  canReopenPost: false,
+  tabStorageConsent: "loading",
+  allowTabStorage: () => {},
+  disallowTabStorage: () => {},
   chrome: defaultChrome,
   setChrome: () => {},
   isFileTreeOpen: true,
@@ -97,116 +95,224 @@ const RouteChromeContext = createContext<RouteChromeContextValue>({
 
 export const useRouteChrome = () => useContext(RouteChromeContext)
 
-// ---------------------------------------------------------------------------
-// Provider
-// ---------------------------------------------------------------------------
-
 export const RouteChromeProvider = ({ children }: { children: ReactNode }) => {
   const router = useRouter()
   const [chrome, setChrome] = useState<ChromeConfig>(defaultChrome)
   const [isFileTreeOpen, setFileTreeOpen] = useState(true)
   const [expanded, setExpanded] = useState<Record<string, boolean>>(defaultExpanded)
-  const [tabs, setTabs] = useState<Tab[]>([README_TAB])
-  const [activeTabId, setActiveTabId] = useState<string>("readme")
+  const [session, setSession] = useState<TabSession>({ tabs: [README_TAB], activeTabId: "readme", closedPosts: [] })
+  const [tabStorageConsent, setTabStorageConsent] = useState<TabStorageConsent>("loading")
   const routerRef = useRef(router)
-  const tabsRef = useRef(tabs)
-  // React 19 disallows mutating .current during render — sync inside an
-  // effect so the ref still tracks the latest value for callbacks that
-  // read it asynchronously.
+  const sessionRef = useRef(session)
+  const consentRef = useRef<TabStorageConsent>("loading")
+  const initializedRef = useRef(false)
+
   useEffect(() => {
     routerRef.current = router
   }, [router])
-  useEffect(() => {
-    tabsRef.current = tabs
-  }, [tabs])
 
-  // Close sidebar on mobile on mount
+  // Update the authoritative ref synchronously in actions, never in a state
+  // updater. Two actions in one event see each other's result, and navigation
+  // cannot be repeated by React's replay of an updater.
+  const updateSession = useCallback((next: TabSession) => {
+    sessionRef.current = next
+    setSession(next)
+  }, [])
+
   useEffect(() => {
-    if (typeof window === "undefined") return
-    if (window.matchMedia("(max-width: 960px)").matches) {
-      setFileTreeOpen(false)
+    if (initializedRef.current) return
+    initializedRef.current = true
+    try {
+      if (window.localStorage.getItem(TAB_CONSENT_KEY) !== "enabled") {
+        consentRef.current = "prompt"
+        setTabStorageConsent("prompt")
+        return
+      }
+      const raw = window.localStorage.getItem(TAB_SESSION_KEY)
+      const restored = raw ? parseTabSession(raw) : null
+      if (restored) {
+        const current = sessionRef.current
+        const tabs = [README_TAB, ...restored.tabs.filter((tab) => tab.kind !== "readme")]
+        for (const tab of current.tabs) {
+          const index = tabs.findIndex((entry) => entry.id === tab.id)
+          if (index < 0) tabs.push(tab)
+          else tabs[index] = tab
+        }
+        const routeTab = tabs.find((tab) => tab.href === routerRef.current?.asPath)
+        updateSession({ tabs, activeTabId: routeTab?.id ?? current.activeTabId, closedPosts: restored.closedPosts })
+      }
+      consentRef.current = "enabled"
+      setTabStorageConsent("enabled")
+    } catch {
+      consentRef.current = "unavailable"
+      setTabStorageConsent("unavailable")
+    }
+  }, [updateSession])
+
+  useEffect(() => {
+    if (tabStorageConsent !== "enabled" || consentRef.current !== "enabled") return
+    try {
+      // A different window may have revoked consent since this provider
+      // hydrated. Check before writing even if its storage event is queued.
+      if (window.localStorage.getItem(TAB_CONSENT_KEY) !== "enabled") {
+        consentRef.current = "disabled"
+        setTabStorageConsent("disabled")
+        return
+      }
+      window.localStorage.setItem(TAB_SESSION_KEY, serializeTabSession(sessionRef.current))
+    } catch {
+      consentRef.current = "unavailable"
+      setTabStorageConsent("unavailable")
+    }
+  }, [session, tabStorageConsent])
+
+  useEffect(() => {
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key !== TAB_CONSENT_KEY && event.key !== null) return
+      if (event.newValue === "enabled") return
+      try {
+        if (event.storageArea && event.storageArea !== window.localStorage) return
+        consentRef.current = "disabled"
+        setTabStorageConsent("disabled")
+      } catch {
+        consentRef.current = "unavailable"
+        setTabStorageConsent("unavailable")
+      }
+    }
+    window.addEventListener("storage", handleStorage)
+    return () => window.removeEventListener("storage", handleStorage)
+  }, [])
+
+  const allowTabStorage = useCallback(() => {
+    if (!initializedRef.current) return
+    try {
+      window.localStorage.setItem(TAB_CONSENT_KEY, "enabled")
+      consentRef.current = "enabled"
+      setTabStorageConsent("enabled")
+    } catch {
+      consentRef.current = "unavailable"
+      setTabStorageConsent("unavailable")
     }
   }, [])
 
-  const toggleFileTree = useCallback(() => setFileTreeOpen((v) => !v), [])
+  const disallowTabStorage = useCallback(() => {
+    const hadConsent = consentRef.current === "enabled" || consentRef.current === "unavailable"
+    consentRef.current = "disabled"
+    setTabStorageConsent("disabled")
+    if (!hadConsent) return
+    for (const key of [TAB_CONSENT_KEY, TAB_SESSION_KEY]) {
+      try {
+        window.localStorage.removeItem(key)
+      } catch {
+        consentRef.current = "unavailable"
+        setTabStorageConsent("unavailable")
+      }
+    }
+  }, [])
 
+  useEffect(() => {
+    if (window.matchMedia("(max-width: 960px)").matches) setFileTreeOpen(false)
+  }, [])
+
+  const toggleFileTree = useCallback(() => setFileTreeOpen((value) => !value), [])
   const toggleSection = useCallback((key: string) => {
     setExpanded((prev) => ({ ...prev, [key]: !prev[key] }))
   }, [])
 
-  // Tab operations
   const openTab = useCallback((tab: Tab) => {
-    setTabs((prev) => {
-      const existing = prev.find((t) => t.id === tab.id)
-      if (existing) return prev
-      return [...prev, tab]
-    })
-    setActiveTabId(tab.id)
-  }, [])
+    if (!isLocalTabHref(tab.href)) return
+    if (tab.kind === "readme" || tab.id === "readme") tab = README_TAB
+    const current = sessionRef.current
+    const index = current.tabs.findIndex((entry) => entry.id === tab.id)
+    const tabs = [...current.tabs]
+    if (index < 0) tabs.push(tab)
+    else tabs[index] = tab
+    updateSession({ ...current, tabs, activeTabId: tab.id })
+  }, [updateSession])
 
-  const closeTab = useCallback(
-    (id: string) => {
-      const current = tabsRef.current
-      const idx = current.findIndex((t) => t.id === id)
-      if (idx === -1) return
-      const next = current.filter((t) => t.id !== id)
-      setTabs(next)
-      if (id === activeTabId && next.length > 0) {
-        const adjacent = next[Math.max(0, idx - 1)]
-        setActiveTabId(adjacent.id)
-        routerRef.current?.push(adjacent.href)
-      }
-    },
-    [activeTabId]
-  )
+  const closeTab = useCallback((id: string) => {
+    const current = sessionRef.current
+    const index = current.tabs.findIndex((tab) => tab.id === id)
+    const tab = current.tabs[index]
+    if (!tab || tab.kind === "readme" || !tab.closeable) return
+    const tabs = current.tabs.filter((entry) => entry.id !== id)
+    const adjacent = tabs[Math.max(0, index - 1)]
+    const isActive = id === current.activeTabId
+    const closedPosts = tab.kind === "post"
+      ? [...current.closedPosts.filter((entry) => entry.id !== id), tab].slice(-CLOSED_POST_LIMIT)
+      : current.closedPosts
+    updateSession({ tabs, activeTabId: isActive ? adjacent.id : current.activeTabId, closedPosts })
+    if (isActive) routerRef.current?.push(adjacent.href)
+  }, [updateSession])
+
+  const closeActivePost = useCallback(() => {
+    const current = sessionRef.current
+    if (current.tabs.find((tab) => tab.id === current.activeTabId)?.kind === "post") closeTab(current.activeTabId)
+  }, [closeTab])
+
+  const reopenLastPost = useCallback(() => {
+    const current = sessionRef.current
+    const tab = current.closedPosts[current.closedPosts.length - 1]
+    if (!tab) return
+    updateSession({
+      tabs: current.tabs.some((entry) => entry.id === tab.id) ? current.tabs : [...current.tabs, tab],
+      activeTabId: tab.id,
+      closedPosts: current.closedPosts.slice(0, -1),
+    })
+    routerRef.current?.push(tab.href)
+  }, [updateSession])
 
   const switchTab = useCallback((id: string) => {
-    setActiveTabId(id)
-  }, [])
+    const current = sessionRef.current
+    if (current.tabs.some((tab) => tab.id === id)) updateSession({ ...current, activeTabId: id })
+  }, [updateSession])
 
-  // Auto open tab on route change
   useEffect(() => {
     if (!router) return
-    const handleRouteChange = (_url: string) => {
-      if (typeof window === "undefined") return
-      if (window.matchMedia("(max-width: 960px)").matches) {
-        setFileTreeOpen(false)
-      }
+    const handleRouteChange = () => {
+      if (window.matchMedia("(max-width: 960px)").matches) setFileTreeOpen(false)
     }
     router.events.on("routeChangeStart", handleRouteChange)
     return () => router.events.off("routeChangeStart", handleRouteChange)
   }, [router])
 
-  // ⌘Shift+W / Ctrl+Shift+W — close active tab
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === "w") {
-        e.preventDefault()
-        const current = tabsRef.current
-        const active = current.find((t) => t.id === activeTabId)
-        if (!active?.closeable) return
-        const idx = current.findIndex((t) => t.id === activeTabId)
-        const next = current.filter((t) => t.id !== activeTabId)
-        setTabs(next)
-        if (next.length > 0) {
-          const adjacent = next[Math.max(0, idx - 1)]
-          setActiveTabId(adjacent.id)
-          routerRef.current?.push(adjacent.href)
-        }
+    const handler = (event: KeyboardEvent) => {
+      if (event.repeat || event.isComposing) return
+      const target = event.target
+      if (target instanceof Element && target.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"]')) return
+      const fallback = event.altKey && !event.metaKey && !event.ctrlKey
+      const command = (event.metaKey || event.ctrlKey) && !event.altKey
+      // Browser-owned commands are best effort only. Option's key value can
+      // be Unicode, so use physical codes for the reliable app alternatives.
+      const close = !event.shiftKey && ((fallback && event.code === "KeyW") || (command && event.key.toLowerCase() === "w"))
+      const reopen = event.shiftKey && ((fallback && event.code === "KeyT") || (command && event.key.toLowerCase() === "t"))
+      if (close && sessionRef.current.tabs.find((tab) => tab.id === sessionRef.current.activeTabId)?.kind === "post") {
+        event.preventDefault()
+        closeActivePost()
+      } else if (reopen && sessionRef.current.closedPosts.length > 0) {
+        event.preventDefault()
+        reopenLastPost()
       }
     }
     window.addEventListener("keydown", handler)
     return () => window.removeEventListener("keydown", handler)
-  }, [activeTabId])
+  }, [closeActivePost, reopenLastPost])
 
   return (
     <RouteChromeContext.Provider
       value={{
-        tabs,
-        activeTabId,
+        tabs: session.tabs,
+        activeTabId: session.activeTabId,
         openTab,
         closeTab,
         switchTab,
+        closeActivePost,
+        reopenLastPost,
+        canReopenPost: session.closedPosts.length > 0,
+        tabStorageConsent,
+        allowTabStorage,
+        disallowTabStorage,
         chrome,
         setChrome,
         isFileTreeOpen,
@@ -221,38 +327,27 @@ export const RouteChromeProvider = ({ children }: { children: ReactNode }) => {
   )
 }
 
-// ---------------------------------------------------------------------------
-// Legacy helper — call this in route components to register status bar items.
-// Pass a memoized statusItems array (useMemo) to avoid extra renders.
-// ---------------------------------------------------------------------------
-
-export const useRegisterChrome = (filename: string, statusItems: string[]) => {
+// Route metadata is authoritative: a Markdown-looking label is not proof of a
+// post. An empty filename defers registration while detail metadata loads.
+export const useRegisterChrome = (filename: string, statusItems: string[], kind: TabKind) => {
   const { setChrome, openTab } = useRouteChrome()
   const router = useRouter()
+  const href = router?.asPath
   const key = filename + "|" + statusItems.join("\0")
+  const registeredRouteRef = useRef<{ filename: string; kind: TabKind; href: string } | null>(null)
 
   useEffect(() => {
-    setChrome({ filename, statusItems })
+    if (filename) setChrome({ filename, statusItems })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key, setChrome])
 
-  // Also open (or activate) a tab for the current route
+  // Anchors belong to the same document tab; retain the complete entry URL for reopening.
   useEffect(() => {
-    if (!filename || !router) return
-    // README is always the first, non-closeable tab
-    if (filename === "README.md") {
-      openTab(README_TAB)
-      return
-    }
-    const href = router.asPath
-    const kind: TabKind = filename.endsWith(".md") ? "post" : "page"
-    openTab({
-      id: href,
-      kind,
-      label: filename,
-      href,
-      closeable: true,
-    })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key])
+    if (!filename || !href) return
+    const documentHref = href.split("#", 1)[0]
+    const previous = registeredRouteRef.current
+    if (previous?.filename === filename && previous.kind === kind && previous.href === documentHref) return
+    registeredRouteRef.current = { filename, kind, href: documentHref }
+    openTab(kind === "readme" ? README_TAB : { id: documentHref, kind, label: filename, href, closeable: true })
+  }, [filename, href, kind, openTab])
 }

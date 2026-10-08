@@ -1,9 +1,21 @@
+import { forwardRef } from "react"
 import Link from "next/link"
 import styled from "@emotion/styled"
 import { useRouteChrome } from "./RouteChromeContext"
 
-const TabBar = () => {
-  const { tabs, activeTabId, closeTab, switchTab } = useRouteChrome()
+type Props = {
+  preferencesOpen: boolean
+  onTogglePreferences: () => void
+}
+
+const TabBar = forwardRef<HTMLButtonElement, Props>(function TabBar(
+  { preferencesOpen, onTogglePreferences },
+  preferencesButtonRef
+) {
+  const {
+    tabs, activeTabId, closeTab, switchTab,
+    reopenLastPost, canReopenPost, tabStorageConsent,
+  } = useRouteChrome()
 
   const handleClose = (e: React.MouseEvent, id: string) => {
     e.preventDefault()
@@ -13,6 +25,7 @@ const TabBar = () => {
 
   return (
     <StyledWrapper>
+      <div className="tab-list">
       {tabs.map((tab) => {
         const isActive = tab.id === activeTabId
         return (
@@ -29,6 +42,8 @@ const TabBar = () => {
               <button
                 className="close-btn"
                 aria-label={`${tab.label} 닫기`}
+                type="button"
+                title={tab.kind === "post" ? "글 닫기 · Alt/Option+W (입력 중 제외)" : "탭 닫기"}
                 onClick={(e) => handleClose(e, tab.id)}
               >
                 ×
@@ -37,10 +52,39 @@ const TabBar = () => {
           </Link>
         )
       })}
-      <div className="filler" />
+      </div>
+      <div className="tab-tools">
+        <button
+          type="button"
+          onClick={reopenLastPost}
+          disabled={!canReopenPost}
+          aria-label="마지막으로 닫은 글 다시 열기"
+          title="마지막으로 닫은 글 다시 열기 · Alt/Option+Shift+T (입력 중 제외)"
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <path d="M3 5.5A5 5 0 1 1 3 11M3 2v3.5h3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
+        <button
+          ref={preferencesButtonRef}
+          type="button"
+          className={tabStorageConsent === "unavailable" ? "storage-unavailable" : undefined}
+          onClick={onTogglePreferences}
+          aria-label="탭 저장 설정"
+          aria-expanded={preferencesOpen}
+          aria-controls="editor-tab-session-controls"
+          title={`탭 저장 설정 · ${tabStorageConsent === "enabled" ? "이 브라우저에 저장 중" : tabStorageConsent === "unavailable" ? "저장소 접근 불가 · 이번 방문만 유지" : "이번 방문만 유지"}`}
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+            <path d="M5 2.5v3M11 6.5v3M6 10.5v3" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+          </svg>
+          {tabStorageConsent === "unavailable" && <span className="storage-warning" aria-hidden="true">저장 불가</span>}
+        </button>
+      </div>
     </StyledWrapper>
   )
-}
+})
 
 export default TabBar
 
@@ -55,10 +99,53 @@ const StyledWrapper = styled.div`
   font-family: var(--font-mono, monospace);
   font-size: 12px;
   flex-shrink: 0;
-  overflow-x: auto;
-  overflow-y: hidden;
-  scrollbar-width: none;
-  &::-webkit-scrollbar { display: none; }
+  min-width: 0;
+
+  .tab-list {
+    display: flex;
+    flex: 1;
+    min-width: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    &::-webkit-scrollbar { display: none; }
+  }
+
+  .tab-tools {
+    display: flex;
+    flex-shrink: 0;
+    border-left: 1px solid ${({ theme }) => theme.colors.editor.line};
+    background: ${({ theme }) => theme.colors.editor.bg2};
+
+    button {
+      display: grid;
+      place-items: center;
+      width: 36px;
+      min-height: 32px;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      color: ${({ theme }) => theme.colors.editor.fg2};
+      cursor: pointer;
+
+      &:hover:not(:disabled), &[aria-expanded="true"] {
+        background: ${({ theme }) => theme.colors.editor.bg3};
+        color: ${({ theme }) => theme.colors.editor.fg};
+      }
+      &:focus-visible {
+        outline: 1px solid ${({ theme }) => theme.colors.editor.accent};
+        outline-offset: -3px;
+      }
+      &:disabled { opacity: 0.4; cursor: default; }
+    }
+    .storage-unavailable {
+      width: auto;
+      padding: 0 8px;
+      display: flex;
+      gap: 5px;
+    }
+    .storage-warning { font-size: 10px; white-space: nowrap; }
+  }
 
   .tab {
     position: relative;
@@ -124,8 +211,8 @@ const StyledWrapper = styled.div`
 
     .close-btn {
       all: unset;
-      width: 14px;
-      height: 14px;
+      width: 24px;
+      height: 28px;
       display: grid;
       place-items: center;
       border-radius: 3px;
@@ -157,10 +244,8 @@ const StyledWrapper = styled.div`
     }
   }
 
-  .filler {
-    flex: 1;
-    border-bottom: 1px solid ${({ theme }) => theme.colors.editor.line};
-    min-width: 0;
+  @media (pointer: coarse) {
+    .tab .close-btn { opacity: 0.7; }
   }
 
   @media (prefers-reduced-motion: reduce) {

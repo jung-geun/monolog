@@ -146,7 +146,7 @@ const OntologyView = () => {
     () => ["main", "ontology", ontology ? `${ontology.entities.length} entities` : "not built"],
     [ontology]
   )
-  useRegisterChrome("ontology.md", statusItems)
+  useRegisterChrome("ontology.md", statusItems, "page")
 
   const postMap = new Map(
     graph.nodes

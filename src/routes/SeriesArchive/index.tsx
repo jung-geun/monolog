@@ -56,7 +56,7 @@ const SeriesArchive = ({ seriesName }: Props) => {
     () => ["main", `series: ${seriesName}`, `${posts.length} entries`, "Markdown"],
     [seriesName, posts.length]
   )
-  useRegisterChrome(filename, statusItems)
+  useRegisterChrome(filename, statusItems, "series")
 
   const seriesNames = Object.keys(series)
   const color = pickColor(seriesName)

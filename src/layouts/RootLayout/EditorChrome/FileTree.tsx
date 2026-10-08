@@ -520,7 +520,7 @@ const StyledWrapper = styled.nav`
     left: ${({ theme }) => theme.variables.activityBarWidth}px;
     bottom: ${({ theme }) => theme.variables.statusBarHeight}px;
     width: min(280px, calc(100% - ${({ theme }) => theme.variables.activityBarWidth}px));
-    z-index: 20;
+    z-index: 45;
     box-shadow: 4px 0 16px rgba(0, 0, 0, 0.45);
     margin-left: 0;
     transform: translateX(0);

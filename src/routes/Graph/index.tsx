@@ -269,7 +269,7 @@ const Graph = () => {
       .join(" · ")
     return ["graph", `${nodes.length} nodes`, `${edges.length} edges${typeStr ? ` (${typeStr})` : ""}`, "force simulation"]
   }, [nodes.length, edges])
-  useRegisterChrome("graph.md", statusItems)
+  useRegisterChrome("graph.md", statusItems, "graph")
 
   // DOM refs for direct coordinate updates during simulation tick
   const nodeShapeRefs = useRef<(NodeShapeElement | null)[]>([])

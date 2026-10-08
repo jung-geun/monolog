@@ -31,7 +31,7 @@ const SeriesList = () => {
     () => ["main", "series", `${seriesEntries.length} series`, "Markdown"],
     [seriesEntries.length]
   )
-  useRegisterChrome("series.md", statusItems)
+  useRegisterChrome("series.md", statusItems, "series")
 
   const latestBySeriesName: Record<string, string> = {}
   for (const post of allPosts) {

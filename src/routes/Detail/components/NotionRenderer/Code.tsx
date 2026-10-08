@@ -49,6 +49,7 @@ const CodeContent = ({ block, defaultLanguage = "typescript", className }: Props
   const notionLanguage = (block.properties.language?.[0]?.[0] || defaultLanguage).toLowerCase()
   const language = notionLanguage === "c++" ? "cpp" : notionLanguage === "f#" ? "fsharp" : notionLanguage
   const codeRef = useRef<HTMLElement>(null)
+  const copyingRef = useRef(false)
   const mounted = useRef(false)
   const timeout = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const [copying, setCopying] = useState(false)
@@ -69,6 +70,8 @@ const CodeContent = ({ block, defaultLanguage = "typescript", className }: Props
   }, [content, language])
 
   const copy = async () => {
+    if (copyingRef.current) return
+    copyingRef.current = true
     setCopying(true)
     let result: string
     try {
@@ -82,6 +85,7 @@ const CodeContent = ({ block, defaultLanguage = "typescript", className }: Props
         result = "복사하지 못했습니다. 클립보드 권한을 확인해주세요."
       }
     }
+    copyingRef.current = false
     if (!mounted.current) return
     setCopying(false)
     setMessage(result)
@@ -95,7 +99,7 @@ const CodeContent = ({ block, defaultLanguage = "typescript", className }: Props
         <Frame className="notion-code-frame">
           <div className="code-toolbar">
             <span className="code-language">{notionLanguage}</span>
-            <button type="button" aria-label="코드 복사" title="코드 복사" onClick={copy} disabled={copying}>
+            <button type="button" aria-label="코드 복사" title="코드 복사" onClick={copy} aria-disabled={copying}>
               <FiCopy aria-hidden="true" />
             </button>
           </div>
@@ -155,7 +159,7 @@ const Frame = styled.div`
   button svg { width: 13px; height: 13px; }
   button:hover { background: var(--color-sunken, rgb(var(--c-sunken))); }
   button:focus-visible { outline: 2px solid var(--color-signal, rgb(var(--c-signal))); outline-offset: 2px; }
-  button:disabled { cursor: wait; opacity: 0.6; }
+  button[aria-disabled="true"] { cursor: wait; opacity: 0.6; }
 
   pre.notion-code {
     margin: 0;

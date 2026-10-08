@@ -13,7 +13,7 @@ const SHORTCUTS = [
 
 const CustomError: React.FC = () => {
   const statusItems = useMemo(() => ["main", "✗ ENOENT", "404.md", "no such file"], [])
-  useRegisterChrome("404.md", statusItems)
+  useRegisterChrome("404.md", statusItems, "page")
 
   return (
     <StyledWrapper>
