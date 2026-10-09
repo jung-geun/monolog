@@ -94,7 +94,7 @@ const PostDetail: React.FC = () => {
     <StyledWrapper className="post-detail">
       <ReadingProgress />
 
-      <div className="post-actions">
+      <div className="markdown-action">
         <a
           className="markdown-link"
           href={markdownUrl(data.slug)}
@@ -165,8 +165,10 @@ const StyledWrapper = styled.div`
   flex-direction: column;
   flex: 1;
 
-  &.post-detail {
-    --post-actions-height: 48px;
+  &.post-detail .body {
+    @media (min-width: 768px) and (max-width: ${({ theme }) => theme.variables.breakpoint}px) {
+      padding-top: 48px;
+    }
   }
 
   .scroll-area {
@@ -224,25 +226,30 @@ const StyledWrapper = styled.div`
     letter-spacing: -0.03em;
   }
 
-  .post-actions {
+  .markdown-action {
     display: flex;
     position: sticky;
-    top: ${({ theme }) => theme.variables.titleBarHeight + theme.variables.tabBarHeight}px;
+    top: ${({ theme }) => theme.variables.titleBarHeight + theme.variables.tabBarHeight + 8}px;
     z-index: 10;
-    height: var(--post-actions-height);
+    height: 0;
     flex-shrink: 0;
-    align-items: center;
-    padding: 6px 56px;
-    border-bottom: 1px solid ${({ theme }) => theme.colors.editor.line};
-    background: ${({ theme }) => theme.colors.editor.bg};
+    align-items: flex-start;
+    justify-content: flex-end;
+    padding-right: ${RAIL_WIDTH + 20}px;
+    pointer-events: none;
 
     @media (max-width: ${({ theme }) => theme.variables.breakpoint}px) {
-      padding: 6px 20px;
+      padding-right: 20px;
+    }
+
+    @media (max-width: 767px) {
+      display: none;
     }
   }
 
   .markdown-link {
     display: inline-flex;
+    pointer-events: auto;
     align-items: center;
     gap: 6px;
     min-height: 32px;
@@ -252,6 +259,7 @@ const StyledWrapper = styled.div`
     background: ${({ theme }) => theme.colors.editor.bg2};
     color: ${({ theme }) => theme.colors.editor.fg};
     font-size: 13px;
+    white-space: nowrap;
     text-decoration: none;
 
     &:hover { color: ${({ theme }) => theme.colors.editor.accent}; }
