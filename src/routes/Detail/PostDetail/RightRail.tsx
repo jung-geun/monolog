@@ -152,9 +152,9 @@ const RightRail = ({ recordMap, post }: Props) => {
 export default RightRail
 const StyledWrapper = styled.aside`
   position: sticky;
-  top: calc(${({ theme }) => theme.variables.titleBarHeight + theme.variables.tabBarHeight}px + var(--post-actions-height, 0px));
-  height: calc(100vh - ${({ theme }) => theme.variables.titleBarHeight + theme.variables.tabBarHeight + theme.variables.statusBarHeight}px - var(--post-actions-height, 0px));
-  height: calc(100dvh - ${({ theme }) => theme.variables.titleBarHeight + theme.variables.tabBarHeight + theme.variables.statusBarHeight}px - var(--post-actions-height, 0px));
+  top: ${({ theme }) => theme.variables.titleBarHeight + theme.variables.tabBarHeight}px;
+  height: calc(100vh - ${({ theme }) => theme.variables.titleBarHeight + theme.variables.tabBarHeight + theme.variables.statusBarHeight}px);
+  height: calc(100dvh - ${({ theme }) => theme.variables.titleBarHeight + theme.variables.tabBarHeight + theme.variables.statusBarHeight}px);
   width: 240px;
   border-left: 1px solid ${({ theme }) => theme.colors.editor.line};
   padding: 40px 18px 60px;
