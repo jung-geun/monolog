@@ -48,6 +48,7 @@ export type RouteChromeContextValue = {
   openTab: (tab: Tab) => void
   closeTab: (id: string) => void
   switchTab: (id: string) => void
+  moveTab: (id: string, beforeId: string | null) => void
   closeActivePost: () => void
   reopenLastPost: () => void
   canReopenPost: boolean
@@ -78,6 +79,7 @@ const RouteChromeContext = createContext<RouteChromeContextValue>({
   openTab: () => {},
   closeTab: () => {},
   switchTab: () => {},
+  moveTab: () => {},
   closeActivePost: () => {},
   reopenLastPost: () => {},
   canReopenPost: false,
@@ -132,7 +134,8 @@ export const RouteChromeProvider = ({ children }: { children: ReactNode }) => {
       const restored = raw ? parseTabSession(raw) : null
       if (restored) {
         const current = sessionRef.current
-        const tabs = [README_TAB, ...restored.tabs.filter((tab) => tab.kind !== "readme")]
+        const tabs = [...restored.tabs]
+        if (!tabs.some((tab) => tab.id === "readme")) tabs.unshift(README_TAB)
         for (const tab of current.tabs) {
           const index = tabs.findIndex((entry) => entry.id === tab.id)
           if (index < 0) tabs.push(tab)
@@ -267,6 +270,19 @@ export const RouteChromeProvider = ({ children }: { children: ReactNode }) => {
     if (current.tabs.some((tab) => tab.id === id)) updateSession({ ...current, activeTabId: id })
   }, [updateSession])
 
+  const moveTab = useCallback((id: string, beforeId: string | null) => {
+    const current = sessionRef.current
+    const from = current.tabs.findIndex((tab) => tab.id === id)
+    const target = beforeId === null ? current.tabs.length : current.tabs.findIndex((tab) => tab.id === beforeId)
+    if (from < 0 || target < 0 || id === beforeId) return
+    const to = target - (from < target ? 1 : 0)
+    if (from === to) return
+    const tabs = [...current.tabs]
+    const [tab] = tabs.splice(from, 1)
+    tabs.splice(to, 0, tab)
+    updateSession({ ...current, tabs })
+  }, [updateSession])
+
   useEffect(() => {
     if (!router) return
     const handleRouteChange = () => {
@@ -307,6 +323,7 @@ export const RouteChromeProvider = ({ children }: { children: ReactNode }) => {
         openTab,
         closeTab,
         switchTab,
+        moveTab,
         closeActivePost,
         reopenLastPost,
         canReopenPost: session.closedPosts.length > 0,

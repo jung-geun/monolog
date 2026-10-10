@@ -2,6 +2,8 @@ import React, { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { ThemeProvider } from "@emotion/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
+import { RouterContext } from "next/dist/shared/lib/router-context.shared-runtime"
+import type { NextRouter } from "next/router"
 import ActivityBar from "src/layouts/RootLayout/EditorChrome/ActivityBar"
 import FileTree from "src/layouts/RootLayout/EditorChrome/FileTree"
 import TabBar from "src/layouts/RootLayout/EditorChrome/TabBar"
@@ -19,6 +21,8 @@ const mockRouter = {
   asPath: "/",
   query: {} as Record<string, string>,
   push: jest.fn(),
+  prefetch: jest.fn().mockResolvedValue(undefined),
+  beforePopState: jest.fn(),
   events: { on: jest.fn(), off: jest.fn() },
 }
 
@@ -59,6 +63,7 @@ describe("editor chrome navigation", () => {
     act(() =>
       root.render(
         <QueryClientProvider client={client}>
+          <RouterContext.Provider value={mockRouter as unknown as NextRouter}>
           <ThemeProvider theme={createTheme({ scheme: "dark" })}>
             <RouteChromeProvider>
               <ActivityBar />
@@ -67,6 +72,7 @@ describe("editor chrome navigation", () => {
               <Document key={mockRouter.asPath} filename={filename} kind={kind} />
             </RouteChromeProvider>
           </ThemeProvider>
+          </RouterContext.Provider>
         </QueryClientProvider>
       )
     )
@@ -110,7 +116,94 @@ describe("editor chrome navigation", () => {
     act(() => root.unmount())
     container.remove()
     client.clear()
+    jest.restoreAllMocks()
     jest.clearAllMocks()
+  })
+
+  it("reorders by drop midpoints and append without navigating, including README", () => {
+    render()
+    navigate("/p01", "p01.md")
+    navigate("/p02", "p02.md")
+    navigate("/p03", "p03.md")
+    const order = () => Array.from(container.querySelectorAll<HTMLElement>(".tab-list [data-tab-id]"), (tab) => tab.dataset.tabId)
+    const tab = (id: string) => container.querySelector<HTMLElement>(`.tab-list [data-tab-id="${id}"]`)!
+    const list = container.querySelector<HTMLDivElement>(".tab-list")!
+    const transfer = { clearData: jest.fn(), setData: jest.fn(), effectAllowed: "", dropEffect: "" }
+    const drag = (target: Element, type: string, clientX = 0) => {
+      const event = new MouseEvent(type, { bubbles: true, cancelable: true, clientX, clientY: 10 })
+      Object.defineProperty(event, "dataTransfer", { value: transfer })
+      act(() => { target.dispatchEvent(event) })
+      return event
+    }
+    const geometry = () => {
+      container.querySelectorAll<HTMLElement>(".tab-list [data-tab-id]").forEach((element, index) => {
+        jest.spyOn(element, "getBoundingClientRect").mockReturnValue({ left: index * 100, right: (index + 1) * 100, top: 0, bottom: 32, width: 100, height: 32, x: index * 100, y: 0, toJSON: () => ({}) })
+      })
+    }
+    geometry()
+    drag(tab("/p01"), "dragstart")
+    drag(list, "dragover", 320)
+    drag(list, "drop", 320)
+    expect(order()).toEqual(["readme", "/p02", "/p01", "/p03"])
+    geometry()
+    drag(tab("readme"), "dragstart")
+    drag(list, "dragover", 380)
+    drag(list, "drop", 380)
+    expect(order()).toEqual(["/p02", "/p01", "/p03", "readme"])
+    geometry()
+    drag(tab("/p03"), "dragstart")
+    drag(list, "drop", 70)
+    expect(order()).toEqual(["/p02", "/p03", "/p01", "readme"])
+    expect(container.querySelector(".tab.active")?.getAttribute("data-tab-id")).toBe("/p03")
+    expect(mockRouter.push).not.toHaveBeenCalled()
+
+    drag(list, "dragover", 0)
+    drag(list, "drop", 0)
+    expect(order()).toEqual(["/p02", "/p03", "/p01", "readme"])
+    drag(tab("/p01"), "dragstart")
+    drag(list, "dragover", 0)
+    drag(tab("/p01"), "dragend")
+    drag(list, "drop", 0)
+    expect(order()).toEqual(["/p02", "/p03", "/p01", "readme"])
+    expect(container.querySelector(".dragging, .drop-before, .drop-after")).toBeNull()
+    const close = tab("/p01").querySelector("button")!
+    act(() => close.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true })))
+    expect(drag(close, "dragstart").defaultPrevented).toBe(true)
+    drag(list, "drop", 0)
+    expect(order()).toEqual(["/p02", "/p03", "/p01", "readme"])
+    expect(mockRouter.push).not.toHaveBeenCalled()
+  })
+
+  it("moves the current README without dragging or navigating and retains control focus", () => {
+    render()
+    navigate("/p01", "p01.md")
+    navigate("/", "README.md", "/", "readme")
+    const right = container.querySelector<HTMLButtonElement>('button[aria-label="현재 탭 오른쪽으로 이동"]')!
+    const left = container.querySelector<HTMLButtonElement>('button[aria-label="현재 탭 왼쪽으로 이동"]')!
+    act(() => left.click())
+    right.focus()
+    act(() => right.click())
+    act(() => right.click())
+    expect(Array.from(container.querySelectorAll<HTMLElement>(".tab-list [data-tab-id]"), (tab) => tab.dataset.tabId)).toEqual(["/p01", "readme"])
+    expect(container.querySelector(".tab.active")?.getAttribute("data-tab-id")).toBe("readme")
+    expect(container.querySelector('[role="status"]')?.textContent).toBe("README.md 탭, 2개 중 2번째 위치")
+    expect(document.activeElement).toBe(right)
+    act(() => left.click())
+    expect(Array.from(container.querySelectorAll<HTMLElement>(".tab-list [data-tab-id]"), (tab) => tab.dataset.tabId)).toEqual(["readme", "/p01"])
+    expect(mockRouter.push).not.toHaveBeenCalled()
+  })
+
+  it.each([{ metaKey: true }, { ctrlKey: true }])("keeps selection in this window on a modified tab click %j", (modifier) => {
+    render()
+    navigate("/p01", "p01.md")
+    navigate("/p02", "p02.md")
+    const link = container.querySelector<HTMLAnchorElement>('.tab-list [data-tab-id="/p01"] a')!
+    document.addEventListener("click", (event) => event.preventDefault(), { once: true })
+    act(() => link.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, ...modifier })))
+    expect(container.querySelector(".tab.active")?.getAttribute("data-tab-id")).toBe("/p02")
+    expect(mockRouter.push).not.toHaveBeenCalled()
+    closeTab("p02.md")
+    expect(mockRouter.push.mock.calls).toEqual([["/p01"]])
   })
 
   it("marks search and graph by route whether the explorer is open or closed", () => {
