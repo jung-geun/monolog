@@ -26,6 +26,7 @@ yarn dev
 ```
 
 `http://localhost:3000`에서 확인합니다.
+로컬 개발은 Node.js 22 또는 24 LTS를 사용합니다(운영 Docker는 Node.js 22). Node.js 26의 fetch/dispatcher 계약은 현재 Qdrant SDK의 Undici 6과 호환되지 않으므로 LTS 실행 파일과 PATH를 맞춥니다.
 
 ---
 
@@ -124,8 +125,8 @@ yarn dev
 | 변수명 | 기본값 | 설명 |
 |---|---|---|
 | `REDIS_URL` | — | Redis 연결 URL. 설정 시 L2 캐시 활성 (cold start 성능 향상). 예: `redis://localhost:6379`, `rediss://user:pass@host:6380` |
-| `ANTHROPIC_API_KEY` | — | `/ontology`, Graph semantic overlay, RightRail `ai · similar`의 엔티티/관계 추출용 Anthropic API key |
-| `OPENAI_API_KEY` | — | Qdrant 벡터 검색에 저장할 `text-embedding-3-small` 임베딩 생성용 OpenAI API key |
+| `ANTHROPIC_API_KEY` | — | `/ontology`와 Graph Logical overlay의 엔티티·논리 관계 추출용. 임베딩·Meaning 검색·유사 글에는 필요 없음 |
+| `EMBEDDING_SERVICE_URL` | — | 고정된 `google/embeddinggemma-2`를 실행하는 private HTTP 서비스. 네이티브 개발은 `http://localhost:8000`; Compose는 `http://embedding:8000`을 직접 설정. OpenAI/Hugging Face 키 불필요 |
 | `QDRANT_URL` | `http://localhost:6333` | 로컬 개발 또는 외부 Qdrant REST endpoint. Docker Compose 기본 스택은 `docker-compose.yml`에서 컨테이너용 `http://qdrant:6333`을 직접 설정 |
 | `QDRANT_API_KEY` | — | 인증이 걸린 외부 Qdrant용 API key. 로컬/self-hosted Qdrant는 빈 값 |
 | `CACHE_NAMESPACE` | `monolog` | Redis 키 prefix. 동일 Redis를 staging·preview 등 여러 배포가 공유할 때 충돌 방지 |
@@ -191,13 +192,14 @@ journalctl -t monolog-content-sync --since today --no-pager
 |---|---|---|
 | `GET\|POST /api/revalidate` | `Authorization: Bearer $REVALIDATE_SECRET` | 수동 증분 동기화. 캐시를 지우지 않고 바뀐 글과 영향받는 경로만 갱신. `path=/slug`는 해당 글 본문을 다시 확인, `path=/categories/x`·`/series/x`·컬렉션 경로는 그 경로만 재생성, `full=true`는 삭제·이동 감지용 전체 메타데이터 대조. 모든 작업이 끝나면 `200`, 남은 작업이 있으면 `503` |
 | `GET\|POST /api/init` | `Authorization: Bearer $REVALIDATE_SECRET` | 컨테이너 시작 워밍. 저장소가 비어 있으면 최초 동기화 후 모든 공개 경로를 재생성. AI 그래프 유지보수는 기다리지 않음(`maintenancePending`) |
-| `GET\|POST /api/cron/content` | `Authorization: Bearer $REVALIDATE_SECRET` | 정기 증분 동기화 + 24시간마다 자동 전체 대조, 대기 중인 그래프·ontology 유지보수와 IndexNow 제출 처리 |
+| `GET\|POST /api/cron/content` | `Authorization: Bearer $REVALIDATE_SECRET` | 정기 증분 동기화 + 24시간 전체 대조, 최초·변경 포스트 임베딩, 대기 그래프·ontology 작업과 IndexNow 제출 처리 |
 | `POST /api/notion-webhook` | `X-Notion-Signature` (HMAC-SHA256) | Notion 이벤트를 힌트로 받아 해당 페이지를 실시간 메타데이터로 다시 확인하고 발행. 같은 이벤트 ID는 한 번만 처리 |
-| `POST /api/cron/ontology` | `REVALIDATE_SECRET` Bearer | LLM ontology, Qdrant embeddings, semantic graph edges, RightRail `ai · similar` 데이터를 생성/갱신. `?force=1`이면 캐시 우회 |
+| `POST /api/cron/ontology` | `REVALIDATE_SECRET` Bearer | 누락·변경 문서 임베딩을 먼저 보충하고 LLM ontology를 갱신. `?force=1`은 LLM 캐시 우회이며 같은 문서를 다시 임베딩하지 않음 |
 | `GET /robots.txt` · `GET /llms.txt` | — | 크롤러 정책·사이트맵 위치, AI용 공개 글 색인 (공개 글 목록과 동기) |
 | `GET /{slug}.md` | — | 글의 Markdown 대체 표현 (`<link rel="alternate" type="text/markdown">`) |
 | `GET /{INDEXNOW_KEY}.txt` | — | IndexNow 키 검증 파일 |
-| `GET /api/similar?postId=<id-or-slug>&limit=5` | 없음 | Qdrant 기반 `ai · similar` 글 목록 반환. ontology embedding이 아직 없으면 `202` |
+| `GET /api/similar?postId=<id-or-slug>&limit=5` | 없음 | 현재 문서 버전의 영속 EmbeddingGemma 벡터로 유사 글 반환. 벡터가 아직 없으면 `202` |
+| `GET /api/graph/search?q=<query>` | 없음 | 공식 SearchQuery prompt로 현재 문서 버전의 공개 글 검색. IP당 분당 6회·웹 프로세스당 동시 1개, 초과는 `429`와 `Retry-After`. 미설정·유지보수 중·서비스 장애는 `503`, 빈 검색어·8000자 초과는 `400` |
 | `GET /api/image-proxy?id=<uuid>&kind=s3` | 없음 (allow-list) | Notion S3 이미지 프록시 (안정 URL) |
 | `GET /api/image-proxy?url=<url>` | 없음 | 레거시 image-proxy (구 ISR 캐시 호환) |
 | `GET /api/refresh-image?blockId=...` | 없음 | 단일 블록 이미지 URL 재발급 |
@@ -238,15 +240,21 @@ docker compose logs -f
 - 아키텍처: `linux/amd64`
 - SLSA build provenance attestation 자동 첨부
 
-운영에서 GHCR 이미지를 사용하면 GitHub의 테스트·빌드가 성공한 뒤 `docker compose pull blog`로 가져오고, OCI revision이 배포할 커밋과 일치하는지 확인합니다. 기존 이미지에 rollback 태그를 남기고 `.env`·Compose override·Redis RDB·Qdrant snapshot을 백업한 뒤 `docker compose up -d --no-build --wait`로 교체합니다. 볼륨을 삭제하지 않습니다.
+운영 GHCR 이미지는 테스트·빌드가 성공한 뒤 `docker compose pull blog embedding`으로 가져오고 OCI revision을 확인합니다. 기존 이미지 rollback 태그와 `.env`·Compose override·Redis RDB·Qdrant snapshot을 백업하고 `embedding`이 모델 다운로드·실제 추론 warmup까지 healthy가 된 후 `docker compose up -d --no-build --wait --wait-timeout 2400`으로 교체합니다. 볼륨을 삭제하지 않습니다.
 
-서버 전용 `docker-compose.override.yml`이 `blog`·`redis`·`qdrant`를 외부 네트워크에 연결한다면 새 `content-redis`에도 같은 네트워크를 지정해야 합니다. 첫 배포는 `content-redis`를 먼저 시작하고 `docker compose run -d --name blog-candidate --no-deps -p 127.0.0.1:13000:3000 blog`로 후보 이미지를 실행해 `/api/init` 완료와 실제 페이지를 확인한 뒤 운영 컨테이너를 교체하면 최초 본문 동기화 동안 기존 사이트를 유지할 수 있습니다. 후보 컨테이너 확인이 끝나면 제거합니다.
+서버 전용 `docker-compose.override.yml`이 `blog`·`redis`·`qdrant`를 외부 네트워크에 연결한다면 `content-redis`와 `embedding`도 blog가 도달 가능한 네트워크에 지정해야 합니다. 첫 배포는 새 서비스를 먼저 준비하고 기존 안내대로 후보 blog에서 `/api/init`과 실제 페이지를 확인한 뒤 교체합니다. `/api/init`은 임베딩을 기다리지 않으므로 교체 후 `/api/cron/content`로 첫 backfill을 진행하고 `pending`·`failed`·`maintenancePending`이 0인지 확인합니다.
 
-### Qdrant ontology/vector search (선택)
+### EmbeddingGemma · Qdrant · ontology
 
-Qdrant 컨테이너는 기본 `docker compose up -d`에 포함됩니다. `/ontology`, Graph semantic overlay, RightRail `ai · similar`는 이 Qdrant 인스턴스를 사용합니다. Compose 안의 `blog` 컨테이너는 `QDRANT_URL=http://qdrant:6333`을 사용하고, 호스트에서 직접 개발할 때만 `.env`의 `QDRANT_URL=http://localhost:6333`을 사용합니다.
+Compose는 `ghcr.io/jung-geun/monolog-embedding:latest`를 private `linux/amd64` CPU 서비스로 실행합니다. 직접 빌드는 `docker compose build embedding`; 웹과 임베딩 이미지는 같은 Docker Build and Push 워크플로에서 각각 발행합니다. 호스트 포트를 공개하지 않으며 `embedding-model-cache` 볼륨에 공개 체크포인트를 보관합니다. 이 볼륨과 Qdrant 저장소도 백업 대상입니다.
 
-온톨로지 빌드/갱신:
+모델은 [공식 EmbeddingGemma 2](https://huggingface.co/google/embeddinggemma-2)의 고정 revision `914f7f89142e33e77833254d9c9b90c3cef7303b`, CPU float32, 768차원입니다. 첫 실행은 약 1.49GB의 결합 safetensors를 내려받지만 vision/audio encoder는 생성하지 않습니다. `/health`는 다운로드와 실제 추론 성공 뒤에만 ready를 반환하며, 초기 health grace는 30분입니다. 긴 글은 8192-token 창마다 처리하므로 메모리·CPU 여유가 필요합니다. ARM 호스트에서는 선언된 amd64 서비스의 에뮬레이션이 필요합니다.
+
+공개 의미 검색은 IP당 분당 6회·웹 프로세스당 동시 1개로 제한하며 초과 시 `429`와 `Retry-After`를 반환합니다. 모델 서비스는 문서 유지보수에 우선권과 최대 1개 대기 예약을 부여하고 추가 요청을 `503`으로 거절합니다. health 요청은 추론 대기열과 분리하며, 웹의 query 추론은 30초·document 추론은 10분 뒤 중단합니다.
+
+`QDRANT_URL`은 Compose의 `http://qdrant:6333`, 네이티브 개발의 `http://localhost:6333`을 사용합니다. 새 768d 컬렉션은 예전 OpenAI 1536d `posts` 컬렉션을 읽거나 덮어쓰지 않습니다. 동일 제목·본문·모델 revision은 정기 재검증이나 LLM 강제 갱신에서도 재임베딩하지 않습니다. 최초 backfill·제목·본문 수정만 계산하고 slug·태그 수정은 payload만 갱신합니다.
+
+호스트 cron `/api/cron/content`가 임베딩과 증분 작업을 처리합니다. 초기화·webhook·수동 revalidate는 경로 발행을 먼저 마치며 다음 유지보수가 임베딩을 채웁니다. 수동 ontology 갱신도 같은 콘텐츠 잠금을 사용해 동시 발행·벡터 쓰기를 직렬화합니다. Meaning 검색과 RightRail 유사 글은 Anthropic 키 없이 동작하고, 논리 온톨로지 추출만 `ANTHROPIC_API_KEY`가 필요합니다. 수동 온톨로지 갱신:
 
 ```bash
 curl -X POST "https://your-site.com/api/cron/ontology" \

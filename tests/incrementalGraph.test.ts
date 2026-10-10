@@ -17,7 +17,6 @@ jest.mock("src/libs/cache", () => ({
   },
   keys: {
     postGraphExtraction: (id: string, version: string) => `extraction:${id}:${version}`,
-    embedding: (id: string, version: string) => `embedding:${id}:${version}`,
     postOntology: (id: string, version: string) => `postOntology:${id}:${version}`,
     ontologyState: "ontologyState",
   },
@@ -31,15 +30,13 @@ jest.mock("src/apis/ontology/extractRelations", () => ({ extractRelations: jest.
 jest.mock("src/apis/vector/qdrantClient", () => ({
   searchSimilar: jest.fn(async () => []),
   normalizeUUID: (id: string) => id,
-  deletePoint: jest.fn(),
-  updatePostPayload: jest.fn(),
+  getPostEmbedding: jest.fn(async () => [1, 0, 0]),
 }))
 jest.mock("src/libs/utils/logger", () => ({ warnLog: jest.fn(), debugLog: jest.fn() }))
 
 import { buildNotionGraph } from "src/apis/notion-client/buildNotionGraph"
 import { getOrBuildOntology } from "src/apis/ontology/getOntology"
 import { extractPostOntology } from "src/apis/ontology/extractPostOntology"
-import { deletePoint, updatePostPayload } from "src/apis/vector/qdrantClient"
 
 const BODY_ID = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
 const post = (id: string, overrides: Partial<TPost> = {}): TPost => ({
@@ -127,7 +124,6 @@ describe("incremental ontology maintenance", () => {
     await getOrBuildOntology({ posts: [a, b], changedIds: [], removedIds: [] })
 
     expect(extractPostOntology).not.toHaveBeenCalled()
-    expect(updatePostPayload).not.toHaveBeenCalled()
   })
 
   it("migrates a matching existing checkpoint to body hashes without a full AI rebuild", async () => {
@@ -142,38 +138,18 @@ describe("incremental ontology maintenance", () => {
     expect((store.get("ontologyState") as OntologyState).index).toEqual({ [a.id]: "v1", [b.id]: "v1" })
   })
 
-  it("updates vector metadata without LLM work for a metadata-only change", async () => {
-    seedState({ [a.id]: "v1", [b.id]: "v1" })
 
-    await getOrBuildOntology({ posts: [{ ...a, slug: "renamed" }, b], changedIds: [a.id], removedIds: [] })
-
-    expect(extractPostOntology).not.toHaveBeenCalled()
-    expect(updatePostPayload).toHaveBeenCalledWith(expect.objectContaining({ id: a.id, slug: "renamed" }))
-  })
-
-  it("removes a now-private post from vectors and semantic state", async () => {
+  it("removes a now-private post from semantic state", async () => {
     seedState({ [a.id]: "v1", [b.id]: "v1" })
 
     await getOrBuildOntology({ posts: [a, { ...b, status: ["Private"] }], changedIds: [b.id], removedIds: [] })
 
     const state = store.get("ontologyState") as OntologyState
-    expect(deletePoint).toHaveBeenCalledWith(b.id)
     expect(state.index).toEqual({ [a.id]: "v1" })
     expect(state.edges).toEqual([])
     expect(state.entities[0].postIds).toEqual([a.id])
   })
 
-  it("keeps a removed post indexed when its vector delete fails, so the next run retries it", async () => {
-    seedState({ [a.id]: "v1", [b.id]: "v1" })
-    ;(deletePoint as jest.Mock).mockRejectedValueOnce(new Error("Qdrant down"))
-
-    await expect(getOrBuildOntology({ posts: [a], changedIds: [], removedIds: [b.id] })).rejects.toThrow()
-    expect((store.get("ontologyState") as OntologyState).index).toHaveProperty(b.id)
-
-    await getOrBuildOntology({ posts: [a], changedIds: [], removedIds: [] })
-    expect(deletePoint).toHaveBeenLastCalledWith(b.id)
-    expect((store.get("ontologyState") as OntologyState).index).toEqual({ [a.id]: "v1" })
-  })
 })
 
 describe("ontology failure isolation", () => {

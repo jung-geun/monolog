@@ -1,11 +1,9 @@
 import { getPostGraphExtraction } from "src/apis/notion-client/buildNotionGraph"
 import { callWithTool } from "src/apis/llm/anthropicClient"
-import { embedText } from "src/apis/llm/openaiEmbedding"
-import { ensureCollection, upsertEmbedding, normalizeUUID } from "src/apis/vector/qdrantClient"
 import { cacheStore, keys } from "src/libs/cache"
 import { TPost } from "src/types"
 import { PostOntology, EntityKind } from "src/types/ontology"
-import { debugLog, warnLog } from "src/libs/utils/logger"
+import { debugLog } from "src/libs/utils/logger"
 import { postContentVersion } from "src/apis/notion-client/graphHash"
 
 const MIN_TEXT_LENGTH = 200
@@ -96,26 +94,6 @@ export async function extractPostOntology(
     })),
   }
 
-
-  // Commit extraction only after its vector is stored; failures must remain retryable.
-  try {
-    await ensureCollection()
-    const vector = await embedText(`${post.title}\n\n${llmResult.summary}\n\n${text.slice(0, 2000)}`)
-    await upsertEmbedding(normalizeUUID(post.id), vector, {
-      postId: post.id,
-      title: post.title,
-      slug: post.slug,
-      category: post.category?.[0] ?? "misc",
-      tags: post.tags ?? [],
-      createdAt: post.createdTime,
-    })
-    // cache the vector for relation extraction
-    const embKey = keys.embedding(post.id, lastEdited)
-    await cacheStore.set(embKey, vector, POST_ONTOLOGY_TTL_MS)
-  } catch (err) {
-    warnLog(`[extractPostOntology] embedding/upsert failed for "${post.slug}":`, err)
-    throw err
-  }
   await cacheStore.set(cacheKey, result, POST_ONTOLOGY_TTL_MS)
 
   return result

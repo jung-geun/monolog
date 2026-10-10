@@ -37,9 +37,9 @@ const COLLISION_PADDING = 2.5
 const REST_SPEED_SQUARED = 0.0025
 
 /**
- * Origin-centred world units match graphNodeRadius. Categories only supply weak
- * 3D anchors: real graph edges, not category membership, supply the strong springs.
- * Uncategorised posts and isolated hubs use their connected component instead.
+ * Current document embeddings supply exact 3D PCA post coordinates. Tags and
+ * series settle around their real neighbours; unindexed posts retain the
+ * topology layout until content maintenance commits their first vector.
  */
 export function createGraph3DLayout(
   sourceNodes: GraphNode[],
@@ -124,6 +124,11 @@ export function createGraph3DLayout(
     if (groupIndex[i] < 0) continue
     for (let axis = 0; axis < 3; axis++) anchors[i * 3 + axis] = groupAnchors[groupIndex[i] * 3 + axis]
   }
+  for (let i = 0; i < count; i++) {
+    const position = sourceNodes[i].embeddingPosition
+    if (!position) continue
+    for (let axis = 0; axis < 3; axis++) anchors[i * 3 + axis] = position[axis] * extent
+  }
   // A hub's weak angular preference follows its actual post neighbours, not a
   // synthetic edge or a fixed 2D ring. The radial force below remains spherical.
   for (const link of links) {
@@ -157,13 +162,19 @@ export function createGraph3DLayout(
     delete node.fx
     delete node.fy
     delete node.fz
+    if (source.embeddingPosition) {
+      node.x = node.fx = anchors[i * 3]
+      node.y = node.fy = anchors[i * 3 + 1]
+      node.z = node.fz = anchors[i * 3 + 2]
+    }
     return node
   })
 
   const charge = forceManyBody<GraphNode3D>()
     .distanceMin(averageRadius * 2)
     .distanceMax(extent * 3)
-  const linkForce = forceLink<GraphNode3D, LayoutLink>(links).id((_, index) => index)
+  const movableLinks = links.filter(link => !sourceNodes[link.a].embeddingPosition || !sourceNodes[link.b].embeddingPosition)
+  const linkForce = forceLink<GraphNode3D, LayoutLink>(movableLinks).id((_, index) => index)
   const shell = forceRadial<GraphNode3D>(extent * options.hubRingRadius * 2, 0, 0, 0)
     .strength((node) => node.kind === "post" ? 0 : 0.045)
   const collision = forceCollide<GraphNode3D>((_, index) => radii[index])
@@ -195,7 +206,7 @@ export function createGraph3DLayout(
   let settling = count > 0
 
   const configure = (next: GraphLayoutOptions): void => {
-    charge.strength((node) => -(node.kind === "post" ? next.postRepulsion : next.hubRepulsion))
+    charge.strength(node => node.embeddingPosition ? 0 : -(node.kind === "post" ? next.postRepulsion : next.hubRepulsion))
     shell.radius(extent * next.hubRingRadius * 2)
     linkForce
       .distance((link) => {
@@ -242,7 +253,11 @@ export function createGraph3DLayout(
         node.y = node.fy = position.y
         node.z = node.fz = position.z
       } else {
-        node.fx = node.fy = node.fz = null
+        if (node.embeddingPosition) {
+          node.x = node.fx = anchors[index * 3]
+          node.y = node.fy = anchors[index * 3 + 1]
+          node.z = node.fz = anchors[index * 3 + 2]
+        } else node.fx = node.fy = node.fz = null
       }
       node.vx = node.vy = node.vz = 0
       reheat(0.45)

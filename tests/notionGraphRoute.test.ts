@@ -15,6 +15,11 @@ jest.mock("src/apis/notion-client/graphSnapshot", () => ({
   refreshStaleGraphSnapshotInQdrant: jest.fn(),
 }))
 
+jest.mock("src/apis/vector/qdrantClient", () => ({
+  readPostEmbeddings: jest.fn(async () => new Map()),
+  normalizeUUID: (id: string) => id,
+}))
+
 import { getPosts } from "src/apis/notion-client/getPosts"
 import {
   readGraphSnapshotFromQdrant,
@@ -22,8 +27,12 @@ import {
   refreshStaleGraphSnapshotInQdrant,
 } from "src/apis/notion-client/graphSnapshot"
 import { getServerSideProps } from "src/pages/graphs/notion-graph.json"
+import { readPostEmbeddings } from "src/apis/vector/qdrantClient"
 
-const posts = [{ id: "post-a", slug: "post-a" }] as TPosts
+const posts = [{
+  id: "post-a", slug: "post-a", title: "Post A", status: ["Public"], type: ["Post"],
+  createdTime: "2026-01-01T00:00:00.000Z",
+}] as TPosts
 const staleGraph = {
   nodes: [],
   edges: [],
@@ -45,6 +54,7 @@ const response = () => ({
 beforeEach(() => {
   jest.clearAllMocks()
   ;(getPosts as jest.Mock).mockResolvedValue(posts)
+  jest.mocked(readPostEmbeddings).mockReset().mockResolvedValue(new Map())
 })
 
 describe("/graphs/notion-graph.json", () => {
@@ -57,7 +67,6 @@ describe("/graphs/notion-graph.json", () => {
 
     await getServerSideProps({ res } as any)
 
-    expect(res.write).toHaveBeenCalledWith(JSON.stringify(staleGraph))
     expect(res.setHeader).toHaveBeenCalledWith("X-Monolog-Graph-Stale", "1")
     expect(res.setHeader).toHaveBeenCalledWith("Cache-Control", "no-store")
     expect(refreshStaleGraphSnapshotInQdrant).toHaveBeenCalledWith(posts)
@@ -73,12 +82,7 @@ describe("/graphs/notion-graph.json", () => {
 
     await getServerSideProps({ res } as any)
 
-    expect(res.write).toHaveBeenCalledWith(JSON.stringify(staleGraph))
     expect(res.setHeader).toHaveBeenCalledWith("X-Monolog-Graph-Stale", "0")
-    expect(res.setHeader).toHaveBeenCalledWith(
-      "Cache-Control",
-      "public, s-maxage=86400, stale-while-revalidate=14400"
-    )
     expect(refreshStaleGraphSnapshotInQdrant).not.toHaveBeenCalled()
     expect(refreshGraphSnapshotInQdrant).not.toHaveBeenCalled()
   })
@@ -95,7 +99,6 @@ describe("/graphs/notion-graph.json", () => {
     await getServerSideProps({ res } as any)
 
     expect(refreshGraphSnapshotInQdrant).toHaveBeenCalledWith({ posts })
-    expect(res.write).toHaveBeenCalledWith(JSON.stringify(refreshedGraph))
     expect(res.setHeader).toHaveBeenCalledWith("X-Monolog-Graph-Stale", "0")
     expect(refreshStaleGraphSnapshotInQdrant).not.toHaveBeenCalled()
   })
@@ -113,5 +116,51 @@ describe("/graphs/notion-graph.json", () => {
 
     expect(res.setHeader).toHaveBeenCalledWith("X-Monolog-Graph-Stale", "1")
     expect(res.setHeader).toHaveBeenCalledWith("Cache-Control", "no-store")
+  })
+
+  it("keeps a usable logical graph but disables search and retries during a vector-store outage", async () => {
+    const oldUrl = process.env.QDRANT_URL
+    const oldService = process.env.EMBEDDING_SERVICE_URL
+    process.env.QDRANT_URL = "http://qdrant.test"
+    process.env.EMBEDDING_SERVICE_URL = "http://embedding.test"
+    jest.spyOn(console, "warn").mockImplementation(() => {})
+    jest.mocked(readPostEmbeddings).mockRejectedValueOnce(new Error("Qdrant unavailable"))
+    const graph = { ...staleGraph, nodes: [{ id: "post-a", kind: "post", title: "Post A", x: 0, y: 0 }] } as BuiltGraph
+    ;(readGraphSnapshotFromQdrant as jest.Mock).mockResolvedValue({ builtGraph: graph, isStale: false })
+    const res = response()
+    try {
+      await getServerSideProps({ res } as any)
+      const body = JSON.parse(res.write.mock.calls[0][0])
+      expect(body.embedding).toMatchObject({ embedded: 0, total: 1, searchAvailable: false, pending: true })
+      expect(res.setHeader).toHaveBeenCalledWith("X-Monolog-Graph-Stale", "1")
+    } finally {
+      if (oldUrl === undefined) delete process.env.QDRANT_URL
+      else process.env.QDRANT_URL = oldUrl
+      if (oldService === undefined) delete process.env.EMBEDDING_SERVICE_URL
+      else process.env.EMBEDDING_SERVICE_URL = oldService
+      jest.restoreAllMocks()
+    }
+  })
+
+  it("continues refresh while vectors for a current logical snapshot are pending", async () => {
+    const oldUrl = process.env.QDRANT_URL
+    const oldService = process.env.EMBEDDING_SERVICE_URL
+    process.env.QDRANT_URL = "http://qdrant.test"
+    process.env.EMBEDDING_SERVICE_URL = "http://embedding.test"
+    ;(readGraphSnapshotFromQdrant as jest.Mock).mockResolvedValue({
+      builtGraph: { ...staleGraph, nodes: [{ id: "post-a", kind: "post", title: "Post A", x: 0, y: 0 }] }, isStale: false,
+    })
+    const res = response()
+    try {
+      await getServerSideProps({ res } as any)
+      const body = JSON.parse(res.write.mock.calls[0][0])
+      expect(body.embedding).toMatchObject({ searchAvailable: true, pending: true })
+      expect(res.setHeader).toHaveBeenCalledWith("X-Monolog-Graph-Stale", "1")
+    } finally {
+      if (oldUrl === undefined) delete process.env.QDRANT_URL
+      else process.env.QDRANT_URL = oldUrl
+      if (oldService === undefined) delete process.env.EMBEDDING_SERVICE_URL
+      else process.env.EMBEDDING_SERVICE_URL = oldService
+    }
   })
 })

@@ -1,8 +1,7 @@
 import { NextApiRequest, NextApiResponse } from "next"
 import { getPosts } from "src/apis/notion-client/getPosts"
-import { eligibleGraphPosts, postContentVersion } from "src/apis/notion-client/graphHash"
-import { searchSimilar, normalizeUUID } from "src/apis/vector/qdrantClient"
-import { cacheStore, keys } from "src/libs/cache"
+import { eligibleGraphPosts } from "src/apis/notion-client/graphHash"
+import { searchSimilar, normalizeUUID, getPostEmbedding } from "src/apis/vector/qdrantClient"
 import { getOntology } from "src/apis/ontology/getOntology"
 
 export type SimilarPost = {
@@ -30,12 +29,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const post = posts.find((p) => p.id === rawId || p.slug === rawId)
   if (!post) return res.status(404).json({ error: "Post not found" })
 
-  const vector = await cacheStore.get<number[]>(keys.embedding(post.id, postContentVersion(post)))
+  const vector = await getPostEmbedding(post)
 
   if (!vector) {
     return res.status(202).json({
       ready: false,
-      message: "Ontology not built yet. Trigger /api/cron/ontology to build.",
+      message: "Post embedding is pending content reconciliation. Trigger /api/cron/content.", 
     })
   }
 

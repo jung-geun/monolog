@@ -10,6 +10,7 @@ export type SceneLink = {
   kind: RelationKind
   weight: number
   confidence?: number
+  similarity?: number
   rationale?: string
   contexts?: string[]
 }
@@ -47,7 +48,7 @@ export const RELATION_STYLES: Record<RelationKind, { label: string; color: strin
   applies: { label: "Applies", color: "#c89747", dashed: true },
   prerequisite: { label: "Prerequisite", color: "#ee5a1c", dashed: true },
   contradicts: { label: "Contradicts", color: "#d45c5c", dashed: true },
-  "similar-topic": { label: "Similar topic", color: "#8b899c", dashed: true },
+  "similar-topic": { label: "Similar content", color: "#8b899c", dashed: true },
 }
 
 export const graphNodeRadius = (degree: number): number =>

@@ -6,7 +6,7 @@ import {
   refreshStaleGraphSnapshotInQdrant,
 } from "src/apis/notion-client/graphSnapshot"
 
-const S_MAX = 86400 // 1 day
+import { withPostEmbeddingPositions } from "src/apis/vector/graphEmbeddings"
 
 export const getServerSideProps: GetServerSideProps = async ({ res }) => {
   const posts = await getPosts()
@@ -21,16 +21,15 @@ export const getServerSideProps: GetServerSideProps = async ({ res }) => {
   } else if (isStale) {
     refreshStaleGraphSnapshotInQdrant(posts)
   }
+  const enriched = await withPostEmbeddingPositions(graph, posts)
+  isStale ||= enriched.embedding?.pending === true
 
   res.setHeader("Content-Type", "application/json; charset=utf-8")
   res.setHeader("X-Monolog-Graph-Stale", isStale ? "1" : "0")
-  res.setHeader(
-    "Cache-Control",
-    isStale
-      ? "no-store"
-      : `public, s-maxage=${S_MAX}, stale-while-revalidate=${Math.floor(S_MAX / 6)}`
-  )
-  res.write(JSON.stringify(graph))
+  // Embeddings commit independently of relationship snapshots during content
+  // maintenance. A CDN copy must not hide newly indexed or withdrawn documents.
+  res.setHeader("Cache-Control", "no-store")
+  res.write(JSON.stringify(enriched))
   res.end()
 
   return { props: {} }

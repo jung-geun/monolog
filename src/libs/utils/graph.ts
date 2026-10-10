@@ -11,6 +11,8 @@ export type GraphNode = {
   readTime?: number
   url?: string
   createdAt?: string
+  /** Response-only PCA coordinates from the current document embedding. */
+  embeddingPosition?: [number, number, number]
   // computed
   degree: number
   x: number
