@@ -43,6 +43,7 @@ export type GraphEdge = {
   type: EdgeKind
   weight: number
   sameCategory: boolean
+  contexts?: string[]
 }
 
 export type PostEgoNeighbor = {
@@ -227,7 +228,7 @@ export const buildGraph = (
     const na = nodes[a], nb = nodes[b]
     const sameCategory =
       na.kind === "post" && nb.kind === "post" && na.category === nb.category
-    return [{ a, b, type: e.type, weight: e.weight, sameCategory }]
+    return [{ a, b, type: e.type, weight: e.weight, sameCategory, ...(e.contexts?.length ? { contexts: e.contexts } : {}) }]
   })
 
   for (const edge of edges) {

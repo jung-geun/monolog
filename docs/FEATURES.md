@@ -94,7 +94,7 @@ About 라우트는 다음 위젯들을 한 화면에 묶어 보여줍니다.
 ---
 
 ## Graph view (`/graph`)
-포스트가 카테고리별 군집으로 자연스럽게 응집되는 옵시디언 스타일 노드 그래프.
+실제 포스트·태그·시리즈 관계를 Three.js 원근 카메라와 XYZ force 시뮬레이션으로 탐색하는 3D 지식 그래프. 같은 태그·시리즈를 공유한다는 이유로 가짜 포스트 간 엣지를 만들지 않고 실제 허브를 통해 연결을 표시합니다.
 
 ### 데이터 — 페이지별 해시 기반 캐시 + Qdrant 스냅샷
 - 현재 공개 글의 본문 해시(레지스트리 초기화 전에는 수정 시각)와 그래프에 영향을 주는 메타데이터로 재빌드 필요 여부를 판단
@@ -103,35 +103,37 @@ About 라우트는 다음 위젯들을 한 화면에 묶어 보여줍니다.
 - `/api/cron/content`가 콘텐츠 outbox의 대기 작업을 처리해 캐시와 persisted snapshot을 갱신. 초기화·수동 revalidate·webhook은 AI 유지보수를 기다리지 않으며, `yarn warm:graph`로 수동 워밍 가능
 
 ### 엣지 종류
-한 페어가 여러 타입으로 연결될 수 있고, CONNECTED 패널에서는 자동 머지되어 1줄로 표시됩니다.
+같은 페어가 여러 타입으로 연결될 수 있으며, 상세 패널에서는 이웃 노드별로 묶고 각 관계의 방향·유형·근거를 따로 표시합니다.
 
 | 종류 | 의미 |
 |---|---|
 | `mention` | Notion `@mention`으로 다른 글을 인용 |
 | `link` | rich-text 안의 Notion 페이지 링크 |
 | `link_to_page` | `link_to_page` 블록 (페이지 전체 링크) |
-| `shared-tag` | 같은 태그를 가진 페이지 쌍 (>8개 페이지 공유 태그는 spam 방지로 스킵) |
-| `shared-series` | 같은 시리즈 내 모든 페어 |
-| `series-next` | 시리즈 내 날짜 순 인접 페어 (방향성 있음) |
-| `similar-topic` | Qdrant cosine similarity `>= 0.85`. Semantic overlay의 `similar` 토글을 켰을 때 표시 |
-| `elaborates` / `contradicts` / `supports` / `prerequisite` / `applies` | ontology 빌드가 LLM으로 분류한 의미 관계. Semantic overlay의 `logical` 토글을 켰을 때 표시 |
+| `has-tag` | 포스트 → 실제 태그 허브 |
+| `in-series` | 포스트 → 실제 시리즈 허브 |
+| `similar-topic` | 기존 온톨로지의 유사 관계. Similar topics를 켜면 사용자가 지정한 신뢰도 임계값(기본 0.80) 이상만 표시 |
+| `elaborates` / `contradicts` / `supports` / `prerequisite` / `applies` | 기존 온톨로지의 의미 관계. Logical 레이어로 표시하며 신뢰도·rationale 제공 |
 
-### 시각화 — d3-force 시뮬레이션
-- `forceSimulation` + `forceLink`(엣지 weight 기반 distance/strength) + `forceManyBody`(척력) + `forceX/Y`(중심 응집) + `forceCollide`(겹침 방지)
-- React state 없이 ref + `setAttribute`로 좌표 직접 업데이트 (100+ 노드 60fps 유지)
-- 카테고리 라벨이 매 tick centroid 위치로 자연 추종
-- SVG viewBox는 canvas `ResizeObserver`로 실제 viewport 크기를 따라가며, background grid는 d3 zoom transform을 공유해 줌·팬에 맞춰 간격과 위치가 함께 변함
-- 모든 graph edge는 source→target 방향의 arrowhead를 가지며, 선 끝은 양쪽 노드 원 경계에서 멈춰 노드 내부를 침범하지 않음
+### 시각화 — Three.js + d3-force-3d
+- `PerspectiveCamera`와 조명·안개·입체 바닥 격자로 원근과 깊이를 표현. 포스트는 구, 태그는 채워진 팔면체, 시리즈는 와이어프레임 팔면체이며 연결 수에 따라 노드 크기를 변경
+- 캐시된 `BuiltGraph`를 복제하고 XYZ 좌표를 결정론적으로 초기화. 실제 엣지의 spring·3D 척력·collision·약한 군집 인력·구형 허브 배치로 시뮬레이션하며 서버/RightRail의 기존 2D 좌표는 변경하지 않음
+- 관계 종류별 색상·weight 기반 굵기와 source→target 화살표 사용. 선 끝은 노드 표면 바깥에서 멈추며 의미 관계는 점선으로 명시적인 Notion 관계와 구분
+- 선택·hover 시 직접 연결을 강조하고 무관한 노드를 감쇠. 명시적인 선택 관계에만 방향 입자를 표시하고 `prefers-reduced-motion`에서는 입자·카메라 보간을 중지하며, 회전·이동·줌 후에도 라벨은 노드 위치를 따라 갱신
+- 관계 선·화살표를 instancing으로 묶고 React state 없이 좌표·라벨을 갱신. 정지·비가시 상태에서는 RAF를 쉬고, 라우트 종료 시 controls·시뮬레이션·WebGL 자원·observer를 해제
+- WebGL이 없거나 context를 잃으면 원인을 안내하며 가짜 2D 대체 화면으로 성공한 것처럼 표시하지 않음
 
 ### 인터랙션
-- **노드 드래그** — d3-drag, 잡으면 따라오고 놓으면 시뮬레이션이 풀어줌. `clickDistance(4)`로 클릭 vs 드래그 자동 분리
-- **줌/팬** — d3-zoom, 휠로 0.3x~4x 줌, 빈 영역 드래그로 팬. 모바일 핀치 줌 자동
-- **실시간 force 슬라이더** — `repulsion` (charge 강도) · `centering` (중심 인력 강도). 시뮬레이션 재생성 없이 force 파라미터만 mutation + `sim.alpha(0.5).restart()`로 부드러운 재배치
-- **reset view / reset force** — 줌과 force를 독립적으로 초기화
-- **CONNECTED 클릭** — 우측 detail panel의 연결 글을 누르면 해당 노드로 selectedIdx 전환
-- **CONNECTED hover/focus** — 우측 연결 항목에 마우스를 올리거나 키보드 focus하면 해당 graph node와 직접 연결된 edge를 좌측 canvas에서 동일하게 강조
-- **Semantic overlay** — `similar` 토글은 Qdrant 기반 `similar-topic` edge를 threshold로 필터링하고, `logical` 토글은 LLM ontology 관계(`elaborates` · `supports` · `contradicts` · `prerequisite` · `applies`)를 표시
-- **노드 hover/focus** — hover한 노드와 직접 연결된 edge는 밝기·굵기·ring으로 강조하고, 나머지 노드·label·edge는 감쇠
+- **회전** — 왼쪽 드래그. 모바일은 한 손가락 드래그
+- **이동·줌** — 오른쪽 또는 Shift+왼쪽 드래그 이동, 휠 줌. 모바일은 두 손가락 이동·핀치 줌
+- **노드 이동** — Alt/Option+왼쪽 드래그로 카메라 평면에서 이동하고, 놓으면 XYZ 고정을 모두 해제. 카메라 드래그는 선택 클릭으로 처리하지 않음
+- **검색·키보드** — 제목·slug·태그 검색으로 노드를 선택하고 실제 이웃을 포함해 포커스. 노드 라벨은 Tab/Enter/Space로 탐색·선택, Escape로 선택 해제, canvas의 Home으로 전체 보기
+- **상세 패널** — 직접 연결된 노드 목록, 입출력 방향, 관계 종류, 반복 참조 weight, 제공되는 본문 인용문 표시. 의미 관계에는 신뢰도·rationale와 추론 관계 표시를 추가
+- **Connections only / Focus node** — 실제 한 단계 이웃만 남기거나 선택한 노드와 이웃을 화면에 맞춤. 헤더와 데스크톱·모바일 상세 패널이 가리는 영역을 제외해 포커스하며, 연결 항목 hover 중에도 선택한 이웃 집합을 유지
+- **레이어·카테고리** — References·Tags·Series와 논리·유사 관계를 개별 표시. 카테고리 강조, Similar topics 임계값 조절. 온톨로지 관계가 없으면 의미 레이어를 비활성화하며 새 관계를 생성하지 않음
+- **실시간 레이아웃** — 포스트·허브 척력, 허브 반경·인력, 포스트 연결 거리를 기존 force에 반영. 선택·필터·테마·슬라이더 변경은 renderer·카메라를 재생성하지 않음
+- **Reset view / Reset layout** — 카메라와 레이아웃 설정을 독립 초기화. ResizeObserver로 viewport 변경을 반영
+- **시간순 재생** — 포스트 생성 순으로 노드와 실제 허브·관계를 공개. Play/Pause·Rewind·Show all·속도 조절 제공
 
 ---
 
