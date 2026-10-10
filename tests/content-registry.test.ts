@@ -23,6 +23,9 @@ jest.mock("src/libs/content/source", () => ({
 jest.mock("src/apis/notion-client/graphDelta", () => ({
   applyGraphDelta: jest.fn(),
 }))
+jest.mock("src/apis/vector/postEmbeddings", () => ({
+  reconcilePostEmbeddings: jest.fn(async () => ({ updated: 0, pending: [], failed: [] })),
+}))
 
 import {
   enqueueContentEvent,
@@ -43,6 +46,7 @@ import {
   retrieveContentMetadata,
 } from "src/libs/content/source"
 import { applyGraphDelta } from "src/apis/notion-client/graphDelta"
+import { reconcilePostEmbeddings } from "src/apis/vector/postEmbeddings"
 
 const listMetadata = jest.mocked(listContentMetadata)
 const retrieveMetadata = jest.mocked(retrieveContentMetadata)
@@ -191,6 +195,7 @@ beforeEach(() => {
   })
   graphDelta.mockReset().mockResolvedValue(undefined)
   revalidate.mockReset().mockResolvedValue(undefined)
+  jest.mocked(reconcilePostEmbeddings).mockReset().mockResolvedValue({ updated: 0, pending: [], failed: [] })
   publish(a, "Alpha original body")
   publish(b, "Beta original body")
 })
@@ -299,6 +304,20 @@ describe("content registry public lifecycle", () => {
     expect(recovered).toMatchObject({ changed: 0, failed: [], pending: [], maintenancePending: 0 })
     expect(visibleText((await readContentRecordMap(A_ID))!, A_ID)).toBe("Published before AI maintenance")
   })
+  it("regenerates publication paths even when optional embeddings exhaust the maintenance deadline", async () => {
+    await bootstrap()
+    publish({ ...a, lastEditedTime: NEXT_EDIT }, "Published before slow embedding maintenance")
+    jest.mocked(reconcilePostEmbeddings).mockImplementationOnce(async () => {
+      jest.setSystemTime(NOW + 13 * 60_000)
+      return { updated: 0, pending: [A_ID], failed: [] }
+    })
+    const result = await reconcileContent({ revalidate })
+    expectPaths(A_PATHS)
+    expect(result).toMatchObject({ changed: 1, maintenancePending: 2 })
+    expect(result.pending).toContain(`embedding:${A_ID}`)
+    expect(visibleText((await readContentRecordMap(A_ID))!, A_ID)).toBe("Published before slow embedding maintenance")
+  })
+
 
   it("keeps content healthy and readable while optional IndexNow delivery is pending", async () => {
     process.env.INDEXNOW_KEY = "1234567890abcdef"

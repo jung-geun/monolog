@@ -14,6 +14,15 @@ env:
 jobs:
   build-and-push:
     runs-on: [self-hosted, Linux, X64]
+    strategy:
+      matrix:
+        include:
+          - suffix: ""
+            context: .
+          - suffix: "-embedding"
+            context: ./services/embedding
+    env:
+      IMAGE_NAME: ${{ github.repository }}${{ matrix.suffix }}
     permissions:
       contents: read
       packages: write
@@ -68,14 +77,14 @@ jobs:
         id: push
         uses: docker/build-push-action@v7
         with:
-          context: .
+          context: ${{ matrix.context }}
           push: true
           tags: ${{ steps.tags.outputs.value }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             NEXT_PUBLIC_SITE_URL=${{ vars.NEXT_PUBLIC_SITE_URL }}
-          cache-from: type=registry,ref=ghcr.io/jung-geun/monolog:buildcache
-          cache-to: type=registry,ref=ghcr.io/jung-geun/monolog:buildcache,mode=max
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache
+          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache,mode=max
           platforms: linux/amd64
 
       - name: Stop temp keepalive

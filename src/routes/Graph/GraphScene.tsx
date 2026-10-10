@@ -165,12 +165,12 @@ export default function GraphScene(props: GraphSceneProps) {
       const targetFrom = new THREE.Vector3()
       const targetTo = new THREE.Vector3()
       const viewDirection = new THREE.Vector3(0.85, 0.65, 1).normalize()
-      const light = new THREE.HemisphereLight(0xffffff, 0x45413c, 2.2)
+      const light = new THREE.HemisphereLight(0xffffff, 0x666666, 1.6)
       scene.add(light)
-      const keyLight = new THREE.DirectionalLight(0xffffff, 2.4)
+      const keyLight = new THREE.DirectionalLight(0xffffff, 0.85)
       keyLight.position.set(200, 400, 300)
       scene.add(keyLight)
-      const rim = new THREE.DirectionalLight(0x94bfff, 1.1)
+      const rim = new THREE.DirectionalLight(0xffffff, 0.3)
       rim.position.set(-300, 120, -250)
       scene.add(rim)
       const grid = new THREE.GridHelper(1, 20, 0x666666, 0x666666)
@@ -179,7 +179,7 @@ export default function GraphScene(props: GraphSceneProps) {
       for (const value of gridMaterials) {
         materials.add(value)
         value.transparent = true
-        value.opacity = 0.12
+        value.opacity = 0.09
         value.depthWrite = false
       }
       scene.add(grid)
@@ -240,11 +240,13 @@ export default function GraphScene(props: GraphSceneProps) {
         const key = `${color}:${wireframe}:${dim}:${focus}`
         let value = nodeMaterials.get(key)
         if (!value) {
-          value = material(new THREE.MeshStandardMaterial({ color, wireframe, roughness: 0.46, metalness: 0.08, transparent: dim, opacity: dim ? 0.22 : 1, depthWrite: !dim }))
+          // Near-opaque matte surfaces retain depth; only de-emphasized nodes stop occluding.
+          value = material(new THREE.MeshStandardMaterial({ color, wireframe, roughness: 0.95, metalness: 0, transparent: true, opacity: dim ? 0.3 : focus ? 0.94 : 0.86, depthWrite: !dim }))
           nodeMaterials.set(key, value)
         }
-        value.emissive.set(focus ? color : 0x000000)
-        value.emissiveIntensity = focus ? (background.getHex() < 0x808080 ? 0.4 : 0.24) : 0
+        value.color.set(color).lerp(tint.set(palette.current.bg2), 0.22)
+        value.emissive.copy(value.color)
+        value.emissiveIntensity = focus ? (background.getHex() < 0x808080 ? 0.14 : 0.06) : 0
         return value
       }
       const focusNode = (index: number, smooth = true) => {
@@ -450,13 +452,19 @@ export default function GraphScene(props: GraphSceneProps) {
           visible[index] = revealed && (!state.neighborhoodOnly || inNeighborhood) ? 1 : 0
           dimmed[index] = !inNeighborhood || !categoryMatch ? 1 : 0
           meshes[index].visible = visible[index] === 1
-          const emphasized = index === state.selectedIndex || index === focus
+          const emphasized = index === state.selectedIndex || index === state.hoveredIndex || index === keyboardIndex
           meshes[index].material = getNodeMaterial(node.color, node.kind === "series", dimmed[index] === 1 && !emphasized, emphasized)
           buttons[index].tabIndex = visible[index] ? 0 : -1
           buttons[index].hidden = !visible[index]
           buttons[index].setAttribute("aria-pressed", index === state.selectedIndex ? "true" : "false")
           buttons[index].style.fontWeight = emphasized ? "600" : "400"
-          buttons[index].style.borderColor = emphasized ? palette.current.accent : "transparent"
+          // Alpha belongs to the surface/text, never the button or its keyboard outline.
+          buttons[index].style.background = emphasized ? "var(--graph-label-active-bg)" : "var(--graph-label-bg)"
+          buttons[index].style.color = emphasized ? "var(--graph-label-active-fg)" : "var(--graph-label-fg)"
+          buttons[index].style.borderColor = emphasized ? "var(--graph-label-accent)" : "var(--graph-label-border)"
+          buttons[index].style.outline = index === keyboardIndex ? "2px solid var(--graph-label-accent)" : ""
+          buttons[index].style.backdropFilter = emphasized ? "blur(3px)" : "none"
+          buttons[index].style.setProperty("-webkit-backdrop-filter", emphasized ? "blur(3px)" : "none")
         }
         if (pointerHover >= 0 && !visible[pointerHover]) hover(-1)
         if (statusRef.current) {
@@ -470,15 +478,25 @@ export default function GraphScene(props: GraphSceneProps) {
         background.set(colors.bg)
         scene.background = background
         if (scene.fog instanceof THREE.Fog) scene.fog.color.copy(background)
-        for (const value of gridMaterials) value.color.set(colors.fg3)
+        for (const value of gridMaterials) value.color.set(colors.fg3).lerp(background, 0.35)
         particleMaterial.color.set(colors.fg)
-        light.intensity = background.getHex() < 0x808080 ? 2.5 : 2
-        for (const button of buttons) {
-          button.style.background = colors.bg2
-          button.style.color = colors.fg
-          button.style.outlineColor = colors.accent
-          button.style.boxShadow = `0 1px 4px ${colors.bg}`
-        }
+        const dark = background.getHex() < 0x808080
+        light.color.set(dark ? colors.fg : colors.bg2)
+        light.groundColor.set(colors.bg3)
+        light.intensity = dark ? 1.75 : 1.55
+        keyLight.color.copy(light.color)
+        rim.color.copy(light.color)
+        // Generate alpha colors only on theme changes, not during frame projection.
+        // High surface alpha and near-solid active ink protect contrast without blur support.
+        const alphaColor = (color: string, alpha: string) => `#${tint.set(color).getHexString()}${alpha}`
+        labelLayer.style.setProperty("--graph-label-bg", alphaColor(colors.bg2, "db"))
+        labelLayer.style.setProperty("--graph-label-active-bg", alphaColor(colors.bg2, "f0"))
+        labelLayer.style.setProperty("--graph-label-fg", alphaColor(colors.fg, "e0"))
+        labelLayer.style.setProperty("--graph-label-active-fg", alphaColor(colors.fg, "fa"))
+        labelLayer.style.setProperty("--graph-label-border", alphaColor(colors.line2, "b3"))
+        labelLayer.style.setProperty("--graph-label-accent", colors.accent3)
+        const shadow = `0 1px 3px ${alphaColor(colors.fg3, "1f")}`
+        for (const button of buttons) button.style.boxShadow = shadow
         lastPalette = colors
       }
       const endpoints = (link: SceneLink) => {
@@ -505,7 +523,7 @@ export default function GraphScene(props: GraphSceneProps) {
           const node = nodes[index]
           const mesh = meshes[index]
           mesh.position.set(node.x, node.y, node.z)
-          const emphasized = index === state.selectedIndex || index === focus
+          const emphasized = index === state.selectedIndex || index === state.hoveredIndex || index === keyboardIndex
           mesh.scale.setScalar(radii[index] * (emphasized ? 1.12 : 1))
           radiusSquared = Math.max(radiusSquared, mesh.position.lengthSq())
           maxNodeRadius = Math.max(maxNodeRadius, mesh.scale.x)
@@ -526,8 +544,8 @@ export default function GraphScene(props: GraphSceneProps) {
             const incident = focus >= 0 && (link.a === focus || link.b === focus)
             const unrelated = focus >= 0 && !incident
             const categoryDim = dimmed[link.a] && dimmed[link.b]
-            const strength = incident ? 1 : unrelated || categoryDim ? 0.12 : 0.6
-            edgeColor.set(RELATION_STYLES[batch.kind].color)
+            const strength = incident ? 0.9 : unrelated || categoryDim ? 0.12 : 0.6
+            edgeColor.set(RELATION_STYLES[batch.kind].color).lerp(tint.set(palette.current.fg3), 0.2)
             tint.copy(background).lerp(edgeColor, strength)
             const weight = Math.min(3, Math.max(0.5, Math.sqrt(Math.max(0, link.weight))))
             const thickness = (incident ? 1.15 : 0.5) * weight

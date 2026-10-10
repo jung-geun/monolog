@@ -2,13 +2,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import styled from "@emotion/styled"
 import dynamic from "next/dynamic"
 import Link from "next/link"
-import { useIsFetching } from "@tanstack/react-query"
+import { useIsFetching, useQuery } from "@tanstack/react-query"
 import useNotionGraphQuery from "src/hooks/useNotionGraphQuery"
 import useOntologyQuery from "src/hooks/useOntologyQuery"
 import { queryKey } from "src/constants/queryKey"
 import { useRegisterChrome } from "src/layouts/RootLayout/EditorChrome/RouteChromeContext"
 import { DEFAULT_LAYOUT, RELATION_STYLES } from "./types"
 import type { GraphLayoutOptions, SceneLink } from "./types"
+import type { SimilarPost } from "src/pages/api/similar"
 
 const GraphScene = dynamic(() => import("./GraphScene"), {
   ssr: false,
@@ -44,12 +45,27 @@ const Graph = () => {
   const [showSeries, setShowSeries] = useState(true)
   const [showLogical, setShowLogical] = useState(true)
   const [showSimilar, setShowSimilar] = useState(false)
-  const [simThreshold, setSimThreshold] = useState(0.8)
+  const [simThreshold, setSimThreshold] = useState(0.65)
   const [neighborhoodOnly, setNeighborhoodOnly] = useState(false)
   const [resetViewToken, setResetViewToken] = useState(0)
   const [focusRequest, setFocusRequest] = useState<{ index: number; token: number } | null>(null)
   const focusToken = useRef(0)
   const [search, setSearch] = useState("")
+  const [searchMode, setSearchMode] = useState<"name" | "meaning">("name")
+  const [semanticQuery, setSemanticQuery] = useState("")
+  const semanticSearch = useQuery<{ results: SimilarPost[] }>({
+    queryKey: ["graph-semantic-search", semanticQuery],
+    enabled: searchMode === "meaning" && Boolean(semanticQuery) && graph.embedding?.searchAvailable === true,
+    queryFn: async ({ signal }) => {
+      const response = await fetch(`/api/graph/search?q=${encodeURIComponent(semanticQuery)}`, { signal, cache: "no-store" })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error ?? "Semantic search is unavailable")
+      return data
+    },
+    staleTime: 0,
+    retry: false,
+    refetchOnWindowFocus: false,
+  })
   const [isPlaying, setIsPlaying] = useState(false)
   const [animSpeed, setAnimSpeed] = useState(5)
   const [revealCount, setRevealCount] = useState<number | null>(null)
@@ -69,21 +85,27 @@ const Graph = () => {
   }, [nodes])
 
   const semanticLinks = useMemo<SceneLink[]>(() => {
-    if (!ontology) return []
-    return ontology.edges.flatMap((edge) => {
+    const logical = (ontology?.edges ?? []).flatMap(edge => {
       const a = nodeIndexById.get(edge.source)
       const b = nodeIndexById.get(edge.target)
-      if (a === undefined || b === undefined || a === b) return []
+      if (a === undefined || b === undefined || a === b || edge.kind === "similar-topic") return []
       return [{ a, b, kind: edge.kind, weight: 1, confidence: edge.confidence, rationale: edge.rationale }]
     })
-  }, [ontology, nodeIndexById])
+    const similarities = (graph.embedding?.similarities ?? []).flatMap(pair => {
+      const a = nodeIndexById.get(pair.source)
+      const b = nodeIndexById.get(pair.target)
+      if (a === undefined || b === undefined) return []
+      return [{ a, b, kind: "similar-topic" as const, weight: 1, similarity: pair.score }]
+    })
+    return [...logical, ...similarities]
+  }, [ontology, nodeIndexById, graph.embedding])
 
   const links = useMemo<SceneLink[]>(() => [
     ...edges
       .filter((edge) => edge.type === "has-tag" ? showTags : edge.type === "in-series" ? showSeries : showReferences)
       .map((edge) => ({ a: edge.a, b: edge.b, kind: edge.type, weight: edge.weight, contexts: edge.contexts })),
     ...semanticLinks.filter((edge) => edge.kind === "similar-topic"
-      ? showSimilar && (edge.confidence ?? 0) >= simThreshold
+      ? showSimilar && (edge.similarity ?? 0) >= simThreshold
       : showLogical),
   ], [edges, semanticLinks, showReferences, showTags, showSeries, showLogical, showSimilar, simThreshold])
 
@@ -145,15 +167,23 @@ const Graph = () => {
     )
   }, [selectedIndex, links, nodes, revealCount, nodeAppearRank])
 
-  const searchResults = useMemo(() => {
+  const searchResults = useMemo<{ index: number; score?: number }[]>(() => {
     const query = search.trim().toLocaleLowerCase()
     if (!query) return []
+    if (searchMode === "meaning") {
+      if (semanticQuery !== search.trim()) return []
+      return (semanticSearch.data?.results ?? []).flatMap(result => {
+        const index = nodeIndexById.get(result.postId)
+        return index !== undefined && (revealCount === null || nodeAppearRank[index] < revealCount)
+          ? [{ index, score: result.score }] : []
+      })
+    }
     return nodes.flatMap((node, index) =>
       (revealCount === null || nodeAppearRank[index] < revealCount)
         && `${node.title} ${node.slug ?? ""} ${node.tags?.join(" ") ?? ""}`.toLocaleLowerCase().includes(query)
-        ? [index] : []
+        ? [{ index }] : []
     ).slice(0, 10)
-  }, [search, nodes, revealCount, nodeAppearRank])
+  }, [search, searchMode, semanticQuery, semanticSearch.data, nodeIndexById, nodes, revealCount, nodeAppearRank])
 
   const shownCounts = useMemo(() => {
     const visible = (index: number) =>
@@ -248,30 +278,48 @@ const Graph = () => {
           <header className="graph-heading">
             <div className="heading-line"><h1>Knowledge graph</h1><span className="dimension">3D</span></div>
             <p>{shownCounts.nodes} nodes <span>·</span> {shownCounts.links} relations</p>
-            <div className="graph-search">
-              <input
-                type="search"
-                aria-label="Find a graph node"
-                aria-controls="graph-search-results"
-                placeholder="Find a post, tag, or series…"
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Escape") setSearch("")
-                  if (event.key === "Enter" && searchResults.length) chooseSearchResult(searchResults[0])
-                }}
-              />
+            {graph.embedding && <p className="embedding-status">
+              {graph.embedding.embedded > 0 ? `EmbeddingGemma · PCA 3D · ${graph.embedding.embedded}/${graph.embedding.total} posts` : "Relationship layout · post embeddings pending"}
+            </p>}
+            <form className="graph-search" onSubmit={event => {
+              event.preventDefault()
+              if (!search.trim()) return
+              if (searchMode === "meaning") {
+                if (semanticQuery === search.trim()) void semanticSearch.refetch()
+                else setSemanticQuery(search.trim())
+              } else if (searchResults.length) chooseSearchResult(searchResults[0].index)
+            }}>
+              <div className="search-modes" aria-label="Graph search mode">
+                <button type="button" aria-pressed={searchMode === "name"} onClick={() => setSearchMode("name")}>Name</button>
+                <button type="button" aria-pressed={searchMode === "meaning"} disabled={!graph.embedding?.searchAvailable} onClick={() => setSearchMode("meaning")} title="Search post content with EmbeddingGemma">Meaning</button>
+              </div>
+              <div className="search-input">
+                <input
+                  type="search"
+                  aria-label={searchMode === "meaning" ? "Search posts by meaning" : "Find a graph node"}
+                  aria-controls="graph-search-results"
+                  placeholder={searchMode === "meaning" ? "Describe what you want to find…" : "Find a post, tag, or series…"}
+                  maxLength={8000}
+                  value={search}
+                  onChange={event => setSearch(event.target.value)}
+                  onKeyDown={event => { if (event.key === "Escape") setSearch("") }}
+                />
+                {searchMode === "meaning" && <button type="submit" disabled={!search.trim() || semanticSearch.isFetching} aria-label="Run semantic search">↵</button>}
+              </div>
               {search.trim() && (
-                <div id="graph-search-results" className="search-results">
-                  {searchResults.length ? searchResults.map((index) => (
-                    <button type="button" key={nodes[index].id} onClick={() => chooseSearchResult(index)}>
-                      <span className={`node-symbol ${nodes[index].kind}`} style={{ color: nodes[index].color }} />
-                      <span>{nodes[index].title}<small>{nodes[index].kind}</small></span>
-                    </button>
-                  )) : <p>No matching nodes.</p>}
+                <div id="graph-search-results" className="search-results" aria-live="polite">
+                  {searchMode === "meaning" && semanticQuery !== search.trim() ? <p>Press Enter to search post content.</p>
+                    : searchMode === "meaning" && semanticSearch.isFetching ? <p role="status">Searching by meaning…</p>
+                    : searchMode === "meaning" && semanticSearch.error ? <p role="status">{semanticSearch.error.message}</p>
+                    : searchResults.length ? searchResults.map(({ index, score }) => (
+                      <button type="button" key={nodes[index].id} onClick={() => chooseSearchResult(index)}>
+                        <span className={`node-symbol ${nodes[index].kind}`} style={{ color: nodes[index].color }} />
+                        <span>{nodes[index].title}<small>{score === undefined ? nodes[index].kind : `Cosine similarity ${score.toFixed(3)}`}</small></span>
+                      </button>
+                    )) : <p>{searchMode === "meaning" ? "No indexed posts match. Pending embeddings are filled during content reconciliation." : "No matching nodes."}</p>}
                 </div>
               )}
-            </div>
+            </form>
           </header>
 
           <div className={`floating-controls${selected ? " drawer-open" : ""}`}>
@@ -296,14 +344,14 @@ const Graph = () => {
                 <div className="panel-label section-label">Semantic overlay</div>
                 <p className="control-note">Dashed relations are inferred, not explicit post links.</p>
                 <div className="overlay-toggles">
-                  <button type="button" aria-pressed={showLogical} disabled={!semanticAvailable} onClick={() => setShowLogical((value) => !value)}>Logical</button>
-                  <button type="button" aria-pressed={showSimilar} disabled={!semanticAvailable} onClick={() => setShowSimilar((value) => !value)}>Similar topics</button>
+                  <button type="button" aria-pressed={showLogical} disabled={!semanticLinks.some(edge => edge.kind !== "similar-topic")} onClick={() => setShowLogical(value => !value)}>Logical</button>
+                  <button type="button" aria-pressed={showSimilar} disabled={!semanticLinks.some(edge => edge.kind === "similar-topic")} onClick={() => setShowSimilar(value => !value)}>Similar content</button>
                 </div>
                 {!semanticAvailable && <p className="control-note">{ontologyLoading ? "Loading semantic data…" : "No semantic relations available."}</p>}
                 {showSimilar && (
                   <div className="control-row">
-                    <label htmlFor="graph-similarity">Confidence threshold<span>{simThreshold.toFixed(2)}</span></label>
-                    <input id="graph-similarity" type="range" min={0.7} max={0.95} step={0.01} value={simThreshold} onChange={(event) => setSimThreshold(Number(event.target.value))} />
+                    <label htmlFor="graph-similarity">Cosine threshold<span>{simThreshold.toFixed(2)}</span></label>
+                    <input id="graph-similarity" type="range" min={0.3} max={0.95} step={0.01} value={simThreshold} onChange={event => setSimThreshold(Number(event.target.value))} />
                   </div>
                 )}
 
@@ -325,6 +373,7 @@ const Graph = () => {
                   ))}
                 </div>
                 <div className="panel-label section-label">3D layout</div>
+                <p className="control-note">Indexed posts keep their PCA positions; force controls adjust hubs and posts awaiting embeddings. Nearby points approximate content similarity, not an explicit relation.</p>
                 {LAYOUT_CONTROLS.map((control) => (
                   <div className="control-row" key={control.key}>
                     <label htmlFor={`graph-${control.key}`}>
@@ -414,9 +463,10 @@ const Graph = () => {
                       <div className="relation-detail" key={`${relation.kind}-${relation.a}-${relation.b}-${relationIndex}`}>
                         <div className="relation-caption" style={{ color: RELATION_STYLES[relation.kind].color }}>
                           <span>{relation.kind === "similar-topic" ? "↔" : relation.a === selectedIndex ? "→" : "←"} {RELATION_STYLES[relation.kind].label}</span>
-                          <span className="relation-strength">{relation.confidence !== undefined ? `${Math.round(relation.confidence * 100)}% confidence` : relation.weight > 1 ? `×${relation.weight}` : ""}</span>
+                          <span className="relation-strength">{relation.similarity !== undefined ? `cosine ${relation.similarity.toFixed(3)}` : relation.confidence !== undefined ? `${Math.round(relation.confidence * 100)}% confidence` : relation.weight > 1 ? `×${relation.weight}` : ""}</span>
                         </div>
                         {relation.confidence !== undefined && <span className="inferred-note">Inferred relation</span>}
+                        {relation.similarity !== undefined && <span className="inferred-note">Embedding similarity · not an explicit reference</span>}
                         {relation.rationale && <p className="relation-evidence">{relation.rationale}</p>}
                         {relation.contexts?.map((context, contextIndex) => <blockquote key={contextIndex} className="relation-evidence">{context}</blockquote>)}
                       </div>
@@ -458,6 +508,13 @@ const StyledWrapper = styled.div`
   .graph-heading > p { margin: 7px 0 14px; font-size: 10px; font-variant-numeric: tabular-nums; color: ${({ theme }) => theme.colors.editor.fg3}; span { margin: 0 5px; } }
   .graph-search { width: 256px; position: relative; pointer-events: auto; }
   .graph-search input { width: 100%; padding: 9px 10px; font: 10px var(--font-mono, monospace); background: ${({ theme }) => theme.colors.editor.bg2}; color: ${({ theme }) => theme.colors.editor.fg}; border: 1px solid ${({ theme }) => theme.colors.editor.line}; border-radius: 0; }
+  .graph-heading > p.embedding-status { margin-top: -6px; margin-bottom: 10px; font-size: 9px; }
+  .search-modes { display: flex; gap: 4px; margin-bottom: 5px; }
+  .search-modes button { padding: 3px 8px; font-size: 9px; color: ${({ theme }) => theme.colors.editor.fg3}; border: 1px solid transparent; background: transparent; }
+  .search-input { display: flex; }
+  .search-input input { min-width: 0; flex: 1; }
+  .search-input > button { padding: 0 10px; border: 1px solid ${({ theme }) => theme.colors.editor.line}; border-left: 0; background: ${({ theme }) => theme.colors.editor.bg2}; color: ${({ theme }) => theme.colors.editor.fg2}; }
+  .search-input > button:disabled { opacity: 0.5; }
   .search-results { position: absolute; top: calc(100% + 4px); left: 0; width: 100%; max-height: 360px; overflow-y: auto; background: ${({ theme }) => theme.colors.editor.bg2}; border: 1px solid ${({ theme }) => theme.colors.editor.line}; box-shadow: 0 8px 24px rgba(0,0,0,0.12); }
   .search-results button { display: flex; align-items: flex-start; gap: 9px; padding: 10px; width: 100%; text-align: left; border: none; background: transparent; color: ${({ theme }) => theme.colors.editor.fg2}; font-size: 11px; line-height: 1.5; }
   .search-results button:hover { background: ${({ theme }) => theme.colors.editor.bg}; color: ${({ theme }) => theme.colors.editor.accent}; }

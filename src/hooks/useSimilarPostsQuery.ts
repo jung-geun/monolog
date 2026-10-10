@@ -1,24 +1,28 @@
 import { useQuery } from "@tanstack/react-query"
 import type { SimilarPost } from "src/pages/api/similar"
 
-async function fetchSimilarPosts(postId: string, limit = 5): Promise<SimilarPost[]> {
+type SimilarPostsData = { results: SimilarPost[]; pending: boolean }
+
+async function fetchSimilarPosts(postId: string, limit = 5): Promise<SimilarPostsData> {
   const res = await fetch(`/api/similar?postId=${encodeURIComponent(postId)}&limit=${limit}`)
-  if (!res.ok || res.status === 202) return []
+  if (res.status === 202) return { results: [], pending: true }
+  if (!res.ok) throw new Error(`Failed to fetch similar posts: HTTP ${res.status}`)
   const data = await res.json()
-  return data.results ?? []
+  return { results: data.results ?? [], pending: false }
 }
 
 const useSimilarPostsQuery = (postId: string, limit = 5) => {
-  const { data, isLoading } = useQuery<SimilarPost[]>({
+  const { data, isLoading } = useQuery<SimilarPostsData>({
     queryKey: ["similar", postId, limit],
     queryFn: () => fetchSimilarPosts(postId, limit),
-    staleTime: 60 * 60 * 1000,
+    staleTime: query => query.state.data?.pending ? 0 : 60 * 60 * 1000,
+    refetchInterval: query => query.state.data?.pending ? 3_000 : false,
     gcTime: 4 * 60 * 60 * 1000,
     refetchOnWindowFocus: false,
     enabled: !!postId,
   })
 
-  return { similar: data ?? [], isLoading }
+  return { similar: data?.results ?? [], isLoading }
 }
 
 export default useSimilarPostsQuery

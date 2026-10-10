@@ -1,6 +1,6 @@
 {
   "name": "monolog",
-  "version": "1.19.1",
+  "version": "1.20.0",
   "packageManager": "yarn@1.22.22",
   "license": "MIT",
   "repository": {
@@ -47,7 +47,6 @@
     "next": "^16.3.3",
     "notion-types": "^7.10.0",
     "notion-utils": "^7.10.0",
-    "openai": "^5.23.2",
     "prismjs": "^1.30.0",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",

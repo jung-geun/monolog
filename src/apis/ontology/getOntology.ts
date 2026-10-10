@@ -3,7 +3,7 @@ import { getPosts } from "src/apis/notion-client/getPosts"
 import { cacheStore, keys } from "src/libs/cache"
 import { extractPostOntology } from "./extractPostOntology"
 import { extractRelations } from "./extractRelations"
-import { searchSimilar, normalizeUUID, deletePoint, updatePostPayload } from "src/apis/vector/qdrantClient"
+import { searchSimilar, normalizeUUID, getPostEmbedding } from "src/apis/vector/qdrantClient"
 import { TPost } from "src/types"
 import type { Ontology, OntologyState, PostOntology, Entity } from "src/types/ontology"
 import { debugLog, warnLog } from "src/libs/utils/logger"
@@ -12,7 +12,6 @@ import type { SimilarResult } from "src/apis/vector/qdrantClient"
 
 // The incremental index must never expire in a quiet blog; expiry would force a full LLM rebuild.
 const ONTOLOGY_STATE_TTL_MS = 0
-const SIMILARITY_THRESHOLD = 0.85
 const TOP_K = 8
 
 export type BuildStats = {
@@ -31,7 +30,7 @@ function toOntology(state: OntologyState): Ontology {
     version: state.version,
     generatedAt: state.generatedAt,
     entities: state.entities,
-    edges: state.edges,
+    edges: state.edges.filter(edge => edge.kind !== "similar-topic"),
   }
 }
 
@@ -92,45 +91,29 @@ async function addPostToState(
   opts: OntologyRefreshOptions
 ): Promise<void> {
   const lastEdited = postContentVersion(post)
-
-  // entity 추출 + 임베딩 + Qdrant upsert (캐시 히트면 LLM 스킵)
+  const vector = await getPostEmbedding(post)
+  if (!vector) throw new Error("Post embedding is pending content reconciliation")
+  // Entity extraction is independent of the already committed document vector.
   const ont = await extractPostOntology(post, opts)
 
   // 벡터 검색으로 기존 그래프 내 후보 추출
-  const vector = await cacheStore.get<number[]>(keys.embedding(post.id, lastEdited))
   const candidates: TPost[] = []
 
   if (vector) {
     let similar: SimilarResult[] = []
     try {
-      similar = await searchSimilar(vector, TOP_K, normalizeUUID(post.id))
+      similar = await searchSimilar(vector, TOP_K, normalizeUUID(post.id), state.index)
     } catch (err) {
       warnLog(`[addPostToState] Qdrant search failed for "${post.slug}":`, err)
       throw err
     }
 
     for (const result of similar) {
-      // 아직 index에 없는 페이지(동시에 추가 중인 페이지)는 제외 — 그쪽 처리 시 역방향으로 연결됨
+      // Candidates were restricted to committed ontology IDs before ranking.
       if (result.postId === post.id || !(result.postId in state.index)) continue
       const targetPost = postMap.get(result.postId)
       if (!targetPost) continue
       candidates.push(targetPost)
-      if (result.score >= SIMILARITY_THRESHOLD) {
-        const alreadyLinked = state.edges.some(
-          (e) =>
-            e.kind === "similar-topic" &&
-            ((e.source === post.id && e.target === result.postId) ||
-              (e.source === result.postId && e.target === post.id))
-        )
-        if (!alreadyLinked) {
-          state.edges.push({
-            source: post.id,
-            target: result.postId,
-            kind: "similar-topic",
-            confidence: result.score,
-          })
-        }
-      }
     }
   }
 
@@ -202,13 +185,20 @@ async function refreshOntology(opts: OntologyRefreshOptions): Promise<OntologyBu
   const posts = eligibleGraphPosts(opts.posts ?? await getPosts())
   const postMap = new Map(posts.map((post) => [post.id, post]))
   let state = structuredClone(await cacheStore.getShared<OntologyState>(keys.ontologyState) ?? emptyState())
+  // Similar-content measurements now belong to the exact document-vector
+  // graph response, not the LLM state. Preserve existing logical extractions.
+  const logicalEdges = state.edges.filter(edge => edge.kind !== "similar-topic")
+  if (logicalEdges.length !== state.edges.length) {
+    state.edges = logicalEdges
+    await cacheStore.setShared(keys.ontologyState, state, ONTOLOGY_STATE_TTL_MS)
+  }
   const diff = computeDiff(state.index, posts)
   // Explicit bypass is the manual rebuild command only. Ordinary maintenance never resets this index.
   if (opts.bypassCache) diff.modified = posts.filter((post) => post.id in state.index)
   const removals = [...new Set([...diff.removed, ...(opts.removedIds ?? []).filter((id) => !postMap.has(id))])]
   const semanticIds = new Set([...diff.added, ...diff.modified].map((post) => post.id))
-  // Bind an existing timestamp checkpoint to the first body hash without
-  // rebuilding its entities or embeddings. Different timestamps still update.
+  // Bind existing entity-extraction checkpoints to body hashes without another
+  // LLM call; EmbeddingGemma independently owns its model/title/body checkpoint.
   const checkpointIds = posts.filter(post => post.contentHash && state.index[post.id] === post.lastEditedTime).map(post => post.id)
   const metadataPosts = [...new Set([...(opts.changedIds ?? []), ...checkpointIds])].flatMap((id) => {
     const post = postMap.get(id)
@@ -220,26 +210,15 @@ async function refreshOntology(opts: OntologyRefreshOptions): Promise<OntologyBu
   }
   if (!semanticIds.size && !removals.length && !metadataPosts.length) return { ontology: toOntology(state), stats }
 
-  // One failing item must not block the rest; failures are aggregated so the run still retries.
+  // Vector removal and metadata updates belong to content maintenance, before
+  // ontology deltas; this state only owns entities and inferred relationships.
   const failures: unknown[] = []
-  // Delete vectors before pruning the index: an id whose delete failed stays indexed, so the next
-  // diff retries it. Reads already hide it through the eligibility filter.
-  const deletedIds = new Set<string>()
-  for (const id of removals) {
-    try {
-      await deletePoint(id)
-      deletedIds.add(id)
-    } catch (err) {
-      failures.push(err)
-    }
-  }
-  const pruned = [...diff.removed.filter((id) => deletedIds.has(id)), ...diff.modified.map((post) => post.id)]
+  const pruned = [...removals, ...diff.modified.map((post) => post.id)]
   for (const id of pruned) removePostFromState(state, id)
   // Persist metadata-safe pruning before any expensive extraction.
   if (pruned.length) await cacheStore.setShared(keys.ontologyState, state, ONTOLOGY_STATE_TTL_MS)
   for (const post of metadataPosts) {
     try {
-      await updatePostPayload(post)
       state.index[post.id] = postContentVersion(post)
       await cacheStore.setShared(keys.ontologyState, state, ONTOLOGY_STATE_TTL_MS)
     } catch (error) { failures.push(error) }

@@ -96,13 +96,17 @@ About 라우트는 다음 위젯들을 한 화면에 묶어 보여줍니다.
 ---
 
 ## Graph view (`/graph`)
-실제 포스트·태그·시리즈 관계를 Three.js 원근 카메라와 XYZ force 시뮬레이션으로 탐색하는 3D 지식 그래프. 같은 태그·시리즈를 공유한다는 이유로 가짜 포스트 간 엣지를 만들지 않고 실제 허브를 통해 연결을 표시합니다.
+실제 포스트·태그·시리즈 관계를 Three.js 원근 카메라로 탐색하는 3D 지식 그래프. 포스트 좌표는 문서 임베딩의 3D PCA 투영에서 가져오고, 태그·시리즈는 실제 연결에 따라 force로 정렬합니다. 같은 태그·시리즈를 공유한다는 이유로 가짜 명시적 포스트 간 엣지를 만들지 않습니다.
 
 ### 데이터 — 페이지별 해시 기반 캐시 + Qdrant 스냅샷
 - 현재 공개 글의 본문 해시(레지스트리 초기화 전에는 수정 시각)와 그래프에 영향을 주는 메타데이터로 재빌드 필요 여부를 판단
 - 해시가 일치하는 Qdrant `post_graph_snapshots` 스냅샷이 있으면 그 `BuiltGraph`를 재사용하고, 바뀐 글의 엣지만 다시 추출해 raw/built graph를 갱신
-- `/graphs/notion-graph.json`는 그대로 JSON fetch 엔드포인트이며, 클라이언트 `/graph` 페이지는 여기서 그래프를 가져옴
-- `/api/cron/content`가 콘텐츠 outbox의 대기 작업을 처리해 캐시와 persisted snapshot을 갱신. 초기화·수동 revalidate·webhook은 AI 유지보수를 기다리지 않으며, `yarn warm:graph`로 수동 워밍 가능
+- `/graphs/notion-graph.json`는 관계 스냅샷에 현재 문서 버전의 PCA 좌표·코사인 유사도만 응답 시 결합하며 `no-store`로 제공합니다. 원본 `BuiltGraph`와 RightRail의 2D 좌표는 변경하지 않음
+- `/api/cron/content`가 콘텐츠 outbox의 경로 무효화를 먼저 완료한 뒤 그래프·임베딩 유지보수를 수행. 초기화·수동 revalidate·webhook은 AI 유지보수를 기다리지 않으며, `yarn warm:graph`로 수동 워밍 가능
+- `google/embeddinggemma-2@914f7f89142e33e77833254d9c9b90c3cef7303b`의 정규화된 768차원 벡터를 별도 Qdrant 컬렉션 `post_embeddings_embeddinggemma_2_768_v1`에 영속 저장. 초기 공개·제목·본문 해시가 바뀔 때만 재계산하며 slug·태그·시각만 바뀌면 메타데이터만 갱신
+- 임베딩은 `/api/cron/content`의 유지보수 단계에서 수행. 초기화·webhook·수동 발행은 기다리지 않고 다음 유지보수에서 누락·변경분을 보충. 실패한 버전은 검색·좌표에서 제외하고 기존 벡터 체크포인트를 보존해 다음 유지보수에서 재시도. 비공개·삭제 글은 즉시 검색 후보에서 제외하고 유지보수 시 저장 벡터도 제거
+- 문서 제목과 전체 본문을 공식 document prompt로 처리. 8192-token을 넘는 본문은 토큰을 버리지 않는 창으로 나눠 정규화·가중 결합. 검색은 공식 SearchQuery prompt를 사용하며 전체 768차원으로 검색; PCA에서 가까운 점은 유사도의 시각적 근사이며 명시적 관계를 뜻하지 않음
+- 임베딩·Qdrant 장애에서도 명시적 관계·태그·시리즈 기반 논리 그래프는 유지. 벡터 준비 대기 상태는 클라이언트 재조회로 해소하며, Meaning 검색은 사용 가능 상태일 때만 활성화
 
 ### 엣지 종류
 같은 페어가 여러 타입으로 연결될 수 있으며, 상세 패널에서는 이웃 노드별로 묶고 각 관계의 방향·유형·근거를 따로 표시합니다.
@@ -114,12 +118,12 @@ About 라우트는 다음 위젯들을 한 화면에 묶어 보여줍니다.
 | `link_to_page` | `link_to_page` 블록 (페이지 전체 링크) |
 | `has-tag` | 포스트 → 실제 태그 허브 |
 | `in-series` | 포스트 → 실제 시리즈 허브 |
-| `similar-topic` | 기존 온톨로지의 유사 관계. Similar topics를 켜면 사용자가 지정한 신뢰도 임계값(기본 0.80) 이상만 표시 |
+| `similar-topic` | 각 임베딩 문서의 가장 가까운 3개 후보를 합쳐 중복 제거한 코사인 유사 관계. Similar content를 켜면 임계값(기본 0.65) 이상만 표시. LLM·명시적인 참조 관계와 독립 |
 | `elaborates` / `contradicts` / `supports` / `prerequisite` / `applies` | 기존 온톨로지의 의미 관계. Logical 레이어로 표시하며 신뢰도·rationale 제공 |
 
 ### 시각화 — Three.js + d3-force-3d
-- `PerspectiveCamera`와 조명·안개·입체 바닥 격자로 원근과 깊이를 표현. 포스트는 구, 태그는 채워진 팔면체, 시리즈는 와이어프레임 팔면체이며 연결 수에 따라 노드 크기를 변경
-- 캐시된 `BuiltGraph`를 복제하고 XYZ 좌표를 결정론적으로 초기화. 실제 엣지의 spring·3D 척력·collision·약한 군집 인력·구형 허브 배치로 시뮬레이션하며 서버/RightRail의 기존 2D 좌표는 변경하지 않음
+- `PerspectiveCamera`·안개·옅은 입체 바닥 격자와 에디터 팔레트를 섞은 matte 반투명 노드 사용. 포스트는 구, 태그는 팔면체, 시리즈는 와이어프레임 팔면체이며 연결 수에 따라 크기를 변경. 라벨 배경·문자 색은 독립 반투명, 선택·hover·키보드 포커스는 높은 대비로 강조
+- 임베딩된 포스트는 현재 벡터의 결정론적 3D PCA 위치를 유지. 태그·시리즈와 임베딩 대기 포스트만 실제 엣지 spring·3D 척력·collision으로 정렬하며 기존 관계를 위치 계산으로 대체하지 않음
 - 관계 종류별 색상·weight 기반 굵기와 source→target 화살표 사용. 선 끝은 노드 표면 바깥에서 멈추며 의미 관계는 점선으로 명시적인 Notion 관계와 구분
 - 선택·hover 시 직접 연결을 강조하고 무관한 노드를 감쇠. 명시적인 선택 관계에만 방향 입자를 표시하고 `prefers-reduced-motion`에서는 입자·카메라 보간을 중지하며, 회전·이동·줌 후에도 라벨은 노드 위치를 따라 갱신
 - 관계 선·화살표를 instancing으로 묶고 React state 없이 좌표·라벨을 갱신. 정지·비가시 상태에서는 RAF를 쉬고, 라우트 종료 시 controls·시뮬레이션·WebGL 자원·observer를 해제
@@ -128,12 +132,12 @@ About 라우트는 다음 위젯들을 한 화면에 묶어 보여줍니다.
 ### 인터랙션
 - **회전** — 왼쪽 드래그. 모바일은 한 손가락 드래그
 - **이동·줌** — 오른쪽 또는 Shift+왼쪽 드래그 이동, 휠 줌. 모바일은 두 손가락 이동·핀치 줌
-- **노드 이동** — Alt/Option+왼쪽 드래그로 카메라 평면에서 이동하고, 놓으면 XYZ 고정을 모두 해제. 카메라 드래그는 선택 클릭으로 처리하지 않음
-- **검색·키보드** — 제목·slug·태그 검색으로 노드를 선택하고 실제 이웃을 포함해 포커스. 노드 라벨은 Tab/Enter/Space로 탐색·선택, Escape로 선택 해제, canvas의 Home으로 전체 보기
-- **상세 패널** — 직접 연결된 노드 목록, 입출력 방향, 관계 종류, 반복 참조 weight, 제공되는 본문 인용문 표시. 의미 관계에는 신뢰도·rationale와 추론 관계 표시를 추가
+- **노드 이동** — Alt/Option+왼쪽 드래그로 카메라 평면에서 이동. 임베딩 포스트는 놓으면 PCA 좌표로 복귀, 나머지는 XYZ 고정을 해제. 카메라 드래그는 선택 클릭으로 처리하지 않음
+- **검색·키보드** — Name은 제목·slug·태그, Meaning은 검색어를 같은 모델로 임베딩해 본문 의미로 검색. Enter로 실행하며 결과에 코사인 점수를 표시하고 클릭하면 해당 노드를 선택·포커스. 노드 라벨은 Tab/Enter/Space로 탐색·선택, Escape로 선택 해제, canvas Home으로 전체 보기
+- **상세 패널** — 직접 연결된 노드 목록, 입출력 방향, 관계 종류, 반복 참조 weight, 본문 인용문 표시. 논리 관계는 신뢰도·rationale, 임베딩 유사 관계는 코사인 점수와 명시적 참조가 아니라는 안내 제공
 - **Connections only / Focus node** — 실제 한 단계 이웃만 남기거나 선택한 노드와 이웃을 화면에 맞춤. 헤더와 데스크톱·모바일 상세 패널이 가리는 영역을 제외해 포커스하며, 연결 항목 hover 중에도 선택한 이웃 집합을 유지
-- **레이어·카테고리** — References·Tags·Series와 논리·유사 관계를 개별 표시. 카테고리 강조, Similar topics 임계값 조절. 온톨로지 관계가 없으면 의미 레이어를 비활성화하며 새 관계를 생성하지 않음
-- **실시간 레이아웃** — 포스트·허브 척력, 허브 반경·인력, 포스트 연결 거리를 기존 force에 반영. 선택·필터·테마·슬라이더 변경은 renderer·카메라를 재생성하지 않음
+- **레이어·카테고리** — References·Tags·Series, Logical·Similar content를 개별 표시. 유사도 임계값 조절과 카테고리 강조. 임베딩 유사 레이어는 Anthropic 키 없이 사용하며, 실제 데이터가 없는 레이어는 비활성화
+- **실시간 레이아웃** — 허브와 아직 임베딩되지 않은 포스트의 force 설정만 변경. 선택·필터·테마·슬라이더 변경은 renderer·카메라를 재생성하지 않음
 - **Reset view / Reset layout** — 카메라와 레이아웃 설정을 독립 초기화. ResizeObserver로 viewport 변경을 반영
 - **시간순 재생** — 포스트 생성 순으로 노드와 실제 허브·관계를 공개. Play/Pause·Rewind·Show all·속도 조절 제공
 
@@ -167,7 +171,7 @@ DB 블록 주입은 **createPortal** 기반 — react-notion-x가 그린 자리�
 ## Durable content registry (`src/libs/content`)
 - 공개 게시물 메타데이터·본문 recordMap·slug 이력·대기 작업 outbox를 `CONTENT_REDIS_URL`(Redis 7.2+, AOF + `WAITAOF`) 또는 `CONTENT_STATE_DIR`에 원자적으로 저장. TTL 캐시 만료·재시작·Notion 장애와 무관하게 마지막 발행본을 렌더
 - 증분 대조: `last_edited_time` overlap 스캔 + 24시간마다 전체 대조(삭제·데이터소스 이동 감지). 같은 분 안의 연속 편집은 분이 지난 뒤 1회 재확인
-- 바뀐 글만 본문을 다시 가져오고, 상세·카테고리·시리즈·컬렉션 등 영향 경로만 ISR 재생성. 메타데이터만 바뀌면 본문 버전(`contentHash`)과 임베딩 유지
+- 바뀐 글만 본문을 다시 가져오고 영향 경로만 ISR 재생성. 본문 버전(`contentHash`)이 같으면 유지; 임베딩은 제목·본문 변경만 재계산하며 그 외 메타데이터 변경은 기존 벡터 유지
 - slug 변경 → 이전 주소 308 리다이렉트, 비공개·삭제 → 이전 alias까지 제거, slug 충돌 → 양쪽 모두 비노출, 예약 발행 → 발행 시각 이후 첫 대조에서 공개
 - 입력: Notion webhook(`/api/notion-webhook`, HMAC 서명 · 이벤트 ID 중복 제거), 호스트 cron의 15분 주기 `/api/cron/content`, 수동 `/api/revalidate`. GitHub Actions schedule은 지연·누락 가능한 보조 트리거
 - 실패한 경로·그래프 유지보수·IndexNow·Discord 알림은 영속 outbox에서 재시도. webhook·수동·초기화 요청은 발행만 기다리고 AI 그래프 작업은 cron에서 처리

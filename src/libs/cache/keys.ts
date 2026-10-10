@@ -12,8 +12,6 @@ const NG_VERSION = "v4"
 // Bump BG_VERSION when built layout semantics change as well as its serialized shape.
 // v4 expands degree-derived collision spacing for the larger hub-node radius scale.
 const BG_VERSION = "v4"
-// Bump EMB_VERSION when embedding model or dimensions change.
-const EMB_VERSION = "v1"
 // Bump ONT_VERSION when PostOntology/Entity/SemanticEdge schema changes.
 const ONT_VERSION = "v2"
 const OG_VERSION = "v2"
@@ -34,7 +32,6 @@ export const keys = {
   postGraphExtraction: (postId: string, contentVersion: string) =>
     `postGraphExtraction:v1:${postId}:${contentVersion}`,
   comments: (slug: string) => `comments:${slug}`,
-  embedding: (postId: string, lastEdited: string) => `embedding:${EMB_VERSION}:${postId}:${lastEdited}`,
   postOntology: (postId: string, lastEdited: string) => `postOntology:${ONT_VERSION}:${postId}:${lastEdited}`,
   ontology: (postsHash: string) => `ontology:${ONT_VERSION}:${postsHash}`,
   ontologyState: `ontologyState:${ONT_VERSION}`,

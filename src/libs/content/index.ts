@@ -7,6 +7,7 @@ import { readStoredContent, withContentLock } from "./storage"
 import { emptyContentState, type RegistryEntry, type ContentSnapshot, type ContentState } from "./types"
 import { queueValidationWarning, queueIndexNow, drainNotifications } from "./notifications"
 import { snapshotOf } from "./snapshot"
+import { reconcilePostEmbeddings } from "src/apis/vector/postEmbeddings"
 
 export type { ContentSnapshot, GraphDelta } from "./types"
 const FULL_INTERVAL = 24 * 60 * 60 * 1000
@@ -273,7 +274,26 @@ export async function reconcileContent(options: ReconcileOptions): Promise<Recon
             progressed = true
           } catch { failed.push(path) }
         }
-        if (!effect.graphDone && maintenance) {
+        if (effect.graphDone && effect.paths.length === 0) {
+          state.effects = state.effects.filter(candidate => candidate.id !== effect.id)
+          progressed = true
+        }
+        if (progressed) await save(state)
+      }
+    }
+    let embeddingsPending: string[] = []
+    if (state.initialized && maintenance) {
+      try {
+        const embeddings = await reconcilePostEmbeddings(snapshotOf(state), deadline)
+        embeddingsPending = embeddings.pending.map(id => `embedding:${id}`)
+        failed.push(...embeddings.failed.map(id => `embedding:${id}`))
+      } catch { failed.push("embeddings"); embeddingsPending = ["embeddings"] }
+    }
+    if (state.initialized && options.revalidate && maintenance) {
+      for (const effect of [...state.effects]) {
+        if (Date.now() >= deadline) break
+        let progressed = false
+        if (!effect.graphDone) {
           try {
             await applyGraphDelta({ revision: effect.revision, upserted: effect.upserted, deletedIds: effect.deletedIds })
             effect.graphDone = true
@@ -290,9 +310,10 @@ export async function reconcileContent(options: ReconcileOptions): Promise<Recon
     await drainNotifications(state, save)
     return {
       completed, changed, revision: state.revision, failed: [...new Set(failed)],
-      maintenancePending: state.effects.filter(effect => !effect.graphDone).length,
+      maintenancePending: state.effects.filter(effect => !effect.graphDone).length + embeddingsPending.length,
       notificationsPending: state.notifications.length,
       pending: [...new Set([
+        ...embeddingsPending,
         ...Object.keys(state.pending).map(id => `page:${id}`),
         ...state.effects.flatMap(effect => effect.paths),
         ...(maintenance ? state.effects.filter(effect => !effect.graphDone).map(effect => `graph:${effect.revision}`) : []),

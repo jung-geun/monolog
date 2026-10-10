@@ -4,6 +4,7 @@ import { warnLog } from "src/libs/utils/logger"
 import { computePostsGraphHash, eligibleGraphPosts } from "./graphHash"
 import { refreshGraphSnapshotInQdrant, pruneGraphSnapshotInQdrant } from "./graphSnapshot"
 import { getGraphSnapshot } from "src/apis/vector/qdrantGraphStore"
+import { isEmbeddingConfigured } from "src/apis/llm/embeddingGemma"
 
 export type IncrementalGraphRefreshInput = {
   posts: TPosts
@@ -35,7 +36,7 @@ export function refreshIncrementalGraph(input: IncrementalGraphRefreshInput): Pr
     }
     // The durable content outbox remains pending until AI work has finished;
     // serverless runtimes must not rely on work detached after the response.
-    if (process.env.ANTHROPIC_API_KEY && process.env.OPENAI_API_KEY && process.env.QDRANT_URL) {
+    if (process.env.ANTHROPIC_API_KEY && isEmbeddingConfigured()) {
       await getOrBuildOntology({ posts, changedIds: captured.changedIds, removedIds: captured.removedIds })
     }
     if (graphError) throw graphError
