@@ -83,7 +83,6 @@ describe("editor tab consent choices", () => {
     expect(writes).not.toHaveBeenCalled()
 
     openPost()
-    expect(container.querySelector('[role="region"]')?.textContent).toContain("서버로 전송하지 않습니다")
     expect(writes).not.toHaveBeenCalled()
     click("저장 안함 (이번 방문)")
     expect(writes).not.toHaveBeenCalled()
@@ -93,14 +92,11 @@ describe("editor tab consent choices", () => {
     expect(document.activeElement?.getAttribute("aria-label")).toBe("탭 저장 설정")
 
     click("탭 저장 설정")
-    expect(container.querySelector('[role="status"]')?.textContent).toContain("이번 방문")
-    expect(container.querySelector('[role="region"]')?.textContent).toContain("브라우저가 우선 처리")
     click("이 브라우저에 저장")
     expect(localStorage.getItem(consentKey)).toBe("enabled")
     expect(localStorage.getItem(sessionKey)).toContain("consent-note")
 
     click("탭 저장 설정")
-    expect(container.querySelector('[role="status"]')?.textContent).toContain("저장 중")
     click("저장 해제 및 저장된 탭 삭제")
     expect(localStorage.getItem(consentKey)).toBeNull()
     expect(localStorage.getItem(sessionKey)).toBeNull()

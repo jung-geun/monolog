@@ -24,6 +24,8 @@ TitleBar · ActivityBar · FileTree · TabBar · StatusBar · LineNumberGutter�
 ### `⌘K` 커맨드 팔레트 + 다중 탭
 `⌘K` 하나로 Actions · Posts · Tags · Categories를 검색해 어디든 점프합니다. 글 탭은 `Alt/Option+W`로 닫고 `Alt/Option+Shift+T`로 다시 열 수 있습니다. 브라우저가 `Cmd/Ctrl+W`·`Cmd/Ctrl+Shift+T`를 페이지에 전달할 때만 같은 동작을 처리합니다. 사용자가 동의하면 열린 탭과 최근 닫은 글 주소를 이 브라우저에 저장해 새로고침 후 복원합니다. 탭 간 전환은 항상 새로고침 없는 SPA 이동 — FileTree · 본문 내 링크 모두 `router.push`로 처리됩니다.
 
+`README.md`를 포함한 모든 탭은 마우스로 드래그해 순서를 바꿀 수 있습니다. 드래그 대신 탭바의 좌우 버튼을 클릭하거나 키보드로 실행해 현재 탭을 이동할 수도 있습니다. 순서를 바꿔도 현재 읽는 페이지는 유지되고, 탭 저장에 동의하면 바꾼 순서도 복원합니다.
+
 ### Three.js 3D 지식 그래프
 Three.js 원근 카메라와 d3-force-3d의 XYZ 시뮬레이션으로 실제 포스트·태그·시리즈 관계를 입체 공간에 배치합니다. 포스트는 구, 태그는 입체 마름모, 시리즈는 와이어프레임 마름모로 구분합니다.
 

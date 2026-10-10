@@ -13,10 +13,14 @@ const TitleBar = ({ filename }: Props) => (
   <StyledWrapper>
     <div className="traffic-lights">
       <button type="button" className="window-close" aria-label="사이트 닫기 / 나가기" title="사이트 닫기 / 나가기" onClick={exitSite}>
-        <span className="dot close" aria-hidden="true" />
+        <span className="dot close" aria-hidden="true">
+          <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
+            <path d="M2 2l4 4m0-4L2 6" stroke="currentColor" strokeWidth="1.2" />
+          </svg>
+        </span>
       </button>
-      <span className="dot" aria-hidden="true" />
-      <span className="dot" aria-hidden="true" />
+      <span className="dot minimize" aria-hidden="true" />
+      <span className="dot maximize" aria-hidden="true" />
     </div>
     <div className="title">pieroot.log — {filename}</div>
     <div className="branch">main</div>
@@ -42,31 +46,42 @@ const StyledWrapper = styled.div`
   .traffic-lights {
     display: flex;
     align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+
     .window-close {
       all: unset;
+      position: relative;
       display: grid;
       place-items: center;
-      width: 24px;
-      height: 24px;
-      cursor: pointer;
-      border-radius: 4px;
-      &:hover { background: ${({ theme }) => theme.colors.editor.bg3}; }
-      &:focus-visible { outline: 2px solid ${({ theme }) => theme.colors.editor.accent}; }
-      &:active .dot { transform: scale(0.85); }
-    }
-    > * + * { margin-left: 6px; }
-    .dot {
-      width: 10px;
-      height: 10px;
+      width: 12px;
+      height: 12px;
+      cursor: default;
       border-radius: 50%;
-      background: ${({ theme }) => theme.colors.editor.fg4};
-      animation: monolog-dot-arrive 320ms var(--motion-ease);
-      &:nth-child(2) { animation-delay: 45ms; }
-      &:nth-child(3) { animation-delay: 90ms; }
-      &.close {
-        background: #e8a04a;
-      }
+
+      &::before { content: ""; position: absolute; inset: -4px; border-radius: 50%; }
+      &:focus-visible { outline: 2px solid ${({ theme }) => theme.colors.editor.accent}; outline-offset: 3px; }
+      &:active .dot { filter: brightness(0.82); }
     }
+
+    .dot {
+      display: grid;
+      place-items: center;
+      box-sizing: border-box;
+      width: 12px;
+      height: 12px;
+      border: 1px solid;
+      border-radius: 50%;
+      box-shadow: inset 0 0.5px 0 rgba(255, 255, 255, 0.35);
+      animation: monolog-dot-arrive 320ms var(--motion-ease);
+
+      &.close { background: #ff5f57; border-color: #e0443e; color: #4b0b08; }
+      &.minimize { background: #febc2e; border-color: #dea123; animation-delay: 45ms; }
+      &.maximize { background: #28c840; border-color: #1aab29; animation-delay: 90ms; }
+    }
+
+    svg { opacity: 0; transition: opacity var(--motion-fast); }
+    &:hover svg, &:focus-within svg { opacity: 1; }
   }
 
   .title {

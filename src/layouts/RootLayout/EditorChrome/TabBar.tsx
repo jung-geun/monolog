@@ -1,4 +1,4 @@
-import { forwardRef } from "react"
+import { forwardRef, useRef, useState } from "react"
 import Link from "next/link"
 import styled from "@emotion/styled"
 import { useRouteChrome } from "./RouteChromeContext"
@@ -13,47 +13,130 @@ const TabBar = forwardRef<HTMLButtonElement, Props>(function TabBar(
   preferencesButtonRef
 ) {
   const {
-    tabs, activeTabId, closeTab, switchTab,
+    tabs, activeTabId, closeTab, switchTab, moveTab,
     reopenLastPost, canReopenPost, tabStorageConsent,
   } = useRouteChrome()
+  const draggedTabId = useRef<string | null>(null)
+  const canDrag = useRef(true)
+  const [draggingTabId, setDraggingTabId] = useState<string | null>(null)
+  const [dropBeforeId, setDropBeforeId] = useState<string | null>()
+  const [moveAnnouncement, setMoveAnnouncement] = useState("")
+  const activeTabIndex = tabs.findIndex((tab) => tab.id === activeTabId)
 
-  const handleClose = (e: React.MouseEvent, id: string) => {
-    e.preventDefault()
-    e.stopPropagation()
-    closeTab(id)
+  const moveActiveTab = (direction: -1 | 1) => {
+    const target = activeTabIndex + direction
+    if (activeTabIndex < 0 || target < 0 || target >= tabs.length) return
+    const tab = tabs[activeTabIndex]
+    moveTab(tab.id, direction < 0 ? tabs[target].id : tabs[target + 1]?.id ?? null)
+    setMoveAnnouncement(`${tab.label} 탭, ${tabs.length}개 중 ${target + 1}번째 위치`)
+  }
+
+  const finishDrag = () => {
+    draggedTabId.current = null
+    setDraggingTabId(null)
+    setDropBeforeId(undefined)
+  }
+
+  const dropPosition = (list: HTMLDivElement, clientX: number) => {
+    for (const tab of list.querySelectorAll<HTMLElement>("[data-tab-id]")) {
+      const bounds = tab.getBoundingClientRect()
+      if (clientX < bounds.left + bounds.width / 2) return tab.dataset.tabId!
+    }
+    return null
+  }
+
+  const handleDragStart = (event: React.DragEvent<HTMLDivElement>, id: string) => {
+    if (!canDrag.current) {
+      event.preventDefault()
+      return
+    }
+    draggedTabId.current = id
+    event.dataTransfer.clearData()
+    event.dataTransfer.setData("application/x-monolog-tab", id)
+    event.dataTransfer.effectAllowed = "move"
+    setDraggingTabId(id)
+  }
+
+  const handleDragOver = (event: React.DragEvent<HTMLDivElement>) => {
+    if (draggedTabId.current === null) return
+    event.preventDefault()
+    event.dataTransfer.dropEffect = "move"
+    setDropBeforeId(dropPosition(event.currentTarget, event.clientX))
+  }
+
+  const handleDrop = (event: React.DragEvent<HTMLDivElement>) => {
+    if (draggedTabId.current === null) return
+    event.preventDefault()
+    moveTab(draggedTabId.current, dropPosition(event.currentTarget, event.clientX))
+    finishDrag()
   }
 
   return (
     <StyledWrapper>
-      <div className="tab-list">
-      {tabs.map((tab) => {
+      <div
+        className="tab-list"
+        onDragOver={handleDragOver}
+        onDrop={handleDrop}
+        onDragLeave={(event) => {
+          const bounds = event.currentTarget.getBoundingClientRect()
+          if (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) setDropBeforeId(undefined)
+        }}
+      >
+      {tabs.map((tab, index) => {
         const isActive = tab.id === activeTabId
         return (
-          <Link
+          <div
             key={tab.id}
-            href={tab.href}
-            className={`tab${isActive ? " active" : ""}`}
-            aria-current={isActive ? "page" : undefined}
-            onClick={() => switchTab(tab.id)}
+            className={`tab${isActive ? " active" : ""}${draggingTabId === tab.id ? " dragging" : ""}${dropBeforeId === tab.id ? " drop-before" : dropBeforeId === null && index === tabs.length - 1 ? " drop-after" : ""}`}
+            data-tab-id={tab.id}
+            draggable
+            title="드래그하여 탭 순서 변경"
+            onPointerDownCapture={(event) => { canDrag.current = !(event.target instanceof Element && event.target.closest("button")) }}
+            onDragStart={(event) => handleDragStart(event, tab.id)}
+            onDragEnd={finishDrag}
           >
-            <span className="icon">◧</span>
-            <span className="label">{tab.label}</span>
+            <Link href={tab.href} className="tab-link" draggable={false} aria-current={isActive ? "page" : undefined} onNavigate={() => switchTab(tab.id)}>
+              <span className="icon">◧</span>
+              <span className="label">{tab.label}</span>
+            </Link>
             {tab.closeable && (
               <button
                 className="close-btn"
                 aria-label={`${tab.label} 닫기`}
                 type="button"
                 title={tab.kind === "post" ? "글 닫기 · Alt/Option+W (입력 중 제외)" : "탭 닫기"}
-                onClick={(e) => handleClose(e, tab.id)}
+                onClick={() => closeTab(tab.id)}
               >
                 ×
               </button>
             )}
-          </Link>
+          </div>
         )
       })}
       </div>
       <div className="tab-tools">
+        <button
+          type="button"
+          onClick={() => moveActiveTab(-1)}
+          aria-disabled={activeTabIndex <= 0}
+          aria-label="현재 탭 왼쪽으로 이동"
+          title="현재 탭 왼쪽으로 이동"
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <path d="m10 4-4 4 4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
+        <button
+          type="button"
+          onClick={() => moveActiveTab(1)}
+          aria-disabled={activeTabIndex < 0 || activeTabIndex === tabs.length - 1}
+          aria-label="현재 탭 오른쪽으로 이동"
+          title="현재 탭 오른쪽으로 이동"
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <path d="m6 4 4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
         <button
           type="button"
           onClick={reopenLastPost}
@@ -82,6 +165,7 @@ const TabBar = forwardRef<HTMLButtonElement, Props>(function TabBar(
           {tabStorageConsent === "unavailable" && <span className="storage-warning" aria-hidden="true">저장 불가</span>}
         </button>
       </div>
+      <span className="move-status" role="status" aria-live="polite">{moveAnnouncement}</span>
     </StyledWrapper>
   )
 })
@@ -111,6 +195,15 @@ const StyledWrapper = styled.div`
     &::-webkit-scrollbar { display: none; }
   }
 
+  .move-status {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
   .tab-tools {
     display: flex;
     flex-shrink: 0;
@@ -128,7 +221,7 @@ const StyledWrapper = styled.div`
       color: ${({ theme }) => theme.colors.editor.fg2};
       cursor: pointer;
 
-      &:hover:not(:disabled), &[aria-expanded="true"] {
+      &:hover:not(:disabled):not([aria-disabled="true"]), &[aria-expanded="true"] {
         background: ${({ theme }) => theme.colors.editor.bg3};
         color: ${({ theme }) => theme.colors.editor.fg};
       }
@@ -136,7 +229,7 @@ const StyledWrapper = styled.div`
         outline: 1px solid ${({ theme }) => theme.colors.editor.accent};
         outline-offset: -3px;
       }
-      &:disabled { opacity: 0.4; cursor: default; }
+      &:disabled, &[aria-disabled="true"] { opacity: 0.4; cursor: default; }
     }
     .storage-unavailable {
       width: auto;
@@ -149,15 +242,16 @@ const StyledWrapper = styled.div`
 
   .tab {
     position: relative;
-    padding: 0 10px 0 12px;
+    padding: 0 10px 0 0;
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 0;
     border-right: 1px solid ${({ theme }) => theme.colors.editor.line};
     color: ${({ theme }) => theme.colors.editor.fg3};
     background: transparent;
     white-space: nowrap;
     cursor: pointer;
+    user-select: none;
     text-decoration: none;
     flex-shrink: 0;
     max-width: 220px;
@@ -182,9 +276,21 @@ const StyledWrapper = styled.div`
       color: ${({ theme }) => theme.colors.editor.fg};
     }
 
-    &:focus-visible {
-      outline: 1px solid ${({ theme }) => theme.colors.editor.accent};
-      outline-offset: -3px;
+    .tab-link {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex: 1;
+      min-width: 0;
+      height: 100%;
+      padding-left: 12px;
+      color: inherit;
+      text-decoration: none;
+
+      &:focus-visible {
+        outline: 1px solid ${({ theme }) => theme.colors.editor.accent};
+        outline-offset: -3px;
+      }
     }
 
     &:active .icon { transform: scale(0.85); }
@@ -195,6 +301,20 @@ const StyledWrapper = styled.div`
 
       &::before { transform: scaleX(1); }
     }
+
+    &.dragging { opacity: 0.45; cursor: grabbing; }
+
+    &.drop-before::after, &.drop-after::after {
+      content: "";
+      position: absolute;
+      top: 4px;
+      bottom: 4px;
+      width: 2px;
+      background: ${({ theme }) => theme.colors.editor.accent};
+      pointer-events: none;
+    }
+    &.drop-before::after { left: 0; }
+    &.drop-after::after { right: 0; }
 
     .icon {
       color: ${({ theme }) => theme.colors.editor.accent2};
@@ -213,6 +333,7 @@ const StyledWrapper = styled.div`
       all: unset;
       width: 24px;
       height: 28px;
+      margin-left: 6px;
       display: grid;
       place-items: center;
       border-radius: 3px;

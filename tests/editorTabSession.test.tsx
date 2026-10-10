@@ -109,6 +109,46 @@ describe("editor tab sessions", () => {
     expect(chrome.tabs.map((tab) => tab.id)).toEqual(["readme", "/beta"])
   })
 
+  it("inserts forward before a named target without changing selection or routing", () => {
+    render()
+    navigate("/alpha")
+    navigate("/beta")
+    navigate("/gamma")
+    act(() => chrome.moveTab("/alpha", "/beta"))
+    expect(chrome.tabs.map((tab) => tab.id)).toEqual(["readme", "/alpha", "/beta", "/gamma"])
+    expect(chrome.activeTabId).toBe("/gamma")
+    expect(mockRouter.push).not.toHaveBeenCalled()
+    act(() => chrome.moveTab("/alpha", "/gamma"))
+    expect(chrome.tabs.map((tab) => tab.id)).toEqual(["readme", "/beta", "/alpha", "/gamma"])
+    expect(chrome.activeTabId).toBe("/gamma")
+    expect(mockRouter.push).not.toHaveBeenCalled()
+  })
+
+  it("moves README and post tabs without navigating, then closes toward the newly adjacent tab", () => {
+    render()
+    navigate("/alpha")
+    navigate("/beta")
+    navigate("/gamma")
+    act(() => {
+      chrome.closeTab("/alpha")
+      chrome.moveTab("/gamma", "readme")
+      chrome.moveTab("readme", null)
+      chrome.moveTab("/gamma", "/missing")
+    })
+    expect(chrome.tabs.map((tab) => tab.id)).toEqual(["/gamma", "/beta", "readme"])
+    expect(chrome.activeTabId).toBe("/gamma")
+    expect(mockRouter.push).not.toHaveBeenCalled()
+    act(() => chrome.closeActivePost())
+    expect(chrome.activeTabId).toBe("/beta")
+    expect(mockRouter.push.mock.calls).toEqual([["/beta"]])
+    act(() => {
+      chrome.reopenLastPost()
+      chrome.reopenLastPost()
+    })
+    expect(chrome.tabs.map((tab) => tab.id)).toEqual(["/beta", "readme", "/gamma", "/alpha"])
+    expect(mockRouter.push.mock.calls).toEqual([["/beta"], ["/gamma"], ["/alpha"]])
+  })
+
   it("consumes closed posts in LIFO order, reopening exact URLs once without duplicating an already open post", () => {
     render()
     navigate("/alpha?mode=one#part")
@@ -222,6 +262,30 @@ describe("editor tab sessions", () => {
     remount()
     expect(chrome.tabStorageConsent).toBe("prompt")
     expect(chrome.tabs.some((tab) => tab.id === "/alpha")).toBe(false)
+  })
+
+  it("restores a reordered session including a moved README and keeps the entry route active", () => {
+    render()
+    navigate("/alpha")
+    navigate("/beta")
+    navigate("/gamma")
+    act(() => {
+      chrome.allowTabStorage()
+      chrome.moveTab("/beta", "readme")
+      chrome.moveTab("readme", null)
+    })
+    const order = ["/beta", "/alpha", "/gamma", "readme"]
+    expect(JSON.parse(originalStorage.getItem(TAB_SESSION_KEY)!).tabs.map((tab: Tab) => tab.id)).toEqual(order)
+    mockRouter.asPath = "/beta"
+    filename = "beta.md"
+    remount()
+    expect(chrome.tabs.map((tab) => tab.id)).toEqual(order)
+    expect(chrome.activeTabId).toBe("/beta")
+    expect(mockRouter.push).not.toHaveBeenCalled()
+    act(() => chrome.closeActivePost())
+    expect(chrome.tabs.map((tab) => tab.id)).toEqual(["/alpha", "/gamma", "readme"])
+    expect(chrome.activeTabId).toBe("/alpha")
+    expect(mockRouter.push.mock.calls).toEqual([["/alpha"]])
   })
 
   it("persists minimal metadata after consent and restores other tabs and closed history without replacing the current deep link", () => {
