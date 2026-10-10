@@ -364,7 +364,7 @@ src/
 │   ├── Archive/             — 카테고리 타임라인 (썸네일 카드)
 │   ├── SeriesList/          — 시리즈 인덱스 카드 그리드
 │   ├── SeriesArchive/       — 시리즈 상세 타임라인
-│   ├── Graph/               — 포스트 그래프 (CONNECTED 클릭 → 노드 선택)
+│   ├── Graph/               — Three.js 3D 포스트 그래프 (GraphScene · layout3d · 관계 상세)
 │   └── Search/              — 전문 검색
 ├── styles/                  — theme · colors · variables · zIndexes
 └── types/                   — TPost · TNotionDatabase · TDbRow · ...

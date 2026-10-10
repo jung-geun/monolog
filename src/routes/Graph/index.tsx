@@ -1,1009 +1,429 @@
-import { useState, useMemo, useEffect, useRef, useCallback } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import styled from "@emotion/styled"
+import dynamic from "next/dynamic"
 import Link from "next/link"
-import {
-  forceSimulation,
-  forceLink,
-  forceManyBody,
-  forceCollide,
-  forceX,
-  forceY,
-  forceRadial,
-  type Simulation,
-  type ForceManyBody,
-  type ForceLink as ForceLinkType,
-  SimulationNodeDatum,
-  SimulationLinkDatum,
-} from "d3-force"
-import type { ForceX as ForceXType, ForceY as ForceYType, ForceRadial as ForceRadialType } from "d3-force"
-import { EdgeKind } from "src/types/notionGraph"
-import { drag, type D3DragEvent } from "d3-drag"
-import { select } from "d3-selection"
-import { zoom, zoomIdentity, type ZoomBehavior } from "d3-zoom"
+import { useIsFetching } from "@tanstack/react-query"
 import useNotionGraphQuery from "src/hooks/useNotionGraphQuery"
 import useOntologyQuery from "src/hooks/useOntologyQuery"
+import { queryKey } from "src/constants/queryKey"
 import { useRegisterChrome } from "src/layouts/RootLayout/EditorChrome/RouteChromeContext"
-import {
-  diamondPath,
-  GraphNode,
-  GraphNodeShape,
-  NODE_LABEL_GAP,
-  SERIES_COLOR,
-  TAG_COLOR,
-  nodeCollisionRadiusForDegree,
-  nodeRadiusForDegree,
-  nodeShapeForKind,
-} from "src/libs/utils/graph"
-import type { SemanticRelationKind } from "src/types/ontology"
+import { DEFAULT_LAYOUT, RELATION_STYLES } from "./types"
+import type { GraphLayoutOptions, SceneLink } from "./types"
 
-const W = 720
-const H = 520
+const GraphScene = dynamic(() => import("./GraphScene"), {
+  ssr: false,
+  loading: () => <div className="graph-message" role="status">Preparing the 3D view…</div>,
+})
 
-type CanvasSize = {
-  width: number
-  height: number
-}
-
-type DirectedEdgeGeometry = {
-  x1: number
-  y1: number
-  x2: number
-  y2: number
-}
-
-type NodeShapeElement = SVGCircleElement | SVGPathElement
-
-
-function positionNodeShape(
-  element: NodeShapeElement | null,
-  shape: GraphNodeShape,
-  x: number,
-  y: number,
-  radius: number
-): void {
-  if (!element) return
-  if (shape === "circle") {
-    element.setAttribute("cx", String(x))
-    element.setAttribute("cy", String(y))
-    return
-  }
-  element.setAttribute("d", diamondPath(x, y, radius))
-}
-
-
-function directedEdgeGeometry(source: GraphNode, target: GraphNode): DirectedEdgeGeometry {
-  const dx = target.x - source.x
-  const dy = target.y - source.y
-  const distance = Math.hypot(dx, dy)
-  if (distance === 0) {
-    return { x1: source.x, y1: source.y, x2: target.x, y2: target.y }
-  }
-
-  const usableDistance = Math.max(0, distance - 2)
-  const sourceRadius = nodeRadiusForDegree(source.degree)
-  const targetRadius = nodeRadiusForDegree(target.degree)
-  const unitX = dx / distance
-  const unitY = dy / distance
-  const sourceBoundary = nodeShapeForKind(source.kind) === "circle"
-    ? sourceRadius
-    : sourceRadius / (Math.abs(unitX) + Math.abs(unitY))
-  const targetBoundary = nodeShapeForKind(target.kind) === "circle"
-    ? targetRadius
-    : targetRadius / (Math.abs(unitX) + Math.abs(unitY))
-  const sourceOffset = Math.min(sourceBoundary + 2, usableDistance / 2)
-  const targetOffset = Math.min(targetBoundary + 2, usableDistance - sourceOffset)
-
-
-  return {
-    x1: source.x + unitX * sourceOffset,
-    y1: source.y + unitY * sourceOffset,
-    x2: target.x - unitX * targetOffset,
-    y2: target.y - unitY * targetOffset,
-  }
-}
-
-type SimLink = SimulationLinkDatum<GraphNode & SimulationNodeDatum> & {
-  weight: number
-  type: EdgeKind
-  sameCategory: boolean
-}
-
-const SEMANTIC_EDGE_COLOR: Partial<Record<SemanticRelationKind, string>> = {
-  "similar-topic": "#888",
-  elaborates:      "#6ea8fe",
-  supports:        "#57cc99",
-  applies:         "#ffb347",
-  prerequisite:    "#ee5a1c",
-  contradicts:     "#e05c5c",
-}
+const LAYOUT_CONTROLS: {
+  key: keyof GraphLayoutOptions
+  label: string
+  min: number
+  max: number
+  step: number
+}[] = [
+  { key: "postRepulsion", label: "Post repulsion", min: 50, max: 900, step: 10 },
+  { key: "hubRepulsion", label: "Hub repulsion", min: 0, max: 140, step: 5 },
+  { key: "hubRingRadius", label: "Hub radius", min: 0.2, max: 0.7, step: 0.01 },
+  { key: "hubLinkStrength", label: "Hub attraction", min: 0, max: 0.3, step: 0.01 },
+  { key: "linkDistance", label: "Post link distance", min: 20, max: 180, step: 4 },
+]
 
 const Graph = () => {
   const graph = useNotionGraphQuery()
-  const { ontology } = useOntologyQuery()
-
-  // nodes/edges/cats are pre-computed server-side; wrap in useMemo to stabilize references.
-  const { nodes, edges, cats } = useMemo(
-    () => ({ nodes: graph.nodes, edges: graph.edges, cats: graph.cats }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [graph.generatedAt]
-  )
-
-  const [selectedIdx, setSelectedIdx] = useState(-1)
-  const [hoveredIdx, setHoveredIdx] = useState(-1)
-  const [hoverCat, setHoverCat] = useState<string | null>(null)
-  const [canvasSize, setCanvasSize] = useState<CanvasSize>({ width: W, height: H })
-  const [postRepulsion, setPostRepulsion] = useState(220)
-  const [hubRepulsion, setHubRepulsion] = useState(30)
-  const [hubRingRadius, setHubRingRadius] = useState(0.42)
-  const [hubLinkStrength, setHubLinkStrength] = useState(0.04)
-  const [linkDistance, setLinkDistance] = useState(44)
-
-  // Semantic overlay state
+  const { ontology, isLoading: ontologyLoading } = useOntologyQuery()
+  const isFetching = useIsFetching({ queryKey: queryKey.notionGraph() }) > 0
+  const { nodes, edges, cats } = graph
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [hoveredIndex, setHoveredIndex] = useState(-1)
+  const [category, setCategory] = useState<string | null>(null)
+  const [hoverCategory, setHoverCategory] = useState<string | null>(null)
+  const [layoutOptions, setLayoutOptions] = useState<GraphLayoutOptions>(DEFAULT_LAYOUT)
+  const [showReferences, setShowReferences] = useState(true)
+  const [showTags, setShowTags] = useState(true)
+  const [showSeries, setShowSeries] = useState(true)
+  const [showLogical, setShowLogical] = useState(true)
   const [showSimilar, setShowSimilar] = useState(false)
-  const [showLogical, setShowLogical] = useState(false)
-  const [simThreshold, setSimThreshold] = useState(0.80)
-
-  // Animation state
+  const [simThreshold, setSimThreshold] = useState(0.8)
+  const [neighborhoodOnly, setNeighborhoodOnly] = useState(false)
+  const [resetViewToken, setResetViewToken] = useState(0)
+  const [focusRequest, setFocusRequest] = useState<{ index: number; token: number } | null>(null)
+  const focusToken = useRef(0)
+  const [search, setSearch] = useState("")
   const [isPlaying, setIsPlaying] = useState(false)
   const [animSpeed, setAnimSpeed] = useState(5)
-  const [animRevealCount, setAnimRevealCount] = useState<number | null>(null)
+  const [revealCount, setRevealCount] = useState<number | null>(null)
+  const timelinePosition = useRef(0)
+  const selectedIndex = nodes.findIndex((node) => node.id === selectedId)
+  const effectiveNeighborhoodOnly = neighborhoodOnly && selectedIndex >= 0
+  const selected = nodes[selectedIndex]
+  const highlightedCategory = hoverCategory ?? category
 
-  const selected = nodes[selectedIdx]
-
-  // CONNECTED dedupe: 같은 페어가 여러 엣지 타입으로 연결된 경우 1줄로 머지
-  const connectedNodes = useMemo(() => {
-    const byIdx = new Map<number, string[]>()
-    for (const e of edges) {
-      if (e.a !== selectedIdx && e.b !== selectedIdx) continue
-      const idx = e.a === selectedIdx ? e.b : e.a
-      const prev = byIdx.get(idx) ?? []
-      if (!prev.includes(e.type)) prev.push(e.type)
-      byIdx.set(idx, prev)
+  const nodeIndexById = useMemo(() => new Map(nodes.map((node, index) => [node.id, index])), [nodes])
+  const categoryColors = useMemo(() => {
+    const colors: Record<string, string> = {}
+    for (const node of nodes) {
+      if (node.kind === "post" && node.category) colors[node.category] = node.color
     }
-    return [...byIdx.entries()].map(([idx, vias]) => ({
-      idx,
-      node: nodes[idx],
-      via: vias.join(" · "),
-    }))
-  }, [edges, nodes, selectedIdx])
-
-  const selectedKind = selected?.kind ?? "post"
-
-  const catColors: Record<string, string> = {}
-  nodes.forEach((n) => { if (n.category) catColors[n.category] = n.color })
-
-  // Node appearance rank for timeline animation (post-unit, createdAt order)
-  const { nodeAppearRank, postCount } = useMemo(() => {
-    const rank = new Array(nodes.length).fill(Infinity)
-
-    // (1) post 노드: createdAt 오름차순으로 rank 부여
-    const postsByDate = nodes
-      .map((n, i) => ({ i, date: n.kind === "post" ? (n.createdAt ?? "") : "" }))
-      .filter((p) => p.date !== "" && nodes[p.i].kind === "post")
-      .sort((a, b) => a.date.localeCompare(b.date))
-    postsByDate.forEach(({ i }, r) => { rank[i] = r })
-
-    // (2) createdAt 없는 post는 dated posts 뒤로
-    let next = postsByDate.length
-    nodes.forEach((n, i) => {
-      if (n.kind === "post" && rank[i] === Infinity) rank[i] = next++
-    })
-    const total = next
-
-    // (3) hub 노드: 연결된 post 중 가장 빠른 rank에 함께 등장
-    for (const e of edges) {
-      const na = nodes[e.a], nb = nodes[e.b]
-      if (na.kind === "post" && nb.kind !== "post") {
-        rank[e.b] = Math.min(rank[e.b], rank[e.a])
-      } else if (nb.kind === "post" && na.kind !== "post") {
-        rank[e.a] = Math.min(rank[e.a], rank[e.b])
-      }
-    }
-
-    // (4) isolated hub(연결된 post 없음)는 맨 마지막
-    nodes.forEach((n, i) => {
-      if (n.kind !== "post" && rank[i] === Infinity) rank[i] = total
-    })
-
-    return { nodeAppearRank: rank, postCount: total }
-  }, [nodes, edges])
-
-  const activeFocusIdx = hoveredIdx >= 0 ? hoveredIdx : selectedIdx
-
-  // Hover takes precedence while the pointer is over a node; a click remains focused after leave.
-  const focusNeighbors = useMemo(() => {
-    if (activeFocusIdx < 0 || activeFocusIdx >= nodes.length) return null
-    const set = new Set<number>([activeFocusIdx])
-    for (const e of edges) {
-      if (e.a === activeFocusIdx) set.add(e.b)
-      else if (e.b === activeFocusIdx) set.add(e.a)
-    }
-    return set
-  }, [activeFocusIdx, edges, nodes.length])
-
-  const nodeIdxByPostId = useMemo(() => {
-    const m = new Map<string, number>()
-    nodes.forEach((n, i) => m.set(n.id, i))
-    return m
+    return colors
   }, [nodes])
 
-  const semanticLinks = useMemo(() => {
-    if (!ontology || (!showSimilar && !showLogical)) return []
-    return ontology.edges
-      .filter((e) =>
-        (showSimilar && e.kind === "similar-topic" && e.confidence >= simThreshold) ||
-        (showLogical && e.kind !== "similar-topic")
-      )
-      .flatMap((e) => {
-        const ai = nodeIdxByPostId.get(e.source)
-        const bi = nodeIdxByPostId.get(e.target)
-        if (ai === undefined || bi === undefined) return []
-        return [{ ai, bi, kind: e.kind, confidence: e.confidence }]
+  const semanticLinks = useMemo<SceneLink[]>(() => {
+    if (!ontology) return []
+    return ontology.edges.flatMap((edge) => {
+      const a = nodeIndexById.get(edge.source)
+      const b = nodeIndexById.get(edge.target)
+      if (a === undefined || b === undefined || a === b) return []
+      return [{ a, b, kind: edge.kind, weight: 1, confidence: edge.confidence, rationale: edge.rationale }]
+    })
+  }, [ontology, nodeIndexById])
+
+  const links = useMemo<SceneLink[]>(() => [
+    ...edges
+      .filter((edge) => edge.type === "has-tag" ? showTags : edge.type === "in-series" ? showSeries : showReferences)
+      .map((edge) => ({ a: edge.a, b: edge.b, kind: edge.type, weight: edge.weight, contexts: edge.contexts })),
+    ...semanticLinks.filter((edge) => edge.kind === "similar-topic"
+      ? showSimilar && (edge.confidence ?? 0) >= simThreshold
+      : showLogical),
+  ], [edges, semanticLinks, showReferences, showTags, showSeries, showLogical, showSimilar, simThreshold])
+
+  const { nodeAppearRank, postCount } = useMemo(() => {
+    const ranks = new Array<number>(nodes.length).fill(Infinity)
+    const posts = nodes
+      .map((node, index) => ({ node, index }))
+      .filter(({ node }) => node.kind === "post")
+      .sort((a, b) => {
+        if (!a.node.createdAt) return b.node.createdAt ? 1 : a.index - b.index
+        if (!b.node.createdAt) return -1
+        return a.node.createdAt.localeCompare(b.node.createdAt) || a.index - b.index
       })
-  }, [ontology, showSimilar, showLogical, simThreshold, nodeIdxByPostId])
+    posts.forEach(({ index }, rank) => { ranks[index] = rank })
+    for (const edge of edges) {
+      if (nodes[edge.a].kind === "post" && nodes[edge.b].kind !== "post") {
+        ranks[edge.b] = Math.min(ranks[edge.b], ranks[edge.a])
+      } else if (nodes[edge.b].kind === "post" && nodes[edge.a].kind !== "post") {
+        ranks[edge.a] = Math.min(ranks[edge.a], ranks[edge.b])
+      }
+    }
+    for (let index = 0; index < ranks.length; index += 1) {
+      if (ranks[index] === Infinity) ranks[index] = Math.max(0, posts.length - 1)
+    }
+    return { nodeAppearRank: ranks, postCount: posts.length }
+  }, [nodes, edges])
 
-  useEffect(() => { semanticLinksRef.current = semanticLinks }, [semanticLinks])
+  const activeFocus = selectedIndex >= 0 && neighborhoodOnly
+    ? selectedIndex
+    : hoveredIndex >= 0 ? hoveredIndex : selectedIndex
+  const focusNeighbors = useMemo(() => {
+    if (activeFocus < 0 || activeFocus >= nodes.length) return null
+    const neighbors = new Set<number>([activeFocus])
+    for (const link of links) {
+      if (link.a === activeFocus) neighbors.add(link.b)
+      else if (link.b === activeFocus) neighbors.add(link.a)
+    }
+    return neighbors
+  }, [activeFocus, links, nodes.length])
 
-  const isNodeDimmed = (i: number, cat: string | undefined) => {
-    if (focusNeighbors && !focusNeighbors.has(i)) return true
-    return hoverCat !== null && hoverCat !== (cat ?? "")
-  }
-  const isEdgeDimmed = (e: { a: number; b: number }, naCat?: string, nbCat?: string) => {
-    if (focusNeighbors && !(focusNeighbors.has(e.a) && focusNeighbors.has(e.b))) return true
-    const dimA = hoverCat !== null && hoverCat !== (naCat ?? "")
-    const dimB = hoverCat !== null && hoverCat !== (nbCat ?? "")
-    return dimA && dimB
-  }
-  const labelOpacity = (cat: string) => {
-    if (focusNeighbors) return 0.35
-    return hoverCat !== null && hoverCat !== cat ? 0.25 : 1
-  }
+  const connectedNodes = useMemo(() => {
+    const neighbors = new Map<number, { index: number; relations: SceneLink[]; weight: number }>()
+    if (selectedIndex < 0) return []
+    for (const link of links) {
+      const index = link.a === selectedIndex ? link.b : link.b === selectedIndex ? link.a : -1
+      if (index < 0 || (revealCount !== null && nodeAppearRank[index] >= revealCount)) continue
+      const existing = neighbors.get(index)
+      if (existing) {
+        existing.relations.push(link)
+        existing.weight += link.weight
+      } else {
+        neighbors.set(index, { index, relations: [link], weight: link.weight })
+      }
+    }
+    return [...neighbors.values()].sort((a, b) =>
+      Number(nodes[b.index].kind === "post") - Number(nodes[a.index].kind === "post")
+      || b.weight - a.weight
+      || nodes[a.index].title.localeCompare(nodes[b.index].title)
+    )
+  }, [selectedIndex, links, nodes, revealCount, nodeAppearRank])
 
-  const statusItems = useMemo(() => {
-    const typeCounts = edges.reduce<Record<string, number>>((acc, e) => {
-      acc[e.type] = (acc[e.type] ?? 0) + 1
-      return acc
-    }, {})
-    const typeStr = Object.entries(typeCounts)
-      .map(([t, n]) => `${n} ${t}`)
-      .join(" · ")
-    return ["graph", `${nodes.length} nodes`, `${edges.length} edges${typeStr ? ` (${typeStr})` : ""}`, "force simulation"]
-  }, [nodes.length, edges])
+  const searchResults = useMemo(() => {
+    const query = search.trim().toLocaleLowerCase()
+    if (!query) return []
+    return nodes.flatMap((node, index) =>
+      (revealCount === null || nodeAppearRank[index] < revealCount)
+        && `${node.title} ${node.slug ?? ""} ${node.tags?.join(" ") ?? ""}`.toLocaleLowerCase().includes(query)
+        ? [index] : []
+    ).slice(0, 10)
+  }, [search, nodes, revealCount, nodeAppearRank])
+
+  const shownCounts = useMemo(() => {
+    const visible = (index: number) =>
+      (revealCount === null || nodeAppearRank[index] < revealCount)
+      && (!effectiveNeighborhoodOnly || !focusNeighbors || focusNeighbors.has(index))
+    return {
+      nodes: nodes.reduce((count, _, index) => count + Number(visible(index)), 0),
+      links: links.reduce((count, link) => count + Number(visible(link.a) && visible(link.b)), 0),
+    }
+  }, [nodes, links, revealCount, nodeAppearRank, effectiveNeighborhoodOnly, focusNeighbors])
+
+  const statusItems = useMemo(() => [
+    "3D graph", `${nodes.length} nodes`, `${edges.length} source relations`, "WebGL · perspective",
+  ], [nodes.length, edges.length])
   useRegisterChrome("graph.md", statusItems, "graph")
 
-  // DOM refs for direct coordinate updates during simulation tick
-  const nodeShapeRefs = useRef<(NodeShapeElement | null)[]>([])
-  const ringRefs = useRef<(NodeShapeElement | null)[]>([])
-  const labelRefs = useRef<(SVGTextElement | null)[]>([])
-  const lineRefs = useRef<(SVGLineElement | null)[]>([])
-  const overlayLineRefs = useRef<(SVGLineElement | null)[]>([])
-  const semanticLinksRef = useRef<{ ai: number; bi: number; kind: SemanticRelationKind; confidence: number }[]>([])
-  const catLabelRefs = useRef<Record<string, SVGTextElement | null>>({})
-  const canvasRef = useRef<HTMLDivElement | null>(null)
-  const nodesLayerRef = useRef<SVGGElement | null>(null)
-  const gridPatternRef = useRef<SVGPatternElement | null>(null)
+  const handleSelect = useCallback((index: number) => {
+    setSelectedId((previous) => index < 0 || nodes[index]?.id === previous ? null : nodes[index]?.id ?? null)
+    setHoveredIndex(-1)
+  }, [nodes])
 
-  // Force instance refs for mutation without simulation restart
-  type N = GraphNode & SimulationNodeDatum
-  const simRef = useRef<Simulation<N, undefined> | null>(null)
-  const chargeRef = useRef<ForceManyBody<N> | null>(null)
-  const xForceRef = useRef<ForceXType<N> | null>(null)
-  const yForceRef = useRef<ForceYType<N> | null>(null)
-  const linkForceRef = useRef<ForceLinkType<N, SimLink> | null>(null)
-  const radialForceRef = useRef<ForceRadialType<N> | null>(null)
-
-  // Animation refs
-  const animIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const animRevealRef = useRef(0)
-
-  // Zoom refs
-  const svgRef = useRef<SVGSVGElement | null>(null)
-  const zoomRootRef = useRef<SVGGElement | null>(null)
-  const zoomBehaviorRef = useRef<ZoomBehavior<SVGSVGElement, unknown> | null>(null)
+  const focusNode = (index: number) => {
+    setFocusRequest({ index, token: ++focusToken.current })
+  }
+  const clearSelection = () => {
+    setSelectedId(null)
+    setHoveredIndex(-1)
+  }
+  const chooseSearchResult = (index: number) => {
+    setSelectedId(nodes[index].id)
+    setHoveredIndex(-1)
+    setSearch("")
+    focusNode(index)
+  }
 
   useEffect(() => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-
-    const updateCanvasSize = () => {
-      const { width, height } = canvas.getBoundingClientRect()
-      if (width <= 0 || height <= 0) return
-      setCanvasSize((current) =>
-        current.width === width && current.height === height ? current : { width, height }
-      )
-    }
-
-    updateCanvasSize()
-    const observer = new ResizeObserver(updateCanvasSize)
-    observer.observe(canvas)
-    return () => observer.disconnect()
-  }, [])
-
-  // Force-directed simulation
-  useEffect(() => {
-    if (!nodes.length) return
-
-    const links: SimLink[] = edges.map((e) => ({
-      source: e.a,
-      target: e.b,
-      weight: e.weight,
-      type: e.type,
-      sameCategory: e.sameCategory,
-    }))
-
-    const isHubLink = (d: SimLink) => d.type === "has-tag" || d.type === "in-series"
-
-    const chargeF = forceManyBody<N>().strength((node) =>
-      node.kind === "post" ? -220 : -30
-    )
-    const xF = forceX<N>(canvasSize.width / 2).strength((n) => (n.kind === "post" ? 0.01 : 0))
-    const yF = forceY<N>(canvasSize.height / 2).strength((n) => (n.kind === "post" ? 0.01 : 0))
-    const radialF = forceRadial<N>(
-      Math.min(canvasSize.width, canvasSize.height) * 0.42,
-      canvasSize.width / 2,
-      canvasSize.height / 2
-    )
-      .strength((node) => (node.kind === "post" ? 0 : 0.18))
-    const linkF = forceLink<N, SimLink>(links)
-      .id((_, i) => i)
-      .distance((d) =>
-        isHubLink(d) ? 110 : Math.max(20, linkDistance / Math.max(1, Math.log2(1 + d.weight)))
-      )
-      .strength((d) =>
-        isHubLink(d) ? hubLinkStrength : Math.min(0.6, 0.15 + 0.1 * d.weight)
-      )
-
-    const sim = forceSimulation<N>(nodes as N[])
-      .force("link", linkF)
-      .force("charge", chargeF)
-      .force("radial", radialF)
-      .force("x", xF)
-      .force("y", yF)
-      .force("collide", forceCollide<N>((node) => nodeCollisionRadiusForDegree(node.degree)))
-      .alpha(1)
-      .alphaDecay(0.03)
-      .on("tick", () => {
-        nodes.forEach((n, i) => {
-          const sz = nodeRadiusForDegree(n.degree)
-          const shape = nodeShapeForKind(n.kind)
-          positionNodeShape(nodeShapeRefs.current[i], shape, n.x, n.y, sz)
-          positionNodeShape(
-            ringRefs.current[i],
-            shape,
-            n.x,
-            n.y,
-            nodeCollisionRadiusForDegree(n.degree)
-          )
-          const lbl = labelRefs.current[i]
-          if (lbl) {
-            lbl.setAttribute("x", String(n.x + sz + NODE_LABEL_GAP))
-            lbl.setAttribute("y", String(n.y + 3))
-          }
-        })
-        edges.forEach((e, i) => {
-          const src = nodes[e.a], tgt = nodes[e.b]
-          const l = lineRefs.current[i]
-          if (l) {
-            const geometry = directedEdgeGeometry(src, tgt)
-            l.setAttribute("x1", String(geometry.x1))
-            l.setAttribute("y1", String(geometry.y1))
-            l.setAttribute("x2", String(geometry.x2))
-            l.setAttribute("y2", String(geometry.y2))
-          }
-        })
-        cats.forEach((c) => {
-          const catNodes = nodes.filter((n) => n.category === c)
-          if (!catNodes.length) return
-          const cx = catNodes.reduce((s, n) => s + (n.x ?? 0), 0) / catNodes.length
-          const cy = catNodes.reduce((s, n) => s + (n.y ?? 0), 0) / catNodes.length
-          const el = catLabelRefs.current[c]
-          if (el) {
-            el.setAttribute("x", String(cx))
-            el.setAttribute("y", String(cy - 20))
-          }
-        })
-        semanticLinksRef.current.forEach((sl, i) => {
-          const src = nodes[sl.ai], tgt = nodes[sl.bi]
-          const l = overlayLineRefs.current[i]
-          if (l && src && tgt) {
-            l.setAttribute("x1", String(src.x ?? 0))
-            l.setAttribute("y1", String(src.y ?? 0))
-            l.setAttribute("x2", String(tgt.x ?? 0))
-            l.setAttribute("y2", String(tgt.y ?? 0))
-          }
-        })
-      })
-
-    simRef.current = sim
-    chargeRef.current = chargeF
-    xForceRef.current = xF
-    yForceRef.current = yF
-    linkForceRef.current = linkF
-    radialForceRef.current = radialF
-
-    if (nodesLayerRef.current) {
-      type DragEv = D3DragEvent<SVGGElement, GraphNode, GraphNode>
-      const dragBehavior = drag<SVGGElement, GraphNode>()
-        .clickDistance(4)
-        .on("start", (event: DragEv, d) => {
-          if (!event.active) sim.alphaTarget(0.3).restart()
-          d.fx = d.x
-          d.fy = d.y
-        })
-        .on("drag", (event: DragEv, d) => {
-          d.fx = event.x
-          d.fy = event.y
-        })
-        .on("end", (event: DragEv, d) => {
-          if (!event.active) sim.alphaTarget(0)
-          d.fx = null
-          d.fy = null
-        })
-
-      select(nodesLayerRef.current)
-        .selectAll<SVGGElement, GraphNode>("g.node")
-        .data(nodes, (_, i) => String(i))
-        .call(dragBehavior)
-    }
-
-    return () => { sim.stop() }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [graph.generatedAt, canvasSize.width, canvasSize.height])
-
-  // Force parameter mutation when sliders change — no simulation restart
-  useEffect(() => {
-    if (!simRef.current || !chargeRef.current) return
-    chargeRef.current.strength((node: N) =>
-      node.kind === "post" ? -postRepulsion : -hubRepulsion
-    )
-    if (radialForceRef.current) {
-      radialForceRef.current.radius(Math.min(W, H) * hubRingRadius)
-    }
-    if (linkForceRef.current) {
-      linkForceRef.current
-        .distance((d: SimLink) =>
-          d.type === "has-tag" || d.type === "in-series"
-            ? 110
-            : Math.max(20, linkDistance / Math.max(1, Math.log2(1 + d.weight)))
-        )
-        .strength((d: SimLink) =>
-          d.type === "has-tag" || d.type === "in-series"
-            ? hubLinkStrength
-            : Math.min(0.6, 0.15 + 0.1 * d.weight)
-        )
-    }
-    simRef.current.alpha(0.5).restart()
-  }, [postRepulsion, hubRepulsion, hubRingRadius, hubLinkStrength, linkDistance])
-
-  // Keep animRevealRef in sync (stale closure 방지)
-  useEffect(() => { animRevealRef.current = animRevealCount ?? 0 }, [animRevealCount])
-
-  // Animation: reveal nodes (+ hub + edges) in post createdAt order
-  useEffect(() => {
-    if (!isPlaying) {
-      if (animIntervalRef.current) {
-        clearInterval(animIntervalRef.current)
-        animIntervalRef.current = null
-      }
-      return
-    }
-
-    let revealed = animRevealRef.current
-    const intervalMs = Math.max(50, Math.round(1000 / animSpeed))
-
-    animIntervalRef.current = setInterval(() => {
-      revealed += 1
-      if (revealed >= postCount) {
-        clearInterval(animIntervalRef.current!)
-        animIntervalRef.current = null
-        setAnimRevealCount(postCount)
-        setIsPlaying(false)
-      } else {
-        setAnimRevealCount(revealed)
-      }
-    }, intervalMs)
-
-    return () => {
-      if (animIntervalRef.current) {
-        clearInterval(animIntervalRef.current)
-        animIntervalRef.current = null
-      }
-    }
+    if (!isPlaying) return
+    const interval = setInterval(() => {
+      const next = Math.min(postCount, timelinePosition.current + 1)
+      timelinePosition.current = next
+      setRevealCount(next)
+      if (next >= postCount) setIsPlaying(false)
+    }, Math.max(50, Math.round(1000 / animSpeed)))
+    return () => clearInterval(interval)
   }, [isPlaying, animSpeed, postCount])
 
-  // Zoom/pan behavior — mounted once, cleaned up on unmount
-  useEffect(() => {
-    const svgEl = svgRef.current
-    if (!svgEl) return
-    const z = zoom<SVGSVGElement, unknown>()
-      .scaleExtent([0.3, 4])
-      .filter((event) => {
-        if (event.type === "wheel") return true
-        const target = event.target as SVGElement | null
-        if (target?.closest("g.node")) return false
-        return !event.ctrlKey && event.button === 0
-      })
-      .on("zoom", (event) => {
-        gridPatternRef.current?.setAttribute("patternTransform", event.transform.toString())
-        zoomRootRef.current?.setAttribute("transform", event.transform.toString())
-      })
 
-    select(svgEl).call(z)
-    zoomBehaviorRef.current = z
-
-    return () => { select(svgEl).on(".zoom", null) }
-  }, [])
-
-  const handleResetView = () => {
-    if (!svgRef.current || !zoomBehaviorRef.current) return
-    select(svgRef.current)
-      .transition()
-      .duration(300)
-      .call(zoomBehaviorRef.current.transform, zoomIdentity)
-  }
-
-  const handleResetForce = () => {
-    setPostRepulsion(220)
-    setHubRepulsion(30)
-    setHubRingRadius(0.42)
-    setHubLinkStrength(0.04)
-    setLinkDistance(44)
-  }
-
-  const handlePlayAnim = useCallback(() => {
+  const playTimeline = () => {
     if (isPlaying) {
       setIsPlaying(false)
       return
     }
-    // 재생 완료 상태(postCount) 또는 첫 진입(null)이면 0부터 시작
-    if (animRevealCount === null || animRevealCount >= postCount) {
-      setAnimRevealCount(0)
+    timelinePosition.current = revealCount === null || revealCount >= postCount ? 0 : revealCount
+    if (revealCount === null || revealCount >= postCount) {
+      clearSelection()
+      setRevealCount(0)
     }
     setIsPlaying(true)
-  }, [isPlaying, animRevealCount, postCount])
+  }
 
-  const handleResetAnim = useCallback(() => {
-    setIsPlaying(false)
-    setAnimRevealCount(0)  // 빈 캔버스로
-  }, [])
+  const semanticAvailable = semanticLinks.length > 0
 
   return (
     <StyledWrapper>
       <div className="graph-layout">
-        {/* SVG canvas */}
-        <div ref={canvasRef} className="canvas-area">
-          <svg
-            ref={svgRef}
-            viewBox={`0 0 ${canvasSize.width} ${canvasSize.height}`}
-            preserveAspectRatio="none"
-            className="graph-svg"
-          >
-            <defs>
-              <pattern
-                ref={gridPatternRef}
-                id="grid"
-                width="32"
-                height="32"
-                patternUnits="userSpaceOnUse"
-              >
-                <path d="M 32 0 L 0 0 0 32" fill="none" stroke="currentColor" strokeWidth="1" />
-              </pattern>
-              <marker
-                id="graph-arrowhead"
-                viewBox="0 0 8 8"
-                refX="8"
-                refY="4"
-                markerWidth="6"
-                markerHeight="6"
-                orient="auto"
-              >
-                <path d="M 0 0 L 8 4 L 0 8 z" fill="context-stroke" />
-              </marker>
-            </defs>
+        <div className="canvas-area">
+          {nodes.length > 0 && (
+          <GraphScene
+            nodes={nodes}
+            edges={edges}
+            links={links}
+            layoutOptions={layoutOptions}
+            selectedIndex={selectedIndex}
+            hoveredIndex={hoveredIndex}
+            focusNeighbors={focusNeighbors}
+            highlightedCategory={highlightedCategory}
+            neighborhoodOnly={effectiveNeighborhoodOnly}
+            nodeAppearRank={nodeAppearRank}
+            revealCount={revealCount}
+            resetViewToken={resetViewToken}
+            focusRequest={focusRequest}
+            onSelect={handleSelect}
+            onHover={setHoveredIndex}
+          />
+          )}
+          {!nodes.length && (
+            <div className="graph-message" role="status">
+              {isFetching ? "Loading graph data…" : "No graph data available. Check the content connection."}
+            </div>
+          )}
 
-            <rect
-              width={canvasSize.width}
-              height={canvasSize.height}
-              fill="url(#grid)"
-              className="grid-bg"
-              onClick={() => setSelectedIdx(-1)}
-            />
-
-            <g ref={zoomRootRef} className="zoom-root">
-
-              {edges.map((e, i) => {
-                const na = nodes[e.a], nb = nodes[e.b]
-                const dim = isEdgeDimmed(e, na.category, nb.category)
-                const isFocusedEdge =
-                  activeFocusIdx >= 0 && (e.a === activeFocusIdx || e.b === activeFocusIdx)
-
-                let stroke = "currentColor"
-                let opacity = dim ? 0.06 : 0.28
-                if (e.type === "has-tag") {
-                  stroke = TAG_COLOR
-                  opacity = dim ? 0.06 : 0.38
-                } else if (e.type === "in-series") {
-                  stroke = SERIES_COLOR
-                  opacity = dim ? 0.06 : 0.38
-                } else if (e.sameCategory) {
-                  stroke = na.color
-                  opacity = dim ? 0.08 : 0.55
-                }
-
-                const edgeRank = nodeAppearRank[e.a] > nodeAppearRank[e.b]
-                  ? nodeAppearRank[e.a] : nodeAppearRank[e.b]
-                const isRevealed = animRevealCount === null || edgeRank < animRevealCount
-                const geometry = directedEdgeGeometry(na, nb)
-                const strokeWidth = Math.min(0.65 + e.weight * 0.3, 1.5)
-
-                return (
-                  <line
-                    key={i}
-                    ref={(el) => { lineRefs.current[i] = el }}
-                    x1={geometry.x1}
-                    y1={geometry.y1}
-                    x2={geometry.x2}
-                    y2={geometry.y2}
-                    stroke={stroke}
-                    strokeWidth={isFocusedEdge ? Math.max(strokeWidth, 1.8) : strokeWidth}
-                    strokeLinecap="round"
-                    markerEnd="url(#graph-arrowhead)"
-                    className={`edge${e.sameCategory ? " same-cat" : ""}`}
-                    style={{
-                      opacity: isRevealed ? (isFocusedEdge ? Math.max(opacity, 0.9) : opacity) : 0,
-                      transition: "opacity 0.2s, stroke-width 0.2s",
-                    }}
-                  />
-                )
-              })}
-
-              {cats.map((c) => {
-                const initX = nodes.filter((n) => n.category === c).reduce((s, n) => s + n.x, 0) / Math.max(1, nodes.filter((n) => n.category === c).length)
-                const initY = nodes.filter((n) => n.category === c).reduce((s, n) => s + n.y, 0) / Math.max(1, nodes.filter((n) => n.category === c).length)
-                return (
-                  <text
-                    key={c}
-                    ref={(el) => { catLabelRefs.current[c] = el }}
-                    x={initX}
-                    y={initY - 20}
-                    className="cluster-label"
-                    fill={catColors[c]}
-                    textAnchor="middle"
-                    opacity={labelOpacity(c)}
-                  >
-                    #{c}
-                  </text>
-                )
-              })}
-
-              {/* Semantic overlay edges */}
-              {semanticLinks.map((sl, i) => {
-                const src = nodes[sl.ai], tgt = nodes[sl.bi]
-                const color = SEMANTIC_EDGE_COLOR[sl.kind] ?? "#888"
-                return (
-                  <line
-                    key={`sem-${i}`}
-                    ref={(el) => { overlayLineRefs.current[i] = el }}
-                    x1={src?.x ?? 0} y1={src?.y ?? 0}
-                    x2={tgt?.x ?? 0} y2={tgt?.y ?? 0}
-                    stroke={color}
-                    strokeWidth={1}
-                    strokeOpacity={sl.kind === "similar-topic" ? 0.35 : Math.max(0.3, sl.confidence)}
-                    strokeDasharray={sl.kind === "similar-topic" ? "4 3" : sl.kind === "contradicts" ? "2 2" : undefined}
-                  />
-                )
-              })}
-
-              <g ref={nodesLayerRef} className="nodes-layer">
-                {nodes.map((n, i) => {
-                  const sz = nodeRadiusForDegree(n.degree)
-                  const shape = nodeShapeForKind(n.kind)
-                  const isFocused = i === activeFocusIdx
-                  const dim = isNodeDimmed(i, n.category)
-                  const labelEmphasized = isFocused || hoverCat === n.category
-                  const isNodeRevealed = animRevealCount === null || nodeAppearRank[i] < animRevealCount
-                  return (
-                    <g
-                      key={n.id}
-                      className="node"
-                      onClick={(ev) => {
-                        ev.stopPropagation()
-                        if (!isNodeRevealed) return
-                        setSelectedIdx((prev) => (prev === i ? -1 : i))
-                      }}
-                      onMouseEnter={() => {
-                        if (isNodeRevealed) setHoveredIdx(i)
-                      }}
-                      onMouseLeave={() => setHoveredIdx(-1)}
-                      style={{
-                        cursor: isNodeRevealed ? "pointer" : "default",
-                        opacity: !isNodeRevealed ? 0 : dim ? 0.12 : undefined,
-                        pointerEvents: isNodeRevealed ? undefined : "none",
-                        transition: "opacity 0.2s",
-                      }}
-                    >
-                      {isFocused && (
-                        shape === "circle" ? (
-                          <circle
-                            ref={(el) => { ringRefs.current[i] = el }}
-                            cx={n.x}
-                            cy={n.y}
-                            r={nodeCollisionRadiusForDegree(n.degree)}
-                            fill="none"
-                            stroke={n.color}
-                            strokeWidth={2.5}
-                            opacity={0.9}
-                          />
-                        ) : (
-                          <path
-                            ref={(el) => { ringRefs.current[i] = el }}
-                            d={diamondPath(n.x, n.y, nodeCollisionRadiusForDegree(n.degree))}
-                            fill="none"
-                            stroke={n.color}
-                            strokeWidth={2.5}
-                            opacity={0.9}
-                          />
-                        )
-                      )}
-                      {shape === "circle" ? (
-                        <circle
-                          ref={(el) => { nodeShapeRefs.current[i] = el }}
-                          cx={n.x}
-                          cy={n.y}
-                          r={sz}
-                          fill={n.color}
-                          opacity={isFocused ? 1 : 0.85}
-                        />
-                      ) : (
-                        <path
-                          ref={(el) => { nodeShapeRefs.current[i] = el }}
-                          d={diamondPath(n.x, n.y, sz)}
-                          fill={shape === "filled-diamond" ? n.color : "transparent"}
-                          stroke={shape === "outline-diamond" ? n.color : undefined}
-                          strokeWidth={shape === "outline-diamond" ? 1.5 : undefined}
-                          opacity={isFocused ? 1 : 0.85}
-                        />
-                      )}
-                      {n.kind === "post" && (
-                        <text
-                          ref={(el) => { labelRefs.current[i] = el }}
-                          x={n.x + sz + NODE_LABEL_GAP}
-                          y={n.y + 3}
-                          className="node-label"
-                          fill={n.color}
-                          opacity={!labelEmphasized ? 0.45 : 1}
-                        >
-                          {n.title.length > 26 ? n.title.slice(0, 26) + "…" : n.title}
-                        </text>
-                      )}
-                    </g>
-                  )
-                })}
-              </g>
-            </g>
-          </svg>
-
-          <div className="legend">
-            <span>nodes: {nodes.length}</span>
-            <span>edges: {edges.length}</span>
-            <span className="sep">|</span>
-            <span>● post · ◆ tag · ◇ series</span>
-            <span className="sep">|</span>
-            <span title="Arrow points from the source post to the linked or classified node">→ direction</span>
-          </div>
+          <header className="graph-heading">
+            <div className="heading-line"><h1>Knowledge graph</h1><span className="dimension">3D</span></div>
+            <p>{shownCounts.nodes} nodes <span>·</span> {shownCounts.links} relations</p>
+            <div className="graph-search">
+              <input
+                type="search"
+                aria-label="Find a graph node"
+                aria-controls="graph-search-results"
+                placeholder="Find a post, tag, or series…"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Escape") setSearch("")
+                  if (event.key === "Enter" && searchResults.length) chooseSearchResult(searchResults[0])
+                }}
+              />
+              {search.trim() && (
+                <div id="graph-search-results" className="search-results">
+                  {searchResults.length ? searchResults.map((index) => (
+                    <button type="button" key={nodes[index].id} onClick={() => chooseSearchResult(index)}>
+                      <span className={`node-symbol ${nodes[index].kind}`} style={{ color: nodes[index].color }} />
+                      <span>{nodes[index].title}<small>{nodes[index].kind}</small></span>
+                    </button>
+                  )) : <p>No matching nodes.</p>}
+                </div>
+              )}
+            </div>
+          </header>
 
           <div className={`floating-controls${selected ? " drawer-open" : ""}`}>
+            <button type="button" className="control-btn reset-view" onClick={() => setResetViewToken((token) => token + 1)}>
+              Reset view
+            </button>
             <details className="control-popover">
-              <summary>graph controls</summary>
+              <summary>Graph controls</summary>
               <div className="control-popover-body">
-                <div className="panel-label">filter</div>
-                <div className="cat-filters">
-                  {cats.map((c) => (
-                    <span
-                      key={c}
-                      className={`cat-chip${hoverCat === c ? " active" : ""}`}
-                      style={{
-                        color: catColors[c],
-                        borderColor: hoverCat === c ? catColors[c] : undefined,
-                        background: hoverCat === c ? `${catColors[c]}1f` : undefined,
-                      }}
-                      onMouseEnter={() => setHoverCat(c)}
-                      onMouseLeave={() => setHoverCat(null)}
-                    >
-                      <span className="dot" style={{ background: catColors[c] }} />#{c}
-                    </span>
+                <div className="panel-label">Relations</div>
+                <div className="relation-toggles">
+                  {[
+                    { label: "References", color: RELATION_STYLES.link.color, active: showReferences, toggle: () => setShowReferences((value) => !value) },
+                    { label: "Tags", color: RELATION_STYLES["has-tag"].color, active: showTags, toggle: () => setShowTags((value) => !value) },
+                    { label: "Series", color: RELATION_STYLES["in-series"].color, active: showSeries, toggle: () => setShowSeries((value) => !value) },
+                  ].map((filter) => (
+                    <button type="button" key={filter.label} aria-pressed={filter.active} onClick={filter.toggle}>
+                      <span className="dot" style={{ background: filter.color }} />{filter.label}
+                    </button>
                   ))}
                 </div>
-
-                <div className="panel-label section-label">semantic overlay</div>
+                <div className="panel-label section-label">Semantic overlay</div>
+                <p className="control-note">Dashed relations are inferred, not explicit post links.</p>
                 <div className="overlay-toggles">
-                  <button
-                    type="button"
-                    className={`overlay-btn${showSimilar ? " active" : ""}`}
-                    onClick={() => setShowSimilar((v) => !v)}
-                  >
-                    similar ≥{simThreshold.toFixed(2)}
-                  </button>
-                  <button
-                    type="button"
-                    className={`overlay-btn${showLogical ? " active" : ""}`}
-                    onClick={() => setShowLogical((v) => !v)}
-                  >
-                    logical
-                  </button>
+                  <button type="button" aria-pressed={showLogical} disabled={!semanticAvailable} onClick={() => setShowLogical((value) => !value)}>Logical</button>
+                  <button type="button" aria-pressed={showSimilar} disabled={!semanticAvailable} onClick={() => setShowSimilar((value) => !value)}>Similar topics</button>
                 </div>
+                {!semanticAvailable && <p className="control-note">{ontologyLoading ? "Loading semantic data…" : "No semantic relations available."}</p>}
                 {showSimilar && (
                   <div className="control-row">
-                    <label>
-                      threshold
-                      <span className="control-val">{simThreshold.toFixed(2)}</span>
-                    </label>
-                    <input
-                      type="range" min={0.70} max={0.95} step={0.01}
-                      value={simThreshold}
-                      onChange={(e) => setSimThreshold(Number(e.target.value))}
-                    />
+                    <label htmlFor="graph-similarity">Confidence threshold<span>{simThreshold.toFixed(2)}</span></label>
+                    <input id="graph-similarity" type="range" min={0.7} max={0.95} step={0.01} value={simThreshold} onChange={(event) => setSimThreshold(Number(event.target.value))} />
                   </div>
                 )}
 
-                <div className="panel-label section-label">layout</div>
-                <div className="control-row">
-                  <label>
-                    post repulsion
-                    <span className="control-val">{postRepulsion}</span>
-                  </label>
-                  <input
-                    type="range" min={50} max={500} step={10}
-                    value={postRepulsion}
-                    onChange={(e) => setPostRepulsion(Number(e.target.value))}
-                  />
+                <div className="panel-label section-label">Categories</div>
+                <div className="cat-filters">
+                  {cats.filter(Boolean).map((cat) => (
+                    <button
+                      type="button"
+                      key={cat}
+                      aria-pressed={category === cat}
+                      onClick={() => setCategory((current) => current === cat ? null : cat)}
+                      onMouseEnter={() => setHoverCategory(cat)}
+                      onMouseLeave={() => setHoverCategory(null)}
+                      onFocus={() => setHoverCategory(cat)}
+                      onBlur={() => setHoverCategory(null)}
+                    >
+                      <span className="dot" style={{ background: categoryColors[cat] }} />{cat}
+                    </button>
+                  ))}
                 </div>
-                <div className="control-row">
-                  <label>
-                    hub repulsion
-                    <span className="control-val">{hubRepulsion}</span>
-                  </label>
-                  <input
-                    type="range" min={0} max={100} step={5}
-                    value={hubRepulsion}
-                    onChange={(e) => setHubRepulsion(Number(e.target.value))}
-                  />
-                </div>
-                <div className="control-row">
-                  <label>
-                    hub radius
-                    <span className="control-val">{hubRingRadius.toFixed(2)}</span>
-                  </label>
-                  <input
-                    type="range" min={0.2} max={0.5} step={0.01}
-                    value={hubRingRadius}
-                    onChange={(e) => setHubRingRadius(Number(e.target.value))}
-                  />
-                </div>
-                <div className="control-row">
-                  <label>
-                    hub link
-                    <span className="control-val">{hubLinkStrength.toFixed(2)}</span>
-                  </label>
-                  <input
-                    type="range" min={0} max={0.3} step={0.01}
-                    value={hubLinkStrength}
-                    onChange={(e) => setHubLinkStrength(Number(e.target.value))}
-                  />
-                </div>
-                <div className="control-row">
-                  <label>
-                    post link dist
-                    <span className="control-val">{linkDistance}</span>
-                  </label>
-                  <input
-                    type="range" min={20} max={120} step={4}
-                    value={linkDistance}
-                    onChange={(e) => setLinkDistance(Number(e.target.value))}
-                  />
-                </div>
-                <div className="control-buttons">
-                  <button type="button" className="control-btn" onClick={handleResetView}>
-                    reset view
-                  </button>
-                  <button type="button" className="control-btn" onClick={handleResetForce}>
-                    reset force
-                  </button>
-                </div>
+                <div className="panel-label section-label">3D layout</div>
+                {LAYOUT_CONTROLS.map((control) => (
+                  <div className="control-row" key={control.key}>
+                    <label htmlFor={`graph-${control.key}`}>
+                      {control.label}<span>{control.step < 1 ? layoutOptions[control.key].toFixed(2) : layoutOptions[control.key]}</span>
+                    </label>
+                    <input
+                      id={`graph-${control.key}`}
+                      type="range"
+                      min={control.min}
+                      max={control.max}
+                      step={control.step}
+                      value={layoutOptions[control.key]}
+                      onChange={(event) => setLayoutOptions((current) => ({ ...current, [control.key]: Number(event.target.value) }))}
+                    />
+                  </div>
+                ))}
+                <button type="button" className="control-btn" onClick={() => setLayoutOptions({ ...DEFAULT_LAYOUT })}>Reset layout</button>
 
-                <div className="panel-label section-label">timeline</div>
-                <div className="anim-progress">
-                  <div
-                    className="anim-bar"
-                    style={{
-                      width: animRevealCount === null
-                        ? "100%"
-                        : `${(animRevealCount / Math.max(postCount, 1)) * 100}%`,
-                    }}
-                  />
-                  <span className="anim-label">
-                    {animRevealCount === null
-                      ? `${postCount} / ${postCount} posts`
-                      : `${animRevealCount} / ${postCount} posts`}
-                  </span>
+                <div className="panel-label section-label">Timeline</div>
+                <div className="timeline-progress">
+                  <progress value={revealCount ?? postCount} max={Math.max(1, postCount)} aria-label="Revealed posts" />
+                  <span>{Math.min(revealCount ?? postCount, postCount)} / {postCount} posts</span>
                 </div>
-                <div className="control-row timeline-speed">
-                  <label>
-                    speed
-                    <span className="control-val">{animSpeed} posts/s</span>
-                  </label>
-                  <input
-                    type="range" min={1} max={50} step={1}
-                    value={animSpeed}
-                    onChange={(e) => setAnimSpeed(Number(e.target.value))}
-                  />
+                <div className="control-row">
+                  <label htmlFor="graph-timeline-speed">Speed<span>{animSpeed} posts/s</span></label>
+                  <input id="graph-timeline-speed" type="range" min={1} max={50} step={1} value={animSpeed} onChange={(event) => setAnimSpeed(Number(event.target.value))} />
                 </div>
                 <div className="control-buttons">
-                  <button
-                    type="button"
-                    className={`control-btn${isPlaying ? " active" : ""}`}
-                    onClick={handlePlayAnim}
-                  >
-                    {isPlaying ? "⏸ pause" : "▶ play"}
-                  </button>
-                  <button type="button" className="control-btn" onClick={handleResetAnim}>
-                    ■ reset
-                  </button>
+                  <button type="button" className="control-btn" disabled={!postCount} onClick={playTimeline}>{isPlaying ? "Pause" : "Play"}</button>
+                  <button type="button" className="control-btn" onClick={() => { setIsPlaying(false); clearSelection(); setRevealCount(0) }}>Rewind</button>
+                  <button type="button" className="control-btn" onClick={() => { setIsPlaying(false); setRevealCount(null) }}>Show all</button>
                 </div>
               </div>
             </details>
           </div>
+
+          <div className="graph-legend" aria-label="Graph legend">
+            <span><i className="node-symbol post" />Post</span>
+            <span><i className="node-symbol tag" />Tag</span>
+            <span><i className="node-symbol series" />Series</span>
+            <span className="legend-divider" />
+            <span><i className="edge-key" />Explicit</span>
+            <span title="Inferred from the available ontology"><i className="edge-key inferred" />Inferred</span>
+          </div>
+          <div className="interaction-hint">
+            <span className="desktop-hint">Drag to rotate <b>·</b> Shift / right drag to pan <b>·</b> Scroll to zoom <b>·</b> Alt + drag a node</span>
+            <span className="mobile-hint">One finger: rotate <b>·</b> Two fingers: pan / pinch to zoom</span>
+          </div>
         </div>
 
-        <aside
-          className={`detail-panel${selected ? " is-open" : ""}`}
-          aria-hidden={!selected}
-        >
+        <aside className={`detail-panel${selected ? " is-open" : ""}`} aria-hidden={!selected} aria-label="Node relationships">
           {selected && (
             <>
-              <button
-                type="button"
-                className="detail-close"
-                onClick={() => setSelectedIdx(-1)}
-                aria-label="Close node details"
-              >
-                ×
-              </button>
-              <div className="panel-label">
-                {selectedKind === "post" ? "selected" : selectedKind}
-              </div>
-              <div className="selected-title">{selected.title}</div>
-
-              {selectedKind === "post" && (
+              <button type="button" className="detail-close" onClick={clearSelection} aria-label="Close node details">×</button>
+              <div className="panel-label">{selected.kind}</div>
+              <h2 className="selected-title">{selected.title}</h2>
+              {selected.kind === "post" && (
                 <>
-                  <div className="selected-meta">{selected.category}</div>
-                  <div className="selected-tags">
-                    {(selected.tags ?? []).map((t) => (
-                      <span key={t} className="tag">#{t}</span>
-                    ))}
-                  </div>
-                  <Link href={`/${selected.slug}`} className="open-link">
-                    → open post
-                  </Link>
+                  <div className="selected-meta">{selected.category}{selected.readTime ? ` · ${selected.readTime} min read` : ""}</div>
+                  <div className="selected-tags">{(selected.tags ?? []).map((tag) => <span key={tag}>#{tag}</span>)}</div>
+                  {selected.slug && <Link href={`/${selected.slug}`} className="open-link">Open post →</Link>}
                 </>
               )}
-
-              <div className="panel-label section-label">connected ({connectedNodes.length})</div>
-              {connectedNodes.map(({ idx, node, via }) => (
-                <button
-                  key={`${idx}-${node.id}`}
-                  type="button"
-                  className="connected-item"
-                  onMouseEnter={() => setHoveredIdx(idx)}
-                  onMouseLeave={() => setHoveredIdx(-1)}
-                  onFocus={() => setHoveredIdx(idx)}
-                  onBlur={() => setHoveredIdx(-1)}
-                  onClick={() => setSelectedIdx(idx)}
-                >
-                  <div className="connected-title">→ {node.title.slice(0, 30)}{node.title.length > 30 ? "…" : ""}</div>
-                  <div className="connected-via">via {via}</div>
-                </button>
-              ))}
+              <div className="selection-actions">
+                <button type="button" className="control-btn" onClick={() => focusNode(selectedIndex)}>Focus node</button>
+                <button type="button" className="control-btn" aria-pressed={neighborhoodOnly} onClick={() => setNeighborhoodOnly((value) => !value)}>Connections only</button>
+              </div>
+              <div className="panel-label section-label">Connected · {connectedNodes.length}</div>
+              <p className="control-note">Arrows show source → target. Node size reflects its connection count.</p>
+              {!connectedNodes.length && <p className="empty-connections">No connections in the current view. Enable relation layers to see more.</p>}
+              <div className="connected-list">
+                {connectedNodes.map(({ index, relations }) => (
+                  <div className="connected-item" key={nodes[index].id}>
+                    <button
+                      type="button"
+                      className="connected-title"
+                      onClick={() => { setSelectedId(nodes[index].id); setHoveredIndex(-1) }}
+                      onMouseEnter={() => setHoveredIndex(index)}
+                      onMouseLeave={() => setHoveredIndex(-1)}
+                      onFocus={() => setHoveredIndex(index)}
+                      onBlur={() => setHoveredIndex(-1)}
+                    >
+                      <span className={`node-symbol ${nodes[index].kind}`} style={{ color: nodes[index].color }} />
+                      {nodes[index].title}
+                    </button>
+                    {relations.map((relation, relationIndex) => (
+                      <div className="relation-detail" key={`${relation.kind}-${relation.a}-${relation.b}-${relationIndex}`}>
+                        <div className="relation-caption" style={{ color: RELATION_STYLES[relation.kind].color }}>
+                          <span>{relation.kind === "similar-topic" ? "↔" : relation.a === selectedIndex ? "→" : "←"} {RELATION_STYLES[relation.kind].label}</span>
+                          <span className="relation-strength">{relation.confidence !== undefined ? `${Math.round(relation.confidence * 100)}% confidence` : relation.weight > 1 ? `×${relation.weight}` : ""}</span>
+                        </div>
+                        {relation.confidence !== undefined && <span className="inferred-note">Inferred relation</span>}
+                        {relation.rationale && <p className="relation-evidence">{relation.rationale}</p>}
+                        {relation.contexts?.map((context, contextIndex) => <blockquote key={contextIndex} className="relation-evidence">{context}</blockquote>)}
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
             </>
           )}
         </aside>
@@ -1017,431 +437,108 @@ export default Graph
 const StyledWrapper = styled.div`
   display: flex;
   flex-direction: column;
-  height: calc(100vh - ${({ theme }) => theme.variables.titleBarHeight + theme.variables.tabBarHeight + theme.variables.statusBarHeight}px);
   height: calc(100dvh - ${({ theme }) => theme.variables.titleBarHeight + theme.variables.tabBarHeight + theme.variables.statusBarHeight}px);
   overflow: hidden;
+  font-family: var(--font-mono, monospace);
+  color: ${({ theme }) => theme.colors.editor.fg};
 
-  .graph-layout {
-    position: relative;
-    flex: 1;
-    min-height: 0;
-    isolation: isolate;
-  }
+  .graph-layout { position: relative; flex: 1; min-height: 0; isolation: isolate; }
+  .canvas-area { position: relative; height: 100%; overflow: hidden; background: ${({ theme }) => theme.colors.editor.bg}; }
+  .graph-message { position: absolute; inset: 0; display: grid; place-content: center; padding: 24px; text-align: center; color: ${({ theme }) => theme.colors.editor.fg2}; font-size: 12px; pointer-events: none; }
+  button, summary, input, a { &:focus-visible { outline: 2px solid ${({ theme }) => theme.colors.editor.accent}; outline-offset: 3px; } }
+  button { font-family: inherit; cursor: pointer; }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+  button, a { transition: color 0.16s, background 0.16s, border-color 0.16s; }
+  button:active:not(:disabled) { transform: translateY(1px); }
 
-  .canvas-area {
-    position: relative;
-    height: 100%;
-    background: ${({ theme }) => theme.colors.editor.bg};
-    overflow: hidden;
-  }
+  .graph-heading { position: absolute; top: 22px; left: 24px; z-index: 2; pointer-events: none; }
+  .heading-line { display: flex; gap: 10px; align-items: center; }
+  h1 { margin: 0; font-size: 15px; font-weight: 500; letter-spacing: -0.4px; }
+  .dimension { color: ${({ theme }) => theme.colors.editor.accent}; font-size: 10px; padding: 2px 5px; border: 1px solid ${({ theme }) => theme.colors.editor.line}; }
+  .graph-heading > p { margin: 7px 0 14px; font-size: 10px; font-variant-numeric: tabular-nums; color: ${({ theme }) => theme.colors.editor.fg3}; span { margin: 0 5px; } }
+  .graph-search { width: 256px; position: relative; pointer-events: auto; }
+  .graph-search input { width: 100%; padding: 9px 10px; font: 10px var(--font-mono, monospace); background: ${({ theme }) => theme.colors.editor.bg2}; color: ${({ theme }) => theme.colors.editor.fg}; border: 1px solid ${({ theme }) => theme.colors.editor.line}; border-radius: 0; }
+  .search-results { position: absolute; top: calc(100% + 4px); left: 0; width: 100%; max-height: 360px; overflow-y: auto; background: ${({ theme }) => theme.colors.editor.bg2}; border: 1px solid ${({ theme }) => theme.colors.editor.line}; box-shadow: 0 8px 24px rgba(0,0,0,0.12); }
+  .search-results button { display: flex; align-items: flex-start; gap: 9px; padding: 10px; width: 100%; text-align: left; border: none; background: transparent; color: ${({ theme }) => theme.colors.editor.fg2}; font-size: 11px; line-height: 1.5; }
+  .search-results button:hover { background: ${({ theme }) => theme.colors.editor.bg}; color: ${({ theme }) => theme.colors.editor.accent}; }
+  .search-results small { display: block; color: ${({ theme }) => theme.colors.editor.fg3}; font-size: 9px; margin-top: 3px; }
+  .search-results p { padding: 0 12px; font-size: 11px; color: ${({ theme }) => theme.colors.editor.fg3}; }
 
-  .graph-svg {
-    display: block;
-    width: 100%;
-    height: 100%;
-    color: ${({ theme }) => theme.colors.editor.fg3};
+  .floating-controls { position: absolute; display: flex; align-items: flex-start; gap: 6px; top: 20px; right: 20px; z-index: 4; transition: right 0.22s ease; }
+  .floating-controls.drawer-open { right: 358px; }
+  .reset-view { flex: none; white-space: nowrap; }
+  .control-popover { width: 224px; background: ${({ theme }) => theme.colors.editor.bg2}; border: 1px solid ${({ theme }) => theme.colors.editor.line}; }
+  .control-popover:not([open]) { width: 132px; }
+  .control-popover summary { list-style: none; padding: 9px 10px; font-size: 10px; color: ${({ theme }) => theme.colors.editor.fg2}; cursor: pointer; user-select: none; &::-webkit-details-marker { display: none; } &::after { content: "+"; float: right; color: ${({ theme }) => theme.colors.editor.fg3}; } }
+  .control-popover[open] { box-shadow: 0 10px 24px rgba(0,0,0,0.12); summary { border-bottom: 1px solid ${({ theme }) => theme.colors.editor.line}; &::after { content: "−"; } } }
+  .control-popover-body { max-height: calc(100dvh - 150px); overflow-y: auto; padding: 12px; scrollbar-width: thin; }
+  .panel-label { color: ${({ theme }) => theme.colors.editor.fg3}; font-size: 10px; letter-spacing: 0.6px; margin-bottom: 9px; }
+  .section-label { margin-top: 22px; }
+  .control-note { color: ${({ theme }) => theme.colors.editor.fg3}; font-size: 10px; line-height: 1.6; margin: 0 0 10px; }
+  .control-row { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+  .control-row label { display: flex; justify-content: space-between; color: ${({ theme }) => theme.colors.editor.fg2}; font-size: 10px; gap: 8px; }
+  .control-row label span { color: ${({ theme }) => theme.colors.editor.accent3}; font-variant-numeric: tabular-nums; }
+  .control-row input { width: 100%; accent-color: ${({ theme }) => theme.colors.editor.accent}; }
+  .control-buttons, .overlay-toggles, .selection-actions { display: flex; gap: 6px; }
+  .control-btn, .overlay-toggles button { flex: 1; padding: 8px; border: 1px solid ${({ theme }) => theme.colors.editor.line}; background: ${({ theme }) => theme.colors.editor.bg2}; color: ${({ theme }) => theme.colors.editor.fg2}; font-size: 10px; }
+  .control-btn:hover:not(:disabled), .overlay-toggles button:hover:not(:disabled) { color: ${({ theme }) => theme.colors.editor.accent}; border-color: ${({ theme }) => theme.colors.editor.accent}; }
+  button[aria-pressed="true"] { color: ${({ theme }) => theme.colors.editor.accent}; border-color: ${({ theme }) => theme.colors.editor.accent}; background: ${({ theme }) => theme.colors.editor.accentSoft}; }
+  .relation-toggles, .cat-filters { display: flex; flex-wrap: wrap; gap: 5px; }
+  .relation-toggles button, .cat-filters button { display: flex; align-items: center; gap: 5px; padding: 6px 7px; font-size: 10px; border: 1px solid ${({ theme }) => theme.colors.editor.line}; background: ${({ theme }) => theme.colors.editor.bg}; color: ${({ theme }) => theme.colors.editor.fg2}; }
+  .dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+  .cat-filters button[aria-pressed="true"], .relation-toggles button[aria-pressed="true"] { border-color: ${({ theme }) => theme.colors.editor.accent}; }
+  .timeline-progress { display: grid; gap: 6px; margin-bottom: 14px; color: ${({ theme }) => theme.colors.editor.fg3}; font-size: 10px; font-variant-numeric: tabular-nums; }
+  .timeline-progress progress { width: 100%; height: 4px; accent-color: ${({ theme }) => theme.colors.editor.accent}; }
 
-    .grid-bg {
-      color: ${({ theme }) => theme.colors.editor.line};
-      opacity: 0.18;
-    }
+  .node-symbol { display: inline-block; width: 7px; height: 7px; margin-top: 3px; flex-shrink: 0; background: currentColor; }
+  .node-symbol.post { border-radius: 50%; }
+  .node-symbol.tag { transform: rotate(45deg); color: ${RELATION_STYLES["has-tag"].color}; }
+  .node-symbol.series { transform: rotate(45deg); border: 1px solid currentColor; background: transparent; color: ${RELATION_STYLES["in-series"].color}; }
+  .graph-legend { position: absolute; bottom: 45px; left: 24px; display: flex; gap: 14px; align-items: center; color: ${({ theme }) => theme.colors.editor.fg2}; font-size: 9px; pointer-events: none; }
+  .graph-legend > span { display: inline-flex; align-items: center; gap: 6px; }
+  .graph-legend .node-symbol { margin: 0; }
+  .legend-divider { height: 12px; border-left: 1px solid ${({ theme }) => theme.colors.editor.line}; }
+  .edge-key { width: 17px; border-top: 1px solid ${RELATION_STYLES.link.color}; }
+  .edge-key.inferred { border-top-style: dashed; border-top-color: ${({ theme }) => theme.colors.editor.fg3}; }
+  .interaction-hint { position: absolute; bottom: 19px; left: 24px; color: ${({ theme }) => theme.colors.editor.fg3}; font-size: 9px; pointer-events: none; b { margin: 0 6px; font-weight: 400; color: ${({ theme }) => theme.colors.editor.fg4}; } }
+  .mobile-hint { display: none; }
 
-    .cluster-label {
-      font-family: ui-monospace, monospace;
-      font-size: 11px;
-      fill: ${({ theme }) => theme.colors.editor.fg3};
-      text-transform: uppercase;
-      letter-spacing: 1.5px;
-      pointer-events: none;
-    }
+  .detail-panel { position: absolute; inset: 0 0 0 auto; width: 338px; padding: 24px 20px; box-sizing: border-box; z-index: 5; background: ${({ theme }) => theme.colors.editor.bg2}; border-left: 1px solid ${({ theme }) => theme.colors.editor.line}; overflow-y: auto; scrollbar-width: thin; pointer-events: none; visibility: hidden; opacity: 0; transform: translateX(100%); transition: transform 0.24s ease, opacity 0.18s ease, visibility 0s linear 0.24s; }
+  .detail-panel.is-open { pointer-events: auto; visibility: visible; opacity: 1; transform: translateX(0); transition-delay: 0s; }
+  .detail-close { position: absolute; top: 14px; right: 14px; padding: 2px 6px; border: 1px solid ${({ theme }) => theme.colors.editor.line}; background: transparent; color: ${({ theme }) => theme.colors.editor.fg3}; font-size: 16px; }
+  .detail-close:hover { color: ${({ theme }) => theme.colors.editor.accent}; }
+  .selected-title { color: ${({ theme }) => theme.colors.editor.fg}; font-size: 18px; font-weight: 500; line-height: 1.45; letter-spacing: -0.4px; margin: 0 14px 8px 0; overflow-wrap: anywhere; }
+  .selected-meta { color: ${({ theme }) => theme.colors.editor.fg3}; font-size: 10px; margin-bottom: 12px; }
+  .selected-tags { display: flex; flex-wrap: wrap; gap: 5px 9px; margin-bottom: 12px; color: ${({ theme }) => theme.colors.editor.accent3}; font-size: 10px; }
+  .open-link { display: inline-block; margin: 0 0 18px; color: ${({ theme }) => theme.colors.editor.accent}; text-decoration: none; font-size: 11px; &:hover { color: ${({ theme }) => theme.colors.editor.accent3}; } }
+  .selection-actions { margin: 14px 0 0; }
+  .connected-item { border-bottom: 1px solid ${({ theme }) => theme.colors.editor.line}; padding: 12px 0; }
+  .connected-title { display: flex; align-items: flex-start; gap: 8px; width: 100%; border: none; padding: 0; background: transparent; color: ${({ theme }) => theme.colors.editor.fg2}; font-size: 11px; line-height: 1.6; text-align: left; &:hover { color: ${({ theme }) => theme.colors.editor.accent}; } .node-symbol { margin-top: 5px; } }
+  .relation-detail { padding-left: 15px; margin-top: 6px; }
+  .relation-caption { display: flex; flex-wrap: wrap; gap: 4px 8px; font-size: 9px; line-height: 1.5; }
+  .relation-strength { color: ${({ theme }) => theme.colors.editor.fg3}; font-variant-numeric: tabular-nums; }
+  .inferred-note { color: ${({ theme }) => theme.colors.editor.fg3}; font-size: 8px; }
+  .relation-evidence { color: ${({ theme }) => theme.colors.editor.fg2}; font-size: 10px; line-height: 1.7; margin: 6px 0 0; overflow-wrap: anywhere; }
+  blockquote.relation-evidence { border-left: 2px solid ${({ theme }) => theme.colors.editor.line}; padding-left: 8px; }
+  .empty-connections { color: ${({ theme }) => theme.colors.editor.fg3}; font-size: 11px; line-height: 1.7; }
 
-    .node {
-      fill: ${({ theme }) => theme.colors.editor.fg};
-      opacity: 0.78;
-      cursor: pointer;
-      &:hover { opacity: 1; fill: ${({ theme }) => theme.colors.editor.accent}; }
-    }
-
-    .node-selected {
-      fill: ${({ theme }) => theme.colors.editor.accent};
-    }
-
-    .selected-ring {
-      fill: none;
-      stroke: ${({ theme }) => theme.colors.editor.accent};
-      stroke-width: 1.5px;
-      opacity: 0.5;
-    }
-
-    .node-label {
-      font-family: ui-monospace, monospace;
-      font-size: 9.5px;
-      fill: ${({ theme }) => theme.colors.editor.fg2};
-      pointer-events: none;
-      &.selected { fill: ${({ theme }) => theme.colors.editor.accent}; }
-    }
-  }
-
-  .legend {
-    position: absolute;
-    bottom: 14px;
-    left: 20px;
-    font-family: var(--font-mono, monospace);
-    font-size: 10px;
-    color: ${({ theme }) => theme.colors.editor.fg3};
-    display: flex;
-    gap: 14px;
-    align-items: center;
-    padding: 6px 10px;
-    background: ${({ theme }) => theme.colors.editor.bg2};
-    border: 1px solid ${({ theme }) => theme.colors.editor.line};
-
-    .sep { color: ${({ theme }) => theme.colors.editor.fg4}; }
-  }
-
-  .floating-controls {
-    position: absolute;
-    top: 14px;
-    right: 16px;
-    z-index: 4;
-    font-family: var(--font-mono, monospace);
-    transition: right 0.22s ease, opacity 0.18s ease, visibility 0s linear;
-
-    &.drawer-open {
-      right: 336px;
-    }
-  }
-
-  .control-popover {
-    width: 244px;
-    background: ${({ theme }) => theme.colors.editor.bg2};
-    border: 1px solid ${({ theme }) => theme.colors.editor.line};
-    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.12);
-
-    summary {
-      list-style: none;
-      padding: 7px 10px;
-      color: ${({ theme }) => theme.colors.editor.fg2};
-      font-size: 10px;
-      letter-spacing: 1px;
-      text-transform: uppercase;
-      cursor: pointer;
-      user-select: none;
-
-      &::-webkit-details-marker { display: none; }
-      &::after {
-        content: "+";
-        float: right;
-        color: ${({ theme }) => theme.colors.editor.accent3};
-      }
-    }
-
-    &[open] summary {
-      border-bottom: 1px solid ${({ theme }) => theme.colors.editor.line};
-      &::after { content: "−"; }
-    }
-
-    summary:focus-visible {
-      outline: 1px solid ${({ theme }) => theme.colors.editor.accent};
-      outline-offset: -1px;
-    }
-  }
-
-  .control-popover-body {
-    max-height: min(620px, calc(100vh - 92px));
-    overflow-y: auto;
-    padding: 10px;
-    scrollbar-width: thin;
-  }
-
-  .detail-panel {
-    position: absolute;
-    top: 0;
-    right: 0;
-    bottom: 0;
-    z-index: 5;
-    width: 320px;
-    box-sizing: border-box;
-    padding: 18px;
-    background: ${({ theme }) => theme.colors.editor.bg2};
-    border-left: 1px solid ${({ theme }) => theme.colors.editor.line};
-    box-shadow: -12px 0 24px rgba(0, 0, 0, 0.1);
-    font-family: var(--font-mono, monospace);
-    font-size: 12px;
-    overflow-y: auto;
-    scrollbar-width: none;
-    pointer-events: none;
-    visibility: hidden;
-    opacity: 0;
-    transform: translateX(100%);
-    transition: transform 0.24s ease, opacity 0.18s ease, visibility 0s linear 0.24s;
-
-    &::-webkit-scrollbar { display: none; }
-
-    &.is-open {
-      pointer-events: auto;
-      visibility: visible;
-      opacity: 1;
-      transform: translateX(0);
-      transition-delay: 0s;
-    }
-  }
-
-  .detail-close {
-    position: absolute;
-    top: 10px;
-    right: 10px;
-    width: 24px;
-    height: 24px;
-    padding: 0;
-    border: 1px solid ${({ theme }) => theme.colors.editor.line};
-    background: ${({ theme }) => theme.colors.editor.bg};
-    color: ${({ theme }) => theme.colors.editor.fg3};
-    font: 16px/1 var(--font-mono, monospace);
-    cursor: pointer;
-
-    &:hover {
-      border-color: ${({ theme }) => theme.colors.editor.accent};
-      color: ${({ theme }) => theme.colors.editor.accent};
-    }
-
-    &:focus-visible {
-      outline: 1px solid ${({ theme }) => theme.colors.editor.accent};
-      outline-offset: 2px;
-    }
-  }
-
+  @media (max-width: 1100px) { .floating-controls.drawer-open .reset-view { visibility: hidden; } }
   @media (max-width: ${({ theme }) => theme.variables.breakpoint}px) {
-    .floating-controls,
-    .floating-controls.drawer-open {
-      right: 10px;
-    }
-
-    .floating-controls.drawer-open {
-      pointer-events: none;
-      visibility: hidden;
-      opacity: 0;
-      transition: right 0.22s ease, opacity 0.18s ease, visibility 0s linear 0.18s;
-    }
-
-    .detail-panel {
-      width: min(320px, calc(100% - 20px));
-    }
+    .graph-heading { top: 16px; left: 14px; }
+    h1 { font-size: 12px; }
+    .graph-search { width: min(222px, calc(100vw - 132px)); }
+    .floating-controls, .floating-controls.drawer-open { top: 14px; right: 10px; }
+    .floating-controls .reset-view { display: none; }
+    .control-popover:not([open]) { width: 108px; }
+    .control-popover summary { font-size: 9px; }
+    .floating-controls.drawer-open .control-popover { display: block; }
+    .control-popover-body { max-height: calc(100dvh - 210px); }
+    .graph-legend { bottom: 40px; left: 14px; gap: 10px; font-size: 8px; }
+    .interaction-hint { bottom: 17px; left: 14px; right: 10px; font-size: 8px; }
+    .desktop-hint { display: none; }
+    .mobile-hint { display: inline; }
+    .detail-panel { inset: auto 0 0; width: 100%; max-height: 43%; border-left: 0; border-top: 1px solid ${({ theme }) => theme.colors.editor.line}; padding: 18px; transform: translateY(100%); }
+    .detail-panel.is-open { transform: translateY(0); }
   }
-
-  @media (prefers-reduced-motion: reduce) {
-    .floating-controls,
-    .floating-controls.drawer-open,
-    .detail-panel {
-      transition: none;
-    }
-  }
-
-  .section-label {
-    margin-top: 16px;
-  }
-
-  .timeline-speed {
-    margin-top: 6px;
-  }
-
-  .panel-label {
-    font-size: 10px;
-    color: ${({ theme }) => theme.colors.editor.fg3};
-    text-transform: uppercase;
-    letter-spacing: 1.5px;
-    margin-bottom: 8px;
-  }
-
-
-  .selected-title {
-    font-size: 18px;
-    font-weight: 500;
-    color: ${({ theme }) => theme.colors.editor.fg};
-    line-height: 1.3;
-    margin-bottom: 6px;
-  }
-
-  .selected-meta {
-    color: ${({ theme }) => theme.colors.editor.fg3};
-    font-size: 11px;
-    margin-bottom: 10px;
-  }
-
-  .selected-tags {
-    display: flex;
-    gap: 6px;
-    flex-wrap: wrap;
-    margin-bottom: 12px;
-
-    .tag {
-      padding: 1px 8px;
-      background: ${({ theme }) => theme.colors.editor.accentSoft};
-      color: ${({ theme }) => theme.colors.editor.accent};
-      border: 1px solid ${({ theme }) => theme.colors.editor.accent};
-      font-size: 11px;
-    }
-  }
-
-  .open-link {
-    font-size: 12px;
-    color: ${({ theme }) => theme.colors.editor.accent3};
-    text-decoration: none;
-    display: block;
-    margin-bottom: 4px;
-    &:hover { color: ${({ theme }) => theme.colors.editor.accent}; }
-  }
-
-  .connected-item {
-    display: block;
-    width: 100%;
-    text-align: left;
-    background: transparent;
-    border: none;
-    border-bottom: 1px dashed ${({ theme }) => theme.colors.editor.line};
-    padding: 6px 0;
-    cursor: pointer;
-    font-family: inherit;
-    transition: background 0.12s;
-
-    .connected-title { color: ${({ theme }) => theme.colors.editor.accent3}; font-size: 12px; }
-    .connected-via { color: ${({ theme }) => theme.colors.editor.fg3}; font-size: 10px; margin-top: 2px; }
-
-    &:hover {
-      background: ${({ theme }) => theme.colors.editor.bg};
-      .connected-title { color: ${({ theme }) => theme.colors.editor.accent}; }
-    }
-    &:focus-visible {
-      outline: 1px solid ${({ theme }) => theme.colors.editor.accent};
-      outline-offset: -1px;
-    }
-  }
-
-  .cat-filters {
-    display: flex;
-    gap: 4px;
-    flex-wrap: wrap;
-
-    .cat-chip {
-      display: inline-flex;
-      align-items: center;
-      gap: 5px;
-      padding: 2px 8px;
-      border: 1px solid ${({ theme }) => theme.colors.editor.line};
-      background: ${({ theme }) => theme.colors.editor.bg};
-      color: ${({ theme }) => theme.colors.editor.fg2};
-      font-size: 10px;
-      cursor: pointer;
-      transition: background 0.12s, border-color 0.12s;
-
-      .dot {
-        width: 6px;
-        height: 6px;
-        border-radius: 50%;
-        flex-shrink: 0;
-      }
-    }
-  }
-
-  .control-row {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    margin-bottom: 8px;
-
-    label {
-      font-size: 11px;
-      color: ${({ theme }) => theme.colors.editor.fg2};
-      display: flex;
-      justify-content: space-between;
-    }
-
-    .control-val {
-      color: ${({ theme }) => theme.colors.editor.accent3};
-      font-variant-numeric: tabular-nums;
-    }
-
-    input[type="range"] {
-      width: 100%;
-      accent-color: ${({ theme }) => theme.colors.editor.accent};
-    }
-  }
-
-  .control-buttons {
-    display: flex;
-    gap: 6px;
-    margin-top: 4px;
-  }
-
-  .overlay-toggles {
-    display: flex;
-    gap: 4px;
-    margin-bottom: 8px;
-  }
-
-  .overlay-btn {
-    flex: 1;
-    padding: 3px 6px;
-    background: none;
-    border: 1px solid ${({ theme }) => theme.colors.editor.line};
-    color: ${({ theme }) => theme.colors.editor.fg3};
-    font-family: inherit;
-    font-size: 10px;
-    cursor: pointer;
-    letter-spacing: 0.3px;
-    &:hover { border-color: ${({ theme }) => theme.colors.editor.accent3}; color: ${({ theme }) => theme.colors.editor.fg}; }
-    &.active {
-      border-color: ${({ theme }) => theme.colors.editor.accent};
-      color: ${({ theme }) => theme.colors.editor.accent};
-    }
-  }
-
-  .control-btn {
-    flex: 1;
-    padding: 4px 8px;
-    background: ${({ theme }) => theme.colors.editor.bg};
-    border: 1px solid ${({ theme }) => theme.colors.editor.line};
-    color: ${({ theme }) => theme.colors.editor.fg2};
-    font-family: inherit;
-    font-size: 10px;
-    cursor: pointer;
-    transition: border-color 0.12s, color 0.12s;
-
-    &:hover {
-      border-color: ${({ theme }) => theme.colors.editor.accent};
-      color: ${({ theme }) => theme.colors.editor.accent};
-    }
-
-    &.active {
-      border-color: ${({ theme }) => theme.colors.editor.accent};
-      color: ${({ theme }) => theme.colors.editor.accent};
-      background: ${({ theme }) => theme.colors.editor.accentSoft};
-    }
-  }
-
-  .anim-progress {
-    position: relative;
-    height: 18px;
-    background: ${({ theme }) => theme.colors.editor.bg};
-    border: 1px solid ${({ theme }) => theme.colors.editor.line};
-    overflow: hidden;
-
-    .anim-bar {
-      position: absolute;
-      inset: 0;
-      height: 100%;
-      background: ${({ theme }) => theme.colors.editor.accentSoft};
-      transition: width 0.1s linear;
-    }
-
-    .anim-label {
-      position: relative;
-      z-index: 1;
-      font-size: 9px;
-      color: ${({ theme }) => theme.colors.editor.fg3};
-      padding: 0 6px;
-      line-height: 18px;
-      display: block;
-    }
-  }
+  @media (prefers-reduced-motion: reduce) { button, a, .floating-controls, .detail-panel { transition: none; } }
 `
