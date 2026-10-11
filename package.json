@@ -1,6 +1,6 @@
 {
   "name": "monolog",
-  "version": "1.20.0",
+  "version": "1.20.1",
   "packageManager": "yarn@1.22.22",
   "license": "MIT",
   "repository": {
@@ -8,6 +8,7 @@
     "url": "https://github.com/jung-geun/monolog.git"
   },
   "scripts": {
+    "setup": "node scripts/setup-env.js",
     "dev": "nice -n 10 next dev --webpack",
     "prebuild": "rm -f public/sitemap.xml public/sitemap-*.xml",
     "build": "next build --webpack",

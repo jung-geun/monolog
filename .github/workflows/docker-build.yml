@@ -91,6 +91,11 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             NEXT_PUBLIC_SITE_URL=${{ vars.NEXT_PUBLIC_SITE_URL }}
+            NEXT_PUBLIC_UTTERANCES_REPO=${{ vars.NEXT_PUBLIC_UTTERANCES_REPO }}
+            NEXT_PUBLIC_NOTION_COMMENTS_ENABLE=${{ vars.NEXT_PUBLIC_NOTION_COMMENTS_ENABLE }}
+            NEXT_PUBLIC_GOOGLE_ADSENSE_DISABLE=${{ vars.NEXT_PUBLIC_GOOGLE_ADSENSE_DISABLE }}
+            NEXT_PUBLIC_GOOGLE_ADSENSE_CLIENT=${{ vars.NEXT_PUBLIC_GOOGLE_ADSENSE_CLIENT }}
+            REVALIDATE_HOURS=${{ vars.REVALIDATE_HOURS }}
           cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache
           cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache,mode=max
           platforms: linux/amd64

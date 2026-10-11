@@ -6,27 +6,23 @@ monolog 셋업·운영 가이드. 프로젝트 개요와 차별점은 [`README.m
 
 ## 빠른 시작
 
+Node.js 22 또는 24 LTS와 Yarn 1.22.22를 사용합니다. Yarn이 없으면 `corepack enable`을 실행하고 clone한 저장소에서 `corepack install`로 활성화합니다. Corepack이 없는 Node 배포판은 Yarn 1.22.22를 별도 설치하세요. Notion 템플릿 복제와 Integration 연결은 아래 **Notion 셋업**을 먼저 완료하세요.
+
 ```bash
 git clone https://github.com/jung-geun/monolog.git
 cd monolog
-yarn install
-
-cp .env.example .env
-# 필수:
-#   NOTION_TOKEN=ntn_xxxxx
-#   NOTION_DATASOURCE_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
-# 댓글 활성 시 추가 필수:
-#   NOTION_COMMENTS_DATASOURCE_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
-#   COMMENT_HASH_SALT=$(openssl rand -hex 32)
-# 방문자 통계 활성 시 추가 필수:
-#   NOTION_VISIT_STATS_DATASOURCE_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
-#   VISITOR_HASH_SALT=$(openssl rand -hex 32)
-
+yarn install --frozen-lockfile
+cp -n .env.example .env
+chmod 600 .env
+# .env의 NOTION_TOKEN과 NOTION_DATASOURCE_ID만 직접 입력
+# NOTION_DATASOURCE_ID에는 원본 blog-table DB 주소 전체 또는 data-source UUID
+yarn setup
 yarn dev
 ```
 
-`http://localhost:3000`에서 확인합니다.
-로컬 개발은 Node.js 22 또는 24 LTS를 사용합니다(운영 Docker는 Node.js 22). Node.js 26의 fetch/dispatcher 계약은 현재 Qdrant SDK의 Undici 6과 호환되지 않으므로 LTS 실행 파일과 PATH를 맞춥니다.
+`http://localhost:3000`에서 확인합니다. `yarn setup`은 저장소 루트 `.env`만 읽어 DB 주소를 data-source UUID로 변환하고, 비어 있는 재검증 비밀키를 생성합니다. 선택 기능의 DB ID가 설정된 경우에만 해당 salt도 독립 생성합니다. 기존 키·주석·기타 설정은 유지하며 파일 권한을 `0600`으로 제한합니다. 여러 data source가 있는 DB는 자동 선택하지 않으므로 안내된 UUID 중 사용할 값을 지정하고 다시 실행하세요. API 실패 시 파일은 변경하지 않습니다.
+
+네이티브 개발은 `.content-state`를 쓰며 임베딩/Qdrant 없이 글을 볼 수 있습니다. 전체 의미 검색은 아래 Compose 스택을 사용하세요. Node.js 26의 fetch/dispatcher 계약은 현재 Qdrant SDK의 Undici 6과 호환되지 않으므로 LTS 실행 파일과 PATH를 맞춥니다.
 
 ---
 
@@ -44,12 +40,11 @@ yarn dev
 | `comments` | 방문자 익명 댓글 (선택) | `NOTION_COMMENTS_DATASOURCE_ID` |
 | `visit-stats` | 페이지별 고유 방문자 통계 (선택) | `NOTION_VISIT_STATS_DATASOURCE_ID` |
 
-복제한 DB를 각각 열어:
-1. 우상단 `...` → `Add connections` → 1단계에서 만든 Integration 추가
-2. **data_source ID 확인**: Notion DB 페이지 URL의 32자 hex ID를 `8-4-4-4-12` UUID 포맷으로 변환 후 `curl -H "Authorization: Bearer $NOTION_TOKEN" https://api.notion.com/v1/databases/{database_id}`를 호출해 `data_sources[0].id` 값을 복사합니다. 이 값을 환경변수에 입력합니다.
-   - 예: `curl` 응답의 `"data_sources":[{"id":"xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"}]` 에서 id 복사
+기본 블로그에는 `blog-table`만 필요합니다. 원본 DB를 열어 우상단 `... → Add connections`에서 Integration을 추가하고, 읽기 권한을 허용합니다. 원본 `blog-table`의 주소 전체를 `.env`의 `NOTION_DATASOURCE_ID`에 넣은 뒤 `yarn setup`을 실행하면 실제 data-source UUID를 찾아 저장합니다. DB URL의 UUID나 `?v=`의 view ID를 data-source ID로 직접 사용하지 마세요.
 
-> 댓글 기능을 끄려면 `site.config.js`의 `notionComments.enable: false`로 두면 됩니다 — `comments` DB는 무시됩니다. 방문자 통계 기능은 `NOTION_VISIT_STATS_DATASOURCE_ID`와 `VISITOR_HASH_SALT`가 설정된 경우에만 동작합니다.
+선택 기능의 DB는 별도로 연결합니다. `comments`에는 댓글 삽입 권한도 필요합니다. `NOTION_COMMENTS_DATASOURCE_ID`와 `NOTION_VISIT_STATS_DATASOURCE_ID`에는 명시적인 data-source UUID를 넣습니다. 직접 조회할 때는 [Retrieve database API](https://developers.notion.com/reference/retrieve-database)에 `Authorization: Bearer <token>`과 `Notion-Version: 2026-03-11` 헤더를 보내고 `data_sources`의 이름과 ID로 대상 소스를 선택합니다.
+
+> Notion 댓글은 기본 비활성입니다. 댓글 DB ID를 설정하고 `yarn setup`으로 salt를 생성한 뒤 `.env`에 `NEXT_PUBLIC_NOTION_COMMENTS_ENABLE=true`를 추가하고 다시 빌드하세요. 방문자 통계는 해당 DB ID와 독립적인 `VISITOR_HASH_SALT`가 설정된 경우에만 동작합니다. 두 기능 모두 기본 블로그 배포에는 필요하지 않습니다.
 
 ### 3. 직접 만들고 싶다면
 
@@ -103,22 +98,24 @@ yarn dev
 | 변수명 | 설명 |
 |---|---|
 | `NOTION_TOKEN` | Notion Internal Integration Token (`ntn_...`) |
-| `NOTION_DATASOURCE_ID` | `blog-table` DB의 ID (UUID with hyphens) |
+| `NOTION_DATASOURCE_ID` | `blog-table`의 **data-source UUID**. 최초 `yarn setup`에서는 원본 Notion DB 주소 전체를 넣어 자동 변환 가능 |
 | `CONTENT_REDIS_URL` 또는 `CONTENT_STATE_DIR` | 공개 게시물·본문·slug 이력·대기 중인 경로/그래프 작업을 보관하는 내구성 콘텐츠 저장소. 운영·컨테이너는 AOF가 켜진 Redis 7.2+(`CONTENT_REDIS_URL`, Compose의 `content-redis`), 로컬 단일 호스트 개발은 디렉터리(`CONTENT_STATE_DIR=.content-state`). 둘 다 없으면 페이지 렌더와 동기화가 실패합니다 |
+| `REVALIDATE_SECRET` | 관리 API의 Bearer 토큰. `.env.example`은 빈 값이고 `yarn setup`이 생성하므로 직접 만들 필요 없음. 기존 값은 유지하며 Compose에서는 필수 |
 
-### 댓글 활성 시 필수 (`site.config.js: notionComments.enable: true`)
+### 댓글 활성 시 필수 (`NEXT_PUBLIC_NOTION_COMMENTS_ENABLE=true`)
 
 | 변수명 | 설명 |
 |---|---|
 | `NOTION_COMMENTS_DATASOURCE_ID` | `comments` DB의 **data_source ID** (UUID with hyphens) |
-| `COMMENT_HASH_SALT` | IP/닉네임 해싱용 salt — 생성: `openssl rand -hex 32` |
+| `NEXT_PUBLIC_NOTION_COMMENTS_ENABLE` | 기본 `false`. `true`로 설정한 뒤 빌드하면 댓글 UI 활성화 |
+| `COMMENT_HASH_SALT` | IP/닉네임 해싱용 salt. 댓글 DB ID를 설정한 뒤 `yarn setup`을 실행하면 빈 값만 생성 |
 
 ### 방문자 통계 활성 시 필수
 
 | 변수명 | 설명 |
 |---|---|
 | `NOTION_VISIT_STATS_DATASOURCE_ID` | `visit-stats` DB의 **data_source ID** (UUID with hyphens) |
-| `VISITOR_HASH_SALT` | 방문자 쿠키 해싱용 salt — 생성: `openssl rand -hex 32`. `COMMENT_HASH_SALT`와 재사용하지 마세요 |
+| `VISITOR_HASH_SALT` | 방문자 쿠키 해싱용 salt. 방문자 DB ID를 설정한 뒤 `yarn setup`이 독립 생성. `COMMENT_HASH_SALT`와 재사용하지 마세요 |
 
 ### 선택
 
@@ -131,10 +128,10 @@ yarn dev
 | `QDRANT_API_KEY` | — | 인증이 걸린 외부 Qdrant용 API key. 로컬/self-hosted Qdrant는 빈 값 |
 | `CACHE_NAMESPACE` | `monolog` | Redis 키 prefix. 동일 Redis를 staging·preview 등 여러 배포가 공유할 때 충돌 방지 |
 | `GRAPH_BUILD_TIMEOUT_MS` | `120000` | Notion graph complete-build 시간 제한(ms). 제한을 넘긴 partial graph는 Qdrant snapshot으로 저장하지 않음. 최대 `300000` |
-| `REVALIDATE_SECRET` | — | `/api/revalidate` · `/api/init` · `/api/cron/content` · `/api/cron/graph` · `/api/cron/ontology` 보호용 Bearer 토큰. GitHub Actions의 `REVALIDATE_SECRET` secret과 **동일 이름·동일 값**. |
 | `REVALIDATE_HOURS` | `6` | ISR 재생성 주기 (시간) |
-| `NEXT_PUBLIC_SITE_URL` | — | 요청 origin 검증의 추가 허용 주소(선택). canonical·sitemap·RSS·IndexNow는 `site.config.js`의 `link`를 사용하고 이미지 프록시는 상대 URL로 저장 |
-| `TRUSTED_PROXY_HOPS` | `0` | 앞단 프록시 hop 수 — `0`이면 XFF 무시, `1`이면 Nginx·LB 1단 신뢰 |
+| `NEXT_PUBLIC_SITE_URL` | `http://localhost:3000` | 사이트 canonical·sitemap·RSS·IndexNow와 요청 origin 검증에 사용. 공개 배포에는 본인의 실제 주소를 **빌드 전에** 설정 |
+| `TRUSTED_PROXY_HOPS` | `0` | 기본값은 전달된 IP 헤더를 무시. 프록시 인증키 검증을 통과한 요청에서만 지정한 홉 수를 신뢰 |
+| `TRUSTED_PROXY_SECRET` | — | 프록시 신뢰를 켤 때만 필요. 프록시가 `X-Monolog-Proxy-Secret`을 강한 공유키로 덮어써야 하며 기본 배포에는 필요 없음 |
 | `NEXT_PUBLIC_GOOGLE_MEASUREMENT_ID` | — | Google Analytics |
 | `NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION` | — | Google Search Console |
 | `NEXT_PUBLIC_NAVER_SITE_VERIFICATION` | — | Naver Search Advisor |
@@ -166,12 +163,12 @@ yarn dev
 
 ### 운영 호스트 cron (Linux, 기본 트리거)
 
-운영 호스트에는 15분 cron을 등록하고 GitHub Actions는 보조 트리거로 유지합니다. `scripts/reconcile-content-host.sh`는 신뢰할 수 있는 shell-compatible `/app/monolog/.env`에서 토큰을 읽고 로컬 `POST http://127.0.0.1:3000/api/cron/content`를 호출합니다. 토큰은 curl의 표준 입력으로 전달해 명령행에 노출하지 않습니다. 기존 캐시를 지우거나 실제 Notion 글을 수정하지 않습니다.
+운영 호스트에는 15분 cron을 등록하고 GitHub Actions는 보조 트리거로 유지합니다. `scripts/reconcile-content-host.sh`는 실행 위치와 무관하게 **스크립트가 속한 저장소 루트의 `.env`**를 읽고 로컬 `POST http://127.0.0.1:3000/api/cron/content`를 호출합니다. 호스트에 Bash·curl·`flock`(util-linux)이 필요하고 `.env`는 신뢰할 수 있는 shell-compatible 설정이어야 합니다. 토큰은 curl의 표준 입력으로 전달해 명령행에 노출하지 않습니다. 기존 캐시를 지우거나 실제 Notion 글을 수정하지 않습니다.
 
-기존 작업을 보존하며 배포 계정의 `crontab -e`에 다음 줄을 추가합니다. 호스트의 `cron` 서비스가 실행 중이어야 합니다.
+최초 backfill은 저장소에서 `bash scripts/reconcile-content-host.sh`로 실행합니다. 기존 작업을 보존하며 배포 계정의 `crontab -e`에 다음 줄을 추가하고 `/absolute/path/monolog`는 본인의 저장소 절대 경로로 교체합니다. 호스트의 `cron` 서비스가 실행 중이어야 합니다.
 
 ```cron
-*/15 * * * * /bin/bash /app/monolog/scripts/reconcile-content-host.sh 2>&1 | /usr/bin/logger -t monolog-content-sync
+*/15 * * * * /bin/bash "/absolute/path/monolog/scripts/reconcile-content-host.sh" 2>&1 | /usr/bin/logger -t monolog-content-sync
 ```
 
 스크립트는 사용자 캐시 디렉터리의 `flock`으로 호스트 작업 중첩을 막고 요청을 최대 900초로 제한합니다. GitHub 호출과의 중첩은 콘텐츠 저장소의 lease가 제어합니다. 실패한 콘텐츠 작업은 저장소에 남아 다음 실행에서 이어서 처리됩니다.
@@ -220,17 +217,21 @@ curl -X POST -H "Authorization: Bearer $REVALIDATE_SECRET" "https://your-site.co
 
 ## Docker
 
+최소 설정과 `yarn setup`을 마친 뒤, 외부 공개 시 `.env`의 `NEXT_PUBLIC_SITE_URL`을 실제 HTTPS 주소로 설정합니다. 웹·임베딩을 소스 빌드하는 기본 경로는 프로젝트의 비공개 GHCR 이미지 인증이 필요하지 않습니다.
+
 ```bash
-# 기본 스택: blog + redis(캐시) + content-redis(내구성 콘텐츠 저장소) + qdrant
-docker compose up -d
-
-# 로컬 변경사항까지 다시 빌드해서 재시작
-docker compose up -d --build
-
-docker compose logs -f
+# blog + redis(캐시) + content-redis(내구성 콘텐츠 저장소) + qdrant + embedding
+docker compose config --quiet
+docker compose up -d --build --wait --wait-timeout 2400
+docker compose ps
+docker compose logs -f blog embedding
 ```
 
-이미지: `ghcr.io/jung-geun/monolog`
+첫 기동은 모델 다운로드·CPU 추론과 Notion 콘텐츠 초기화를 포함합니다. Compose는 임베딩 readiness를 기다리고, blog entrypoint는 `/api/init`으로 공개 경로를 준비합니다. 로그의 초기화 결과까지 확인한 뒤 `/api/cron/content`로 backfill을 진행하세요. 포트 3000 외의 서비스는 호스트에 공개하지 않습니다. DNS·HTTPS 리버스 프록시는 호스트에서 별도 구성합니다. 데이터 볼륨을 지우는 `docker compose down -v`는 운영 갱신 명령이 아닙니다.
+
+### 기존 운영 GHCR 이미지 사용 (선택)
+
+웹 이미지: `ghcr.io/jung-geun/monolog`. 비공개 패키지 접근 권한이 있는 기존 운영 경로입니다. 처음 설치하는 일반 사용자는 위 소스 빌드를 사용하세요.
 
 | 태그 | 트리거 |
 |---|---|
@@ -240,15 +241,19 @@ docker compose logs -f
 - 아키텍처: `linux/amd64`
 - SLSA build provenance attestation 자동 첨부
 
+GHCR CI 빌드에는 GitHub repository variables로 `NEXT_PUBLIC_SITE_URL`과 사용 중인 선택 기능의 공개 값을 설정합니다: `NEXT_PUBLIC_GOOGLE_ADSENSE_CLIENT`·`NEXT_PUBLIC_GOOGLE_ADSENSE_DISABLE`·`NEXT_PUBLIC_UTTERANCES_REPO`·`NEXT_PUBLIC_NOTION_COMMENTS_ENABLE`·`REVALIDATE_HOURS`. 이 값은 이미지 빌드 때 고정됩니다. `.env`만 바꿔서는 이미 게시된 이미지의 canonical·광고·댓글 UI가 바뀌지 않습니다. Notion 토큰·DB ID·salt·관리 키는 repository variables나 Docker build args에 넣지 말고 운영 `.env`에만 보관하세요.
+
 운영 GHCR 이미지는 테스트·빌드가 성공한 뒤 `docker compose pull blog embedding`으로 가져오고 OCI revision을 확인합니다. 기존 이미지 rollback 태그와 `.env`·Compose override·Redis RDB·Qdrant snapshot을 백업하고 `embedding`이 모델 다운로드·실제 추론 warmup까지 healthy가 된 후 `docker compose up -d --no-build --wait --wait-timeout 2400`으로 교체합니다. 볼륨을 삭제하지 않습니다.
 
 서버 전용 `docker-compose.override.yml`이 `blog`·`redis`·`qdrant`를 외부 네트워크에 연결한다면 `content-redis`와 `embedding`도 blog가 도달 가능한 네트워크에 지정해야 합니다. 첫 배포는 새 서비스를 먼저 준비하고 기존 안내대로 후보 blog에서 `/api/init`과 실제 페이지를 확인한 뒤 교체합니다. `/api/init`은 임베딩을 기다리지 않으므로 교체 후 `/api/cron/content`로 첫 backfill을 진행하고 `pending`·`failed`·`maintenancePending`이 0인지 확인합니다.
 
 ### EmbeddingGemma · Qdrant · ontology
 
-Compose는 `ghcr.io/jung-geun/monolog-embedding:latest`를 private `linux/amd64` CPU 서비스로 실행합니다. 직접 빌드는 `docker compose build embedding`; 웹과 임베딩 이미지는 같은 Docker Build and Push 워크플로에서 각각 발행합니다. 호스트 포트를 공개하지 않으며 `embedding-model-cache` 볼륨에 공개 체크포인트를 보관합니다. 이 볼륨과 Qdrant 저장소도 백업 대상입니다.
+Compose의 `embedding`은 내부 네트워크의 `linux/amd64` CPU 서비스입니다. 기본 소스 빌드는 `docker compose build embedding`이고, 기존 운영에서는 `ghcr.io/jung-geun/monolog-embedding:latest` 이미지를 사용할 수 있습니다. 웹·임베딩 이미지는 같은 Docker Build and Push 워크플로에서 각각 발행합니다. 호스트 포트를 공개하지 않으며 `embedding-model-cache` 볼륨에 공개 체크포인트를 보관합니다. 이 볼륨과 Qdrant 저장소도 백업 대상입니다.
 
 모델은 [공식 EmbeddingGemma 2](https://huggingface.co/google/embeddinggemma-2)의 고정 revision `914f7f89142e33e77833254d9c9b90c3cef7303b`, CPU float32, 768차원입니다. 첫 실행은 약 1.49GB의 결합 safetensors를 내려받지만 vision/audio encoder는 생성하지 않습니다. `/health`는 다운로드와 실제 추론 성공 뒤에만 ready를 반환하며, 초기 health grace는 30분입니다. 긴 글은 8192-token 창마다 처리하므로 메모리·CPU 여유가 필요합니다. ARM 호스트에서는 선언된 amd64 서비스의 에뮬레이션이 필요합니다.
+
+readiness의 짧은 query 추론과 긴 문서 backfill의 메모리 사용량은 다릅니다. 공유 8GiB Docker Desktop VM에서 실제 긴 글 8개 요청 중 OOM kill과 모델 재시작을 관찰했습니다. 충분한 Docker/서버 메모리를 확보해야 하며, 재시작은 `docker compose logs embedding`과 Docker 호스트의 OOM 로그로 확인합니다. 이미지를 반복 재시작하거나 키를 추가해도 메모리 부족은 해결되지 않습니다. 환경을 보완한 뒤 유지보수를 다시 실행해 `/api/cron/content`의 `pending=0`, `failed=0`, `maintenancePending=0`과 그래프의 임베딩 진행 수를 함께 확인하세요. `/api/init`은 임베딩을 실행하지 않으므로 그 응답만으로 전체 backfill 완료를 판단하면 안 됩니다.
 
 공개 의미 검색은 IP당 분당 6회·웹 프로세스당 동시 1개로 제한하며 초과 시 `429`와 `Retry-After`를 반환합니다. 모델 서비스는 문서 유지보수에 우선권과 최대 1개 대기 예약을 부여하고 추가 요청을 `503`으로 거절합니다. health 요청은 추론 대기열과 분리하며, 웹의 query 추론은 30초·document 추론은 10분 뒤 중단합니다.
 
@@ -261,19 +266,10 @@ curl -X POST "https://your-site.com/api/cron/ontology" \
   -H "Authorization: Bearer $REVALIDATE_SECRET"
 ```
 
-```bash
-docker run -d -p 3000:3000 --env-file .env ghcr.io/jung-geun/monolog:latest
-```
+Compose의 `build.args`는 사이트 주소·Utterances 저장소·AdSense client/disable·재검증 주기를 웹 이미지에 전달합니다. 이 값과 `site.config.js`를 변경하면 `docker compose up -d --build --wait --wait-timeout 2400`으로 다시 빌드합니다. Analytics 및 Google/Naver/Bing 인증 값만 컨테이너 시작 시 runtime-config로 주입되므로 이미지 재빌드 없이 재생성할 수 있습니다. 모든 `NEXT_PUBLIC_*`가 런타임 값인 것은 아닙니다.
 
-예시 (`NEXT_PUBLIC_*` 값은 공개 값이며 이미지에 다시 빌드할 필요가 없습니다):
+단독 `docker run`은 내구성 콘텐츠 Redis와 그래프 서비스 연결을 자동 구성하지 않습니다. 기본 설치·운영에는 위 Compose 경로를 사용합니다.
 
-```bash
-docker run -d -p 3000:3000 \
-  --env-file .env \
-  -e NEXT_PUBLIC_GOOGLE_MEASUREMENT_ID=G-XXXXXXXXXX \
-  -e NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION=verification-token \
-  ghcr.io/jung-geun/monolog:latest
-```
 
 ### Redis 캐시 (선택)
 
@@ -319,6 +315,7 @@ volumes:
 ## 스크립트
 
 ```bash
+yarn setup            # 최소 .env 입력 검증 · DB 주소 변환 · 비밀키/salt 생성
 yarn dev              # 개발 서버 (next dev --webpack)
 yarn build            # 프로덕션 빌드 (next build --webpack)
 yarn start            # 빌드 결과 실행

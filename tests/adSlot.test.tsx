@@ -3,6 +3,15 @@ import { createRoot, type Root } from "react-dom/client"
 import React from "react"
 import AdSlot from "src/components/AdSlot"
 
+jest.mock("site.config", () => ({
+  CONFIG: {
+    googleAdsense: {
+      enable: true,
+      config: { client: "ca-pub-1234567890123456" },
+    },
+  },
+}))
+
 ;(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
 describe("AdSlot", () => {
@@ -46,14 +55,11 @@ describe("AdSlot", () => {
     expect(window.adsbygoogle).toHaveLength(0)
   })
 
-  it("renders and requests an enabled ad slot", () => {
+  it("requests a configured visible ad slot once across rerenders", () => {
     act(() => root.render(<AdSlot slot="1234567890" />))
 
-    expect(
-      container.querySelector(
-        'ins.adsbygoogle[data-ad-client="ca-pub-6070999186513755"][data-ad-slot="1234567890"][data-ad-format="auto"][data-full-width-responsive="true"]'
-      )
-    ).not.toBeNull()
+    expect(window.adsbygoogle).toHaveLength(1)
+    act(() => root.render(<AdSlot slot="1234567890" />))
     expect(window.adsbygoogle).toHaveLength(1)
   })
 

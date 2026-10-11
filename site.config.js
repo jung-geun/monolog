@@ -36,7 +36,7 @@ const CONFIG = {
   },
 
   // CONFIG configration (required)
-  link: "https://blog.pieroot.xyz",
+  link: process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000",
   since: 2026, // If leave this empty, current year will be used.
   lang: "ko-KR",
   timeZone: "Asia/Seoul",
@@ -57,7 +57,7 @@ const CONFIG = {
     enable: process.env.NEXT_PUBLIC_GOOGLE_ADSENSE_DISABLE !== "true",
     config: {
       client:
-        process.env.NEXT_PUBLIC_GOOGLE_ADSENSE_CLIENT || "ca-pub-6070999186513755",
+        process.env.NEXT_PUBLIC_GOOGLE_ADSENSE_CLIENT || "",
       // Display ad unit slot IDs (AdSense > Ads > By ad unit > Display). "" = slot not rendered.
       slots: {
         postBottom: "",
@@ -66,11 +66,11 @@ const CONFIG = {
     },
   },
   notionComments: {
-    enable: true,
+    enable: process.env.NEXT_PUBLIC_NOTION_COMMENTS_ENABLE === "true",
     cacheTtlSec: 45,
   },
   utterances: {
-    enable: true,
+    enable: Boolean(process.env.NEXT_PUBLIC_UTTERANCES_REPO),
     config: {
       repo: process.env.NEXT_PUBLIC_UTTERANCES_REPO || "",
       "issue-term": "og:title",

@@ -8,7 +8,8 @@ exec 9>"$LOCK_DIR/content-sync.lock"
 /usr/bin/flock -n 9
 
 # Trusted, shell-compatible host configuration. Do not export or log secrets.
-. /app/monolog/.env
+REPO_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)"
+. "$REPO_DIR/.env"
 : "${REVALIDATE_SECRET:?REVALIDATE_SECRET is required}"
 
 # Keep the bearer token off curl's command line and out of process listings.
