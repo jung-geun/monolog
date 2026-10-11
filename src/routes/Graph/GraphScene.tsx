@@ -236,12 +236,13 @@ export default function GraphScene(props: GraphSceneProps) {
         if (disposed) return
         if (!disposed && !contextLost && !raf && !inFrame && drawable && inViewport && !document.hidden) raf = requestAnimationFrame(frame)
       }
-      const getNodeMaterial = (color: string, wireframe: boolean, dim: boolean, focus: boolean) => {
-        const key = `${color}:${wireframe}:${dim}:${focus}`
+      const getNodeMaterial = (color: string, degree: number, wireframe: boolean, dim: boolean, focus: boolean) => {
+        const key = `${color}:${degree}:${wireframe}:${dim}:${focus}`
         let value = nodeMaterials.get(key)
         if (!value) {
-          // Near-opaque matte surfaces retain depth; only de-emphasized nodes stop occluding.
-          value = material(new THREE.MeshStandardMaterial({ color, wireframe, roughness: 0.95, metalness: 0, transparent: true, opacity: dim ? 0.3 : focus ? 0.94 : 0.86, depthWrite: !dim }))
+          // Keep hubs translucent, but let near-opaque highlighted nodes occlude rear arrows.
+          const baselineAlpha = 0.22 + 0.42 / (1 + Math.max(0, degree) / 12)
+          value = material(new THREE.MeshStandardMaterial({ color, wireframe, roughness: 0.95, metalness: 0, transparent: true, opacity: focus ? 0.94 : dim ? baselineAlpha * 0.25 : baselineAlpha, depthWrite: focus }))
           nodeMaterials.set(key, value)
         }
         value.color.set(color).lerp(tint.set(palette.current.bg2), 0.22)
@@ -359,7 +360,7 @@ export default function GraphScene(props: GraphSceneProps) {
       for (let index = 0; index < count; index++) {
         const node = nodes[index]
         radii[index] = graphNodeRadius(node.degree)
-        const mesh = new THREE.Mesh(node.kind === "post" ? sphere : octahedron, getNodeMaterial(node.color, node.kind === "series", false, false))
+        const mesh = new THREE.Mesh(node.kind === "post" ? sphere : octahedron, getNodeMaterial(node.color, node.degree, node.kind === "series", false, false))
         mesh.userData.nodeIndex = index
         meshes.push(mesh)
         scene.add(mesh)
@@ -410,8 +411,8 @@ export default function GraphScene(props: GraphSceneProps) {
         }
         for (const [kind, group] of grouped) {
           const segments = RELATION_STYLES[kind].dashed ? 12 : 1
-          const lineMaterial = material(new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.85, depthWrite: false }))
-          const arrowMaterial = material(new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.94, depthWrite: false }))
+          const lineMaterial = material(new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.95, depthWrite: false }))
+          const arrowMaterial = material(new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.98, depthWrite: false }))
           const lines = new THREE.InstancedMesh(cylinder, lineMaterial, group.length * segments)
           const arrows = new THREE.InstancedMesh(cone, arrowMaterial, group.length)
           lines.instanceMatrix.setUsage(THREE.DynamicDrawUsage)
@@ -453,7 +454,7 @@ export default function GraphScene(props: GraphSceneProps) {
           dimmed[index] = !inNeighborhood || !categoryMatch ? 1 : 0
           meshes[index].visible = visible[index] === 1
           const emphasized = index === state.selectedIndex || index === state.hoveredIndex || index === keyboardIndex
-          meshes[index].material = getNodeMaterial(node.color, node.kind === "series", dimmed[index] === 1 && !emphasized, emphasized)
+          meshes[index].material = getNodeMaterial(node.color, node.degree, node.kind === "series", dimmed[index] === 1 && !emphasized, emphasized)
           buttons[index].tabIndex = visible[index] ? 0 : -1
           buttons[index].hidden = !visible[index]
           buttons[index].setAttribute("aria-pressed", index === state.selectedIndex ? "true" : "false")
@@ -544,7 +545,7 @@ export default function GraphScene(props: GraphSceneProps) {
             const incident = focus >= 0 && (link.a === focus || link.b === focus)
             const unrelated = focus >= 0 && !incident
             const categoryDim = dimmed[link.a] && dimmed[link.b]
-            const strength = incident ? 0.9 : unrelated || categoryDim ? 0.12 : 0.6
+            const strength = incident ? 0.96 : unrelated || categoryDim ? 0.12 : 0.78
             edgeColor.set(RELATION_STYLES[batch.kind].color).lerp(tint.set(palette.current.fg3), 0.2)
             tint.copy(background).lerp(edgeColor, strength)
             const weight = Math.min(3, Math.max(0.5, Math.sqrt(Math.max(0, link.weight))))
