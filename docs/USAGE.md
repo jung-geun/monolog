@@ -341,6 +341,13 @@ gh workflow run test.yml --ref main -f runner=self-hosted
 
 `--ref`에는 검증할 저장소 브랜치·태그를 지정합니다. Self-hosted 경로는 Node.js 설치 후 Corepack으로 `package.json`의 `packageManager`에 선언된 Yarn을 활성화하고 동일한 테스트·빌드를 실행합니다. 해당 호스트에서 프로젝트 코드가 실행되므로 신뢰하는 브랜치만 수동으로 선택하세요.
 
+운영 호스트가 비공개 GHCR 이미지를 직접 pull할 인증이 없으면, 같은 Docker 데몬을 공유하는 신뢰된 self-hosted runner에서 기존 `GHCR_TOKEN`으로 게시 이미지만 적재합니다. 토큰을 호스트나 로그에 내보내지 않으며 패키지를 공개로 바꾸지 않습니다. 아래 수동 경로는 재빌드 없이 두 이미지의 지정 태그를 pull하고 로컬 `latest`로 지정합니다. 이후 Compose에서 `--no-build --pull never --no-deps`로 필요한 서비스만 시작합니다.
+
+```bash
+gh workflow run docker-build.yml --ref main -f image-tag=1.20.0
+```
+
+
 ---
 
 ## 디렉터리 구조
