@@ -4,6 +4,16 @@ monolog의 버전별 변경 이력. 프로젝트 개요는 [`../README.md`](../R
 
 ---
 
+## v1.20.1 — 2026-10-11
+
+### 그래프 대비 · 최소 배포 설정
+- **관계선 중심의 대비** — 선·화살표를 더 불투명하게 표시하고 연결 수가 많은 노드는 부드러운 degree 곡선으로 더 투명하게 처리. 일반 노드는 depth 쓰기를 제거하고 선택·hover·키보드로 강조한 노드는 뒤쪽 화살표의 관통을 방지. 직접 이웃 강조와 무관한 노드·관계의 감쇠를 유지.
+- **콘텐츠 연결 입력 2개** — `yarn setup` 추가. Notion 토큰과 원본 DB 주소 또는 data-source UUID를 입력하면 DB 주소를 공식 API로 변환하고 비어 있는 재검증 키를 생성. 여러 data source는 명시 선택하며 기존 키·주석·관련 없는 설정을 유지하고 `.env` 권한을 `0600`으로 제한. 선택 DB ID가 있을 때만 서로 다른 댓글·방문자 salt 생성.
+- **외부 서비스 opt-in** — 예시 댓글·방문자 ID와 작성자의 AdSense client 기본값 제거. Notion 댓글은 `NEXT_PUBLIC_NOTION_COMMENTS_ENABLE=true`로 명시 활성, Utterances는 저장소 설정 시 활성. 기본 사이트 주소는 localhost, 프록시 신뢰는 0홉이며 기존 origin·관리 API·프록시 인증을 유지. GHCR CI는 공개 사이트 주소·광고·댓글 설정을 repository variables에서 빌드에 전달해 기존 운영 기능을 보존.
+- **재현 가능한 소스 배포** — Compose에 기존 공개 빌드 인자를 전달하고 비공개 GHCR 접근이 필요 없는 소스 빌드·모델 readiness·최초 유지보수·Linux cron 절차를 README와 USAGE에 기재. 호스트 동기화 스크립트가 고정 `/app/monolog` 대신 자신의 저장소 `.env`를 사용.
+
+---
+
 ## v1.20.0 — 2026-10-11
 
 ### 부드러운 임베딩 기반 3D 그래프
