@@ -6,6 +6,13 @@ on:
       - main
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      image-tag:
+        description: Published image tag to stage on the trusted deployment daemon
+        required: true
+        default: latest
+        type: string
 
 env:
   REGISTRY: ghcr.io
@@ -13,6 +20,7 @@ env:
 
 jobs:
   build-and-push:
+    if: github.event_name != 'workflow_dispatch'
     runs-on: [self-hosted, Linux, X64]
     strategy:
       matrix:
@@ -100,3 +108,28 @@ jobs:
 
       - name: Output image tags
         run: echo "Pushed tags ${{ steps.tags.outputs.value }}"
+
+  stage-for-deployment:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: [self-hosted, Linux, X64]
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GHCR_TOKEN }}
+
+      - name: Stage published images on the deployment daemon
+        env:
+          IMAGE_TAG: ${{ inputs.image-tag }}
+        run: |
+          for SUFFIX in '' '-embedding'; do
+            IMAGE="${REGISTRY}/${IMAGE_NAME}${SUFFIX}"
+            docker pull "${IMAGE}:${IMAGE_TAG}"
+            docker image inspect "${IMAGE}:${IMAGE_TAG}" --format '{{.Id}} {{.Os}}/{{.Architecture}} {{index .Config.Labels "org.opencontainers.image.revision"}}'
+            docker tag "${IMAGE}:${IMAGE_TAG}" "${IMAGE}:latest"
+          done
