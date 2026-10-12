@@ -33,7 +33,7 @@ const Feed = () => {
 
 export default Feed
 
-const StyledWrapper = styled.div`
+const StyledWrapper = styled.main`
   flex: 1;
   overflow-x: clip;
 

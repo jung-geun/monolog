@@ -138,6 +138,7 @@ const PostTreeItem = ({ post, isActive, href }: TreeItemProps) => {
       <Link
         ref={ref}
         href={href}
+        prefetch={false}
         className={`file-item${isActive ? " active" : ""}`}
         aria-current={isActive ? "page" : undefined}
         title={post.title}
@@ -374,6 +375,7 @@ const FileTree = () => {
       </Link>
       <Link
         href={`/${CONFIG.aboutSlug}`}
+        prefetch={false}
         className={`file-item${router?.asPath === `/${CONFIG.aboutSlug}` ? " active" : ""}`}
       >
         <span className="file-name">  about.md</span>
@@ -419,6 +421,7 @@ const StyledWrapper = styled.nav`
     display: block;
     width: 100%;
     box-sizing: border-box;
+    min-height: 24px;
     padding: 2px 12px;
     color: ${({ theme }) => theme.colors.editor.fg3};
     cursor: pointer;

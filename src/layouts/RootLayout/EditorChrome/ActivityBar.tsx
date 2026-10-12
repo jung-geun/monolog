@@ -52,6 +52,7 @@ const ActivityBar = () => {
 
       <Link
         href="/graph"
+        prefetch={false}
         className={`icon-btn${isGraphRoute ? " active" : ""}`}
         title="graph"
         aria-label="graph"

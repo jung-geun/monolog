@@ -10,8 +10,8 @@ const LIGHT_VARS = `
   --c-elevated: 242 242 242;
   --c-sunken: 242 242 242;
   --c-hairline: 229 229 229;
-  --c-mute: 110 118 129;
-  --c-soft: 134 134 134;
+  --c-mute: 98 106 115;
+  --c-soft: 106 106 106;
   --c-strong: 31 31 31;
 
   --c-signal: 0 95 184;
@@ -48,9 +48,9 @@ const LIGHT_VARS = `
   --theme-colors-gray4: #e5e5e5;
   --theme-colors-gray5: #cecece;
   --theme-colors-gray6: #cecece;
-  --theme-colors-gray7: #868686;
-  --theme-colors-gray8: #868686;
-  --theme-colors-gray9: #6e7681;
+  --theme-colors-gray7: #6a6a6a;
+  --theme-colors-gray8: #6a6a6a;
+  --theme-colors-gray9: #626a73;
   --theme-colors-gray10: #3b3b3b;
   --theme-colors-gray11: #3b3b3b;
   --theme-colors-gray12: #1f1f1f;

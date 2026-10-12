@@ -9,7 +9,7 @@ monolog의 주요 기능 상세. 프로젝트 개요와 핵심 차별점은 [`..
 
 | 컴포넌트 | 설명 |
 |---|---|
-| **TitleBar** | 빨강·노랑·초록 macOS traffic-light(지름 12px, 간격 8px) + `pieroot.log — {filename}` + git 브랜치. 빨간 닫기 버튼은 hover·키보드 포커스 시 ×를 표시하고 누르는 동안 어두워짐. 브라우저가 허용하면 창을 닫고, 막으면 `about:blank`로 나감. 노랑·초록은 기존처럼 장식용 표시등 |
+| **TitleBar** | 빨강·노랑·초록 macOS traffic-light(지름 12px, 간격 8px) + `pieroot.log — {filename}` + git 브랜치. 빨간 닫기 버튼은 hover·키보드 포커스 시 ×를 표시하고 누르는 동안 어두워짐. 브라우저가 허용하면 창을 실제로 닫고, 막으면 현재 페이지를 유지한 채 브라우저 탭 닫기·`⌘W` / `Ctrl+W` 안내를 표시. `about:blank` 이동은 하지 않음. 노랑·초록은 장식용 표시등 |
 | **ActivityBar** | explorer / search / graph / commands / theme toggle (44px). explorer 강조는 패널이 열려 있고 Search·Graph가 아닌 화면에서만 표시. Search·Graph는 explorer 패널 열림과 무관하게 현재 경로를 강조 |
 | **FileTree** | `posts/` · `categories/` · `series/` · `projects/` · `drafts/` · `public/` 트리 (240px, 토글 슬라이드). 최신 15개 글 뒤에 열린 탭의 이전 글을 중복 없이 추가하고 현재 글을 강조. 추가 항목은 탭을 닫으면 제거하며, 피드에 없는 상세 공개 글도 로드된 메타데이터로 표시. 항목 hover 시 글 메타 프리뷰 카드. 모바일의 열린 패널과 배경은 탭바·읽기 진행률보다 앞에 표시 |
 | **TabBar** | 라우트별 탭 (`README.md`, `categories/<name>.md`, `series/<name>.md`, `graph.md`, …). 현재 글 닫기 `Alt/Option+W`, 마지막으로 닫은 글 다시 열기 `Alt/Option+Shift+T`와 다시 열기 버튼 제공. `Cmd/Ctrl+W`·`Cmd/Ctrl+Shift+T`는 브라우저가 페이지로 전달할 때만 처리. 사용자가 동의하면 열린 탭과 최근 닫은 글 제목·주소만 이 브라우저 `localStorage`에 저장해 새로고침 후 복원. 거부는 이번 방문에만 적용하며, 저장 해제 시 저장된 두 항목을 삭제하고 이후에는 저장하지 않음 |
@@ -40,8 +40,12 @@ monolog의 주요 기능 상세. 프로젝트 개요와 핵심 차별점은 [`..
 ## 본문 상단 히어로 썸네일
 `PostDetail`(non-about) 분기에서 Frontmatter 위에 16:9 히어로 썸네일이 `priority` 로딩으로 깔립니다. About 페이지는 위젯 영역으로 대체.
 
-## Markdown으로 보기
-태블릿·데스크톱(768px 이상)에서는 **Markdown으로 보기** 버튼만 본문 영역 오른쪽 상단에 띄우고 스크롤 중에도 탭바 아래에 유지합니다. 사이드바가 표시되면 그 왼쪽에, 숨겨진 태블릿에서는 본문 오른쪽에 배치하며 전체 너비 고정 바는 만들지 않습니다. 모바일(767px 이하)에서는 버튼을 숨기고 추가 공간도 차지하지 않습니다. 버튼은 해당 글의 `/{slug}.md` 전문을 새 창으로 열며 원래 글의 주소·스크롤 위치를 유지하고 `noopener noreferrer`로 새 창 접근을 차단합니다. 기존 Markdown 주소 생성·공개 글 엔드포인트를 그대로 사용합니다.
+## Markdown 복사 · 보기
+글 본문 오른쪽 상단에 **Markdown 복사** 아이콘과 인접한 추가 작업 disclosure를 띄우고 스크롤 중에도 탭바 아래에 유지합니다. 사이드바가 표시되면 그 왼쪽에, 숨겨진 태블릿·모바일에서는 본문 오른쪽에 배치하며 전체 너비 고정 바는 만들지 않습니다. 작은 화면에서도 표시하되 본문과 겹치지 않도록 상단 여백을 확보합니다. About 페이지에는 이 도구를 추가하지 않습니다.
+
+복사할 때만 현재 origin의 `/{slug}.md`를 요청하고 frontmatter를 포함한 응답 전문을 그대로 복사합니다. 요청·클립보드 실패는 실패로 안내하며, 클립보드 API가 없거나 거부되면 코드 블록과 동일한 textarea fallback을 시도하고 포커스를 복원합니다. 글 이동 시 진행 중 요청을 취소하고 이전 글의 늦은 응답·안내를 무시합니다. 로딩·성공·실패는 live status로 알립니다.
+
+추가 작업은 기본 HTML disclosure로 키보드에서 열 수 있고 Escape·바깥 클릭·다른 컨트롤로 포커스 이동 시 닫힙니다. 그 안의 **Markdown으로 보기**는 기존 Markdown 주소 생성기를 사용하는 일반 링크로 전문을 새 창에 열며 원래 글의 주소·스크롤 위치를 유지하고 `noopener noreferrer`로 새 창 접근을 차단합니다. 링크나 disclosure 표시만으로 Markdown을 미리 다운로드하지 않습니다.
 
 ## 자동 광고 배치
 - AdSense Auto ads가 홈·목록 카드 사이와 글의 블록 사이를 판단할 수 있도록 목록 항목을 독립된 `article`, 홈 그룹을 이름 있는 `section`으로 표시. 본문은 단일 Notion 렌더러를 유지하며 Google이 삽입한 광고가 전체 콘텐츠 너비를 사용하고 잘리지 않도록 처리.
@@ -227,6 +231,7 @@ DB 블록 주입은 **createPortal** 기반 — react-notion-x가 그린 자리�
 - **IndexNow** — 발행·수정·slug 변경·삭제된 URL을 발행 직후 제출 (`INDEXNOW_KEY`, `/<key>.txt`)
 - **검색 서비스 검증** — Google·Naver·Bing 메타 태그를 컨테이너 시작 시 주입
 - 정기 동기화 — 운영 Linux 호스트의 `scripts/reconcile-content-host.sh`를 15분 cron으로 실행. GitHub Action (`revalidate.yml`)은 같은 `/api/cron/content` 호출을 예약하는 보조 수단이며 자동 실행 시각을 보장하지 않음. 남은 작업이 있으면 실패로 표시
+- **홈 초기 로딩·접근성** — Feed의 `main` 랜드마크와 SSR 링크를 유지. Prism 추가 문법은 코드가 나타날 때만 로딩하고, 글·About·Graph 링크는 자동 viewport prefetch 대신 Pages Router의 hover·클릭 로딩을 사용. 태그는 빈도별 글자 크기와 hover 색상을 유지하되 불투명도·색상 tween 없이 24px 이상의 타깃·포커스 표시를 제공하고 라이트 테마 보조 텍스트 대비를 확보.
 
 ---
 

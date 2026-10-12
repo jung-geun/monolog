@@ -27,6 +27,7 @@ const RecentPostsCompact = () => {
             <article key={post.id} className="mb-3">
               <Link
                 href={`/${post.slug}`}
+                prefetch={false}
                 className={`group block rounded-[12px] border border-hairline bg-card overflow-hidden transition-colors ${style.cardBorder} hover:bg-card/85`}
             >
               <div className={`grid ${post.thumbnail ? "grid-cols-[6px_1fr_auto]" : "grid-cols-[6px_1fr]"}`}>
