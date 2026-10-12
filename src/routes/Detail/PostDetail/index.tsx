@@ -2,7 +2,6 @@ import { useMemo } from "react"
 import styled from "@emotion/styled"
 import React from "react"
 import Image from "next/image"
-import { FiExternalLink } from "react-icons/fi"
 import usePostQuery from "src/hooks/usePostQuery"
 import usePostsQuery from "src/hooks/usePostsQuery"
 import NotionRenderer from "../components/NotionRenderer"
@@ -12,6 +11,7 @@ import CommentBox from "./CommentBox"
 import Frontmatter from "src/components/Frontmatter"
 import ReadingProgress from "./ReadingProgress"
 import RightRail from "./RightRail"
+import MarkdownActions from "./MarkdownActions"
 import { useRegisterChrome } from "src/layouts/RootLayout/EditorChrome/RouteChromeContext"
 import AdSlot from "src/components/AdSlot"
 import { CONFIG } from "site.config"
@@ -21,7 +21,7 @@ import ContactBlock from "src/routes/Detail/PageDetail/components/ContactBlock"
 import StackGrid from "src/routes/Detail/PageDetail/components/StackGrid"
 import StatsGrid from "src/routes/Feed/StatsGrid"
 import { getStats } from "src/libs/utils/stats"
-import { markdownUrl, publishedDate, modifiedDate, calendarDate, summaryText } from "src/libs/seo"
+import { publishedDate, modifiedDate, calendarDate, summaryText } from "src/libs/seo"
 import { getArticleDescription } from "src/libs/utils/notion/articleSummary"
 
 const PostDetail: React.FC = () => {
@@ -95,16 +95,7 @@ const PostDetail: React.FC = () => {
       <ReadingProgress />
 
       <div className="markdown-action">
-        <a
-          className="markdown-link"
-          href={markdownUrl(data.slug)}
-          target="_blank"
-          rel="noopener noreferrer"
-          aria-label="Markdown으로 보기 (새 창)"
-        >
-          Markdown으로 보기
-          <FiExternalLink aria-hidden="true" />
-        </a>
+        <MarkdownActions slug={data.slug} />
       </div>
       <div className="scroll-area">
         <div className="content-grid">
@@ -166,8 +157,8 @@ const StyledWrapper = styled.div`
   flex: 1;
 
   &.post-detail .body {
-    @media (min-width: 768px) and (max-width: ${({ theme }) => theme.variables.breakpoint}px) {
-      padding-top: 48px;
+    @media (max-width: ${({ theme }) => theme.variables.breakpoint}px) {
+      padding-top: 56px;
     }
   }
 
@@ -241,30 +232,6 @@ const StyledWrapper = styled.div`
     @media (max-width: ${({ theme }) => theme.variables.breakpoint}px) {
       padding-right: 20px;
     }
-
-    @media (max-width: 767px) {
-      display: none;
-    }
-  }
-
-  .markdown-link {
-    display: inline-flex;
-    pointer-events: auto;
-    align-items: center;
-    gap: 6px;
-    min-height: 32px;
-    padding: 6px 10px;
-    border: 1px solid ${({ theme }) => theme.colors.editor.line};
-    border-radius: 6px;
-    background: ${({ theme }) => theme.colors.editor.bg2};
-    color: ${({ theme }) => theme.colors.editor.fg};
-    font-size: 13px;
-    white-space: nowrap;
-    text-decoration: none;
-
-    &:hover { color: ${({ theme }) => theme.colors.editor.accent}; }
-    &:focus-visible { outline: 2px solid ${({ theme }) => theme.colors.editor.accent}; outline-offset: 2px; }
-    svg { width: 14px; height: 14px; }
   }
 
   .post-summary {
