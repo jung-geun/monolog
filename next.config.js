@@ -27,7 +27,7 @@ module.exports = {
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net",
       "img-src 'self' data: blob: https:",
       "font-src 'self' data: https://fonts.gstatic.com https://cdn.jsdelivr.net",
-      "connect-src 'self' https://*.google-analytics.com https://*.googletagmanager.com https://*.doubleclick.net https://*.googlesyndication.com https://*.adtrafficquality.google",
+      "connect-src 'self' https://api.ipify.org https://*.google-analytics.com https://*.googletagmanager.com https://*.doubleclick.net https://*.googlesyndication.com https://*.adtrafficquality.google",
       "media-src 'self' blob: https://*.amazonaws.com https://prod-files-secure.s3.us-west-2.amazonaws.com",
       "frame-src 'self' https://utteranc.es https://*.google.com https://*.googlesyndication.com https://*.doubleclick.net https://*.googleadservices.com https://*.googletagmanager.com https://*.adtrafficquality.google https://www.youtube.com https://www.youtube-nocookie.com https://open.spotify.com https://gist.github.com",
       "base-uri 'self'",

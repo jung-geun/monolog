@@ -256,7 +256,7 @@ const StyledWrapper = styled.div`
     flex-shrink: 0;
     max-width: 220px;
     animation: monolog-tab-enter 220ms var(--motion-ease);
-    transition: color var(--motion-fast), background var(--motion-fast);
+    transition: background var(--motion-fast);
 
     &::before {
       content: "";

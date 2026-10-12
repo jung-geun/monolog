@@ -21,12 +21,6 @@ const TagCloud = () => {
     return 11 + t * 7
   }
 
-  const opacityFor = (c: number) => {
-    if (max === min) return 0.85
-    const t = (c - min) / (max - min)
-    return 0.55 + t * 0.45
-  }
-
   return (
     <div className="mb-10">
       <div className="flex items-baseline justify-between mb-3">
@@ -38,11 +32,11 @@ const TagCloud = () => {
           <Link
             key={name}
             href={`/search?q=${encodeURIComponent(name)}`}
-            className="group inline-flex items-baseline gap-0.5 leading-none transition-colors"
-            style={{ fontSize: `${fontSizeFor(count)}px`, opacity: opacityFor(count) }}
+            className="group inline-flex min-h-6 min-w-6 items-baseline gap-0.5 py-1 leading-none rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-current"
+            style={{ fontSize: `${fontSizeFor(count)}px` }}
           >
-            <span className="font-mono text-mute group-hover:text-signal/70 transition-colors">#</span>
-            <span className="font-sans font-medium text-strong group-hover:text-signal transition-colors">{name}</span>
+            <span className="font-mono text-mute group-hover:text-signal dark:group-hover:text-signal-200">#</span>
+            <span className="font-sans font-medium text-strong group-hover:text-signal dark:group-hover:text-signal-200">{name}</span>
             <span className="font-mono text-[10px] text-mute ml-0.5">{count}</span>
           </Link>
         ))}
