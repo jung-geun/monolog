@@ -1,16 +1,25 @@
+import { useEffect, useRef, useState } from "react"
 import styled from "@emotion/styled"
 
 type Props = {
   filename: string
 }
 
-const exitSite = () => {
-  window.close()
-  if (!window.closed) window.location.replace("about:blank")
-}
+const TitleBar = ({ filename }: Props) => {
+  const [closeDenied, setCloseDenied] = useState(false)
+  const closeTimer = useRef<number | undefined>(undefined)
+  useEffect(() => () => clearTimeout(closeTimer.current), [])
 
-const TitleBar = ({ filename }: Props) => (
-  <StyledWrapper>
+  const exitSite = () => {
+    clearTimeout(closeTimer.current)
+    window.close()
+    closeTimer.current = window.setTimeout(() => {
+      if (!window.closed) setCloseDenied(true)
+    }, 200)
+  }
+
+  return (
+  <StyledWrapper data-close-notice={closeDenied || undefined}>
     <div className="traffic-lights">
       <button type="button" className="window-close" aria-label="사이트 닫기 / 나가기" title="사이트 닫기 / 나가기" onClick={exitSite}>
         <span className="dot close" aria-hidden="true">
@@ -22,10 +31,17 @@ const TitleBar = ({ filename }: Props) => (
       <span className="dot minimize" aria-hidden="true" />
       <span className="dot maximize" aria-hidden="true" />
     </div>
+    {closeDenied && (
+      <div className="close-notice" role="status">
+        <span>브라우저가 자동 탭 닫기를 허용하지 않습니다. 탭의 닫기 버튼이나 ⌘W / Ctrl+W를 사용해 주세요.</span>
+        <button type="button" aria-label="탭 닫기 안내 숨기기" onClick={() => setCloseDenied(false)}>확인</button>
+      </div>
+    )}
     <div className="title">pieroot.log — {filename}</div>
     <div className="branch">main</div>
   </StyledWrapper>
-)
+  )
+}
 
 export default TitleBar
 
@@ -40,6 +56,35 @@ const StyledWrapper = styled.div`
   align-items: center;
   padding: 0 14px;
   flex-shrink: 0;
+
+  &[data-close-notice="true"] { z-index: 70; }
+
+  .close-notice {
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 8px;
+    width: min(360px, calc(100vw - 32px));
+    box-sizing: border-box;
+    margin: 0;
+    padding: 12px;
+    border: 1px solid ${({ theme }) => theme.colors.editor.line};
+    border-radius: 6px;
+    background: ${({ theme }) => theme.colors.editor.bg2};
+    color: ${({ theme }) => theme.colors.editor.fg};
+    font-size: 12px;
+    line-height: 1.5;
+    box-shadow: 0 4px 16px rgb(0 0 0 / 0.16);
+
+    button {
+      display: block;
+      margin-top: 8px;
+      padding: 4px 8px;
+      border: 1px solid ${({ theme }) => theme.colors.editor.line};
+      border-radius: 4px;
+      color: inherit;
+      cursor: pointer;
+    }
+  }
 
   > * + * { margin-left: 10px; }
 
