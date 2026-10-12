@@ -1,0 +1,4 @@
+Contact: mailto:pieroot@konkuk.ac.kr
+Expires: 2027-10-01T00:00:00Z
+Preferred-Languages: ko, en
+Canonical: https://pieroot.xyz/.well-known/security.txt

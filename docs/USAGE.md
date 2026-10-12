@@ -193,6 +193,8 @@ journalctl -t monolog-content-sync --since today --no-pager
 | `POST /api/notion-webhook` | `X-Notion-Signature` (HMAC-SHA256) | Notion 이벤트를 힌트로 받아 해당 페이지를 실시간 메타데이터로 다시 확인하고 발행. 같은 이벤트 ID는 한 번만 처리 |
 | `POST /api/cron/ontology` | `REVALIDATE_SECRET` Bearer | 누락·변경 문서 임베딩을 먼저 보충하고 LLM ontology를 갱신. `?force=1`은 LLM 캐시 우회이며 같은 문서를 다시 임베딩하지 않음 |
 | `GET /robots.txt` · `GET /llms.txt` | — | 크롤러 정책·사이트맵 위치, AI용 공개 글 색인 (공개 글 목록과 동기) |
+| `GET /.well-known/security.txt` | 없음 | RFC 9116 취약점 제보 연락처·만료일·언어·canonical (`text/plain; charset=utf-8`) |
+| `GET /security.txt` | 없음 | 표준 `/.well-known/security.txt` 경로로 308 리다이렉트 |
 | `GET /{slug}.md` | — | 글의 Markdown 대체 표현 (`<link rel="alternate" type="text/markdown">`) |
 | `GET /{INDEXNOW_KEY}.txt` | — | IndexNow 키 검증 파일 |
 | `GET /api/similar?postId=<id-or-slug>&limit=5` | 없음 | 현재 문서 버전의 영속 EmbeddingGemma 벡터로 유사 글 반환. 벡터가 아직 없으면 `202` |
@@ -212,6 +214,22 @@ journalctl -t monolog-content-sync --since today --no-pager
 # 수동 전체 대조 (삭제·이동 감지 포함, 캐시 wipe 없음)
 curl -X POST -H "Authorization: Bearer $REVALIDATE_SECRET" "https://your-site.com/api/revalidate?full=true"
 ```
+
+### 취약점 제보 안내 관리 (`security.txt`)
+
+[`public/.well-known/security.txt`](../public/.well-known/security.txt)는 인증 없이 공개되는 정적 파일입니다. 취약점은 `Contact`의 이메일로 비공개 제보하며, 현재 사이트에 공개된 `pieroot@konkuk.ac.kr`를 사용합니다.
+
+- `Contact`는 실제로 수신·확인할 수 있는 주소로 유지합니다. `site.config.js`의 `profile.email`과 자동 연동되지 않으므로 연락처를 바꾸면 이 파일도 함께 수정합니다.
+- 현재 `Expires`는 `2027-10-01T00:00:00Z`입니다. 자동 갱신하지 않으므로 **만료 전에** 연락처를 점검하고, RFC 9116 권고에 따라 갱신 시점에서 1년 미만인 새 만료일을 설정합니다.
+- 다른 도메인에 배포할 때는 `Canonical`을 자신의 `https://<domain>/.well-known/security.txt`로 변경합니다. `NEXT_PUBLIC_SITE_URL`을 바꿔도 이 정적 파일은 바뀌지 않습니다.
+
+파일과 리다이렉트 설정은 Docker 이미지에 포함됩니다. 변경 후 새 이미지를 빌드·배포해야 하며, 기존 컨테이너를 재시작하는 것만으로는 반영되지 않습니다. 배포 후 표준 경로의 `200`·UTF-8 평문 응답과 루트 경로의 `308`·`Location`을 확인합니다.
+
+```bash
+curl -fsS -D - https://pieroot.xyz/.well-known/security.txt
+curl -sSI https://pieroot.xyz/security.txt
+```
+
 
 ---
 

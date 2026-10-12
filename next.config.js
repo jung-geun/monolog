@@ -6,6 +6,15 @@ module.exports = {
   experimental: {
     turbopackSourceMaps: false,
   },
+  async redirects() {
+    return [
+      {
+        source: "/security.txt",
+        destination: "/.well-known/security.txt",
+        permanent: true,
+      },
+    ]
+  },
   async rewrites() {
     return {
       beforeFiles: [

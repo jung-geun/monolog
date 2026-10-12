@@ -4,6 +4,13 @@ monolog의 버전별 변경 이력. 프로젝트 개요는 [`../README.md`](../R
 
 ---
 
+## v1.20.4 — 2026-10-13
+
+### 보안 취약점 제보
+- RFC 9116 `security.txt`를 표준 `/.well-known/security.txt` 경로에 공개. 기존 이메일 연락처·만료일·한국어/영어·대표 URL을 명시하고 `/security.txt`는 표준 경로로 308 리다이렉트. 운영 가이드에 만료 전 점검·갱신과 이미지 재빌드·배포 절차 추가.
+
+---
+
 ## v1.20.3 — 2026-10-13
 
 ### Markdown 복사 · 추가 작업
@@ -18,6 +25,7 @@ monolog의 버전별 변경 이력. 프로젝트 개요는 [`../README.md`](../R
 - 홈·탐색기의 글·About·Graph 링크는 무거운 상세·그래프 페이지의 자동 viewport prefetch를 끄고 SSR 링크·hover·클릭 로딩은 유지.
 - Feed에 단일 `main` 랜드마크 추가. 태그의 색상 tween·불투명도를 제거하고 글자 크기별 빈도 표현·hover 색상은 유지하며 태그·탐색 섹션의 터치 영역을 24px 이상으로 확대. 라이트 테마 보조 텍스트 대비 개선, 탭의 색상 tween 제거.
 - 기존 상태 표시줄 IP 조회가 CSP Report-Only 위반으로 기록되던 설정 불일치를 수정. `connect-src`에 실제 사용 중인 `https://api.ipify.org` origin만 추가하며 다른 외부 연결을 넓게 허용하지 않음.
+
 
 ---
 
