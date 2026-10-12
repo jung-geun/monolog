@@ -24,6 +24,8 @@ import { Code } from "./Code"
 import { Equation } from "./Equation"
 import ArticleFlow from "src/components/ArticleFlow"
 import { normalizeArticleHeadings } from "./headings"
+import { createPreviewPageLink } from "./PageLink"
+import { normalizeStandalonePageLinks } from "./standalonePageLinks"
 
 // core styles shared by all of react-notion-x (required)
 import "react-notion-x/src/styles.css"
@@ -127,13 +129,21 @@ const NotionRenderer: FC<Props> = ({ recordMap }) => {
 
   // Pre-built id → slug map of every post in this blog DB.
   const idToSlug = useMemo(() => buildIdToSlug(allPosts), [allPosts])
+  const standaloneLinks = useMemo(
+    () => normalizeStandalonePageLinks(recordMap, allPosts, idToSlug),
+    [recordMap, allPosts, idToSlug]
+  )
+  const PageLink = useMemo(
+    () => createPreviewPageLink(allPosts, idToSlug, standaloneLinks.targets),
+    [allPosts, idToSlug, standaloneLinks.targets]
+  )
 
   // Pre-rewrite the recordMap so any inline notion.so link that points to a
   // sibling post becomes /{slug} BEFORE react-notion-x renders it. This avoids
   // post-render DOM mutation; the rendered <a> already has the correct href.
   const internalRecordMap = useMemo(
-    () => rewriteRecordMapInternalLinks(recordMap, idToSlug),
-    [recordMap, idToSlug]
+    () => rewriteRecordMapInternalLinks(standaloneLinks.recordMap, idToSlug),
+    [standaloneLinks.recordMap, idToSlug]
   )
   const renderedRecordMap = useMemo(
     () => normalizeArticleHeadings(normalizeForCollection(internalRecordMap)),
@@ -141,9 +151,10 @@ const NotionRenderer: FC<Props> = ({ recordMap }) => {
   )
 
   const mapPageUrl = useCallback((pageId: string) => {
-    const slug = idToSlug.get(pageId.replace(/-/g, "").toLowerCase())
+    const id = pageId.replace(/-/g, "").toLowerCase()
+    const slug = idToSlug.get(standaloneLinks.targets.get(id) ?? id)
     return slug ? `/${slug}` : "https://www.notion.so/" + pageId.replace(/-/g, "")
-  }, [idToSlug])
+  }, [idToSlug, standaloneLinks.targets])
 
   const router = useRouter()
   const refreshKatex = () => {
@@ -654,6 +665,7 @@ const NotionRenderer: FC<Props> = ({ recordMap }) => {
             Equation,
             Modal,
             Pdf,
+            PageLink,
             nextImage: Image,
             nextLink: Link,
           }}
@@ -726,6 +738,57 @@ const StyledWrapper = styled.div`
 
   .notion-bookmark-link-text {
     color: var(--color-signal, rgb(var(--c-signal))) !important;
+  }
+
+  /* Reuse bookmark surfaces without RNX's fixed-height page-link styling. */
+  .notion-page-preview {
+    min-width: 0;
+    max-width: 100%;
+
+    &:focus-visible {
+      outline: 2px solid var(--color-signal, rgb(var(--c-signal)));
+      outline-offset: 2px;
+    }
+
+    > div:first-child {
+      min-width: 0;
+    }
+
+    .notion-bookmark-title {
+      white-space: normal;
+      overflow-wrap: anywhere;
+    }
+
+    .notion-bookmark-description {
+      height: auto;
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+      overflow-wrap: anywhere;
+    }
+
+    .notion-bookmark-image {
+      min-width: 0;
+
+      img {
+        object-fit: cover;
+      }
+    }
+
+    @media (max-width: 640px) {
+      flex-direction: column;
+
+      > div:first-child {
+        flex: none;
+      }
+
+      .notion-bookmark-image {
+        display: block;
+        flex: none;
+        width: 100%;
+        height: 140px;
+      }
+    }
   }
 
   .notion-quote {

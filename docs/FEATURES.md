@@ -160,6 +160,7 @@ DB 블록 주입은 **createPortal** 기반 — react-notion-x가 그린 자리�
 ---
 ## 공식 Notion 블록 지원 범위
 - `heading_4`, 토글 제목의 `is_toggleable`, `column.width_ratio`를 현재 렌더러가 이해하는 형태로 변환. 생략된 열 너비는 실제 열 개수에 맞춰 균등 배분.
+- 독립된 페이지 링크·alias 및 한 공개 글의 링크만 담긴 문단은 제목·요약·선택적 썸네일의 미리보기 카드로 자동 표시. Notion 페이지 ID를 공개 slug로 연결하고 원본 블록 앵커·SSR·에디터 SPA 이동을 유지. 문장 안의 mention·링크와 알 수 없는·비공개 대상은 기존 표시를 유지하며 모바일에서는 썸네일을 아래에 배치.
 - 변환 캐시는 `recordMap:v9`. 이미 발행된 내구성 본문은 캐시 버전 변경만으로 재작성하지 않으므로 기존 글에 적용하려면 해당 글의 정상 변경 동기화 또는 인증된 `/api/revalidate?path=/slug` 본문 재확인이 필요. `full=true`는 전체 메타데이터 대조이며 모든 본문 강제 재작성 옵션이 아님.
 - 2026-10-07 기준 최신 안정판: [Notion SDK 5.27.0](https://github.com/makenotion/notion-sdk-js/releases/tag/v5.27.0), [react-notion-x / notion-types / notion-utils 8.0.8](https://github.com/NotionX/react-notion-x/releases/tag/v8.0.8). 현재 SDK 5.21.0·렌더러 7.10.0에서도 위 변환이 가능하며 이번 변경은 의존성 버전을 바꾸지 않음.
 - 탭은 RNX 7.10.1 이상이 지원하지만 현재 설치판에는 렌더 분기가 없음. 회의록·레거시 template·동기화 원본 참조는 별도 변환 정책이 필요. 공식 API의 `unsupported.block_type`은 종류만 알려주며 블록 내용은 제공하지 않으므로 SDK 갱신만으로 복원할 수 없음.

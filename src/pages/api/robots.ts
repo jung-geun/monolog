@@ -16,12 +16,8 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
 User-agent: *
 Allow: /
 
-# Host
-Host: ${absoluteUrl("/").replace(/\/$/, "")}
-
 # Sitemaps
 Sitemap: ${absoluteUrl("/sitemap.xml")}
-RSS: ${absoluteUrl("/rss.xml")}
 `
     res.setHeader("Content-Length", Buffer.byteLength(text, "utf8"))
     return res.status(200).end(req.method === "HEAD" ? undefined : text)

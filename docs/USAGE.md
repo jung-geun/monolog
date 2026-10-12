@@ -243,6 +243,8 @@ docker compose logs -f blog embedding
 
 GHCR CI 빌드에는 GitHub repository variables로 `NEXT_PUBLIC_SITE_URL`과 사용 중인 선택 기능의 공개 값을 설정합니다: `NEXT_PUBLIC_GOOGLE_ADSENSE_CLIENT`·`NEXT_PUBLIC_GOOGLE_ADSENSE_DISABLE`·`NEXT_PUBLIC_UTTERANCES_REPO`·`NEXT_PUBLIC_NOTION_COMMENTS_ENABLE`·`REVALIDATE_HOURS`. 이 값은 이미지 빌드 때 고정됩니다. `.env`만 바꿔서는 이미 게시된 이미지의 canonical·광고·댓글 UI가 바뀌지 않습니다. Notion 토큰·DB ID·salt·관리 키는 repository variables나 Docker build args에 넣지 말고 운영 `.env`에만 보관하세요.
 
+이 프로젝트의 운영 기본 도메인은 `https://pieroot.xyz`입니다. 도메인을 변경할 때는 **이미지를 다시 빌드하기 전에** GitHub repository variable `NEXT_PUBLIC_SITE_URL=https://pieroot.xyz`를 설정하고, 원격 배포 서버의 프로젝트 `.env`에도 동일한 값을 설정합니다. CI 빌드 값은 canonical·sitemap·RSS 등의 공개 URL에 사용되고, 운영 `.env`는 런타임 origin 설정과 일치해야 합니다. `.env` 수정이나 컨테이너 재시작만으로 이전 이미지에 포함된 공개 URL을 변경할 수 없으므로 새 이미지를 빌드·배포해야 합니다. HAProxy는 `https://blog.pieroot.xyz`와 `https://www.pieroot.xyz` 요청을 기본 도메인 `https://pieroot.xyz`로 리다이렉트합니다. 다른 설치는 자신의 공개 도메인을 사용하고, 로컬 개발의 `http://localhost:3000` 기본값은 그대로 둡니다.
+
 운영 GHCR 이미지는 테스트·빌드가 성공한 뒤 `docker compose pull blog embedding`으로 가져오고 OCI revision을 확인합니다. 기존 이미지 rollback 태그와 `.env`·Compose override·Redis RDB·Qdrant snapshot을 백업하고 `embedding`이 모델 다운로드·실제 추론 warmup까지 healthy가 된 후 `docker compose up -d --no-build --wait --wait-timeout 2400`으로 교체합니다. 볼륨을 삭제하지 않습니다.
 
 서버 전용 `docker-compose.override.yml`이 `blog`·`redis`·`qdrant`를 외부 네트워크에 연결한다면 `content-redis`와 `embedding`도 blog가 도달 가능한 네트워크에 지정해야 합니다. 첫 배포는 새 서비스를 먼저 준비하고 기존 안내대로 후보 blog에서 `/api/init`과 실제 페이지를 확인한 뒤 교체합니다. `/api/init`은 임베딩을 기다리지 않으므로 교체 후 `/api/cron/content`로 첫 backfill을 진행하고 `pending`·`failed`·`maintenancePending`이 0인지 확인합니다.
