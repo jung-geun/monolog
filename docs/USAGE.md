@@ -26,6 +26,57 @@ yarn dev
 
 ---
 
+## 작업 공간 설정
+
+### 기본 테마와 방문자 선택
+
+`site.config.js`의 `CONFIG.blog.theme`를 설정합니다. 소스 설정이므로 배포 이미지는 다시 빌드해야 합니다.
+
+```js
+blog: {
+  title: "pieroot log",
+  description: "기술 블로그",
+  theme: "one-dark-pro-mix", // dark-modern | light-modern | system
+},
+```
+
+- 기본값은 **One Dark Pro Mix**입니다. System은 기기에 따라 Dark Modern/Light Modern으로 바뀝니다.
+- 방문자는 Settings의 **Color Theme** 또는 Quick Pick의 `> Color Theme`로 선택합니다. 유효한 `localStorage["monolog.colorTheme"]`가 운영자 기본값보다 우선합니다. 이 키를 삭제하고 새로고침하면 운영자 기본값으로 돌아갑니다.
+- 테마 선택과 탭 저장 동의는 별개입니다. 탭 저장을 거부하면 방문 기록을 영속 저장하지 않으며 테마 선택은 유지됩니다. 저장소가 차단돼도 현재 방문에서 선택할 수 있습니다.
+- 파일·폴더 아이콘은 Material Icon Theme 5.39.0의 실제 SVG입니다. `public/icons/material/LICENSE`와 원본 출처를 유지하세요.
+
+### 탐색과 문서 읽기
+
+| 조작 | 동작 |
+|---|---|
+| `Cmd/Ctrl+K` | Quick Pick: 파일·태그·카테고리 검색 |
+| `Cmd/Ctrl+Shift+P`, 또는 검색 앞 `>` | 실제 보기·테마·설정 명령 |
+| 검색 앞 `@` | 현재 문서의 실제 제목으로 이동 |
+| Explorer 한 번/두 번 클릭 | 임시 미리보기 / 고정 탭 |
+| Keep open | 현재 미리보기 고정 |
+| `Alt/Option+W` / `Alt/Option+Shift+T` | 글 탭 닫기 / 다시 열기 |
+| Preview / Source / Split | 렌더링된 본문 / 실제 Markdown / 분할 보기 |
+| Reading mode | 문서는 유지하고 탐색 사이드바·하단 패널 숨기기 |
+
+브라우저 자체 닫기·다시 열기 단축키는 가로채지 않습니다. 탭 저장에 동의한 경우 고정 탭·최근 닫은 글의 제목·주소·순서만 저장하며 임시 미리보기나 본문은 저장하지 않습니다. 해제·삭제는 Settings에서 가능합니다. 데스크톱은 본문 pane이 스크롤하고, 모바일은 window가 스크롤합니다. Split의 동기화는 일치하는 제목 기준이며 Notion 블록과 줄 번호의 정확한 매핑은 아닙니다.
+
+Search Sidebar와 `/search?q=...`는 **제목·요약·태그·카테고리**를 검색합니다. `tag:"kolla ansible"` 또는 `category:"Computer Science"`처럼 값을 따옴표로 묶을 수 있습니다. 글 전문을 대상으로 하는 의미 검색은 기존 Graph의 Meaning 검색과 임베딩 서비스 설정을 사용합니다.
+
+### 광고와 작업 공간 경계
+
+수동 광고를 사용하려면 실제 AdSense **디스플레이 광고 단위**의 ID를 `googleAdsense.config.slots.postBottom`에 넣고 빌드합니다. 빈 문자열은 광고 영역 자체를 만들지 않습니다. `NEXT_PUBLIC_GOOGLE_ADSENSE_CLIENT`를 빌드에 전달해야 하며 `NEXT_PUBLIC_GOOGLE_ADSENSE_DISABLE=true`이면 로더·수동 슬롯이 비활성화됩니다. 이전 feed/rail 슬롯은 제거됐습니다.
+
+Auto ads는 소스 코드 밖의 계정 설정입니다. 새 셸을 배포하기 전에 **AdSense → 광고 → 사이트 수정**에서 다음을 적용하세요.
+
+1. **인페이지 형식 → 제외된 영역(Excluded areas)**에서 title/activity bar, Explorer, 탭, Outline, panel, StatusBar 아래 영역을 검토하고 광고 후보에서 제외합니다. 제외 규칙은 DOM selector에 의존하므로 이번 구조 변경 후 재검토가 필요합니다.
+2. **오버레이 형식(Overlay formats)**에서 앵커·사이드 레일·전면 광고를 별도로 확인합니다. 작업 공간 UI를 가리는 오버레이를 허용하지 않으려면 해당 형식을 끕니다. 인페이지 제외만으로 오버레이가 꺼지지 않습니다.
+3. **사이트에 적용** 후 반영을 기다리고 실제 데스크톱·모바일에서 게재 위치를 확인합니다. 코드의 `data-overlays="bottom"`은 기존 앵커 방향 설정일 뿐 인페이지 제외나 광고 비활성화가 아닙니다.
+
+계정 제외가 적용되지 않은 상태에서 이 코드만으로 Auto ads가 작업 공간을 침범하지 않는다고 보장할 수 없습니다. 이미 게재된 광고를 CSS로 숨기거나 제거하지 않습니다. [공식 제외 영역 안내](https://support.google.com/adsense/answer/12626543?hl=ko) · [공식 Auto ads 설정](https://support.google.com/adsense/answer/9261805?hl=ko).
+
+---
+
+
 ## Notion 셋업
 
 ### 1. Integration 만들기
@@ -373,14 +424,14 @@ src/
 ├── apis/notion-client/      — Notion v5 + 캐시 (getPosts · getRecordMap · getDatabase)
 ├── components/
 │   ├── ActivityGrid/        — GitHub-style 활동 히트맵
-│   ├── CommandPalette/      — ⌘K 명령 팔레트
+│   ├── CommandPalette/      — 파일 · 명령(>) · 문서 제목(@) Quick Pick
 │   ├── Frontmatter/         — YAML 메타데이터 블록
 │   ├── ImageWithLoading/    — next/Image + skeleton overlay
 │   ├── NotionDatabase/      — Board · Gallery · List · Table
 │   └── MetaConfig/          — OG · Twitter · AdSense
 ├── hooks/                   — usePostsQuery · usePostQuery · useSeriesQuery · useCategoriesQuery · ...
 ├── layouts/RootLayout/
-│   └── EditorChrome/        — TitleBar · ... · LineNumberGutter
+│   └── EditorChrome/        — 셸 · 탭 세션 · WorkbenchContext · Settings
 ├── libs/
 │   ├── cache/               — L1 Memory + L2 Redis 포스트 캐시 / BlobFsBackend 이미지 캐시
 │   ├── content/             — 내구성 콘텐츠 레지스트리 (증분 대조 · slug 이력 · 영향 경로 outbox · webhook · IndexNow)
@@ -391,19 +442,19 @@ src/
 │       ├── notion/          — filterPosts · customMapImageUrl · getAllSelectItemsFromPosts · ...
 │       └── image/           — proxyUtils · proxyServer · hashUtils
 ├── routes/
-│   ├── Feed/                — Hero · FeaturedSeriesGrid · RecentPostsCompact (썸네일 카드)
-│   ├── Detail/              — PostDetail (히어로 썸네일) · RightRail · SeriesNav · ReadingProgress · CommentBox
+│   ├── Feed/                — Welcome (Start · Recent · Series)
+│   ├── Detail/              — Preview · MarkdownSource · Outline/Series · References/Comments
 │   ├── Archive/             — 카테고리 타임라인 (썸네일 카드)
 │   ├── SeriesList/          — 시리즈 인덱스 카드 그리드
 │   ├── SeriesArchive/       — 시리즈 상세 타임라인
 │   ├── Graph/               — Three.js 3D 포스트 그래프 (GraphScene · layout3d · 관계 상세)
-│   └── Search/              — 전문 검색
+│   └── Search/              — 제목 · 요약 · 태그 · 카테고리 검색
 ├── styles/                  — theme · colors · variables · zIndexes
 └── types/                   — TPost · TNotionDatabase · TDbRow · ...
 
 src/pages/
 ├── index.tsx                — / (Feed)
-├── [slug].tsx               — /{slug} (PostDetail · PageDetail)
+├── [slug].tsx               — /{slug} (Post · Page · About 공통 작업 공간)
 ├── categories/[name].tsx    — /categories/{name} (Archive)
 ├── series/index.tsx         — /series (SeriesList)
 ├── series/[name].tsx        — /series/{name} (SeriesArchive)

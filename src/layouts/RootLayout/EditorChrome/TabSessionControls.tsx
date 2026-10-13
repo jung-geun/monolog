@@ -1,5 +1,6 @@
 import styled from "@emotion/styled"
 import { useRouteChrome } from "./RouteChromeContext"
+import WorkbenchIcon from "src/components/WorkbenchIcon"
 
 type Props = {
   preferencesOpen: boolean
@@ -31,12 +32,12 @@ const TabSessionControls = ({ preferencesOpen, onClosePreferences }: Props) => {
         <h2 id="editor-tab-session-heading">탭 저장 설정</h2>
         {preferencesOpen && (
           <button type="button" className="dismiss" onClick={onClosePreferences} aria-label="탭 저장 설정 닫기">
-            ×
+            <WorkbenchIcon name="close" />
           </button>
         )}
       </div>
       <p>
-        동의하면 열린 탭과 최근에 닫은 글의 제목·주소를 이 브라우저에 저장해 새로고침 후에도 복원합니다.
+        동의하면 고정된 탭과 최근에 닫은 글의 제목·주소를 이 브라우저에 저장해 새로고침 후에도 복원합니다. 미리보기 탭은 저장하지 않습니다.
         글 본문은 저장하지 않으며, 이 정보는 서버로 전송하지 않습니다.
       </p>
       {tabStorageConsent === "enabled" && (
@@ -67,10 +68,6 @@ const TabSessionControls = ({ preferencesOpen, onClosePreferences }: Props) => {
             글 닫기: <kbd>Alt/Option+W</kbd> · 닫은 글 다시 열기: <kbd>Alt/Option+Shift+T</kbd>.
             입력 중에는 작동하지 않습니다. 탭의 닫기 버튼과 다시 열기 버튼도 사용할 수 있습니다.
           </p>
-          <p>
-            <kbd>Cmd/Ctrl+W</kbd>와 <kbd>Cmd/Ctrl+Shift+T</kbd>는 브라우저가 우선 처리합니다.
-            페이지에 전달될 때만 글 탭에 적용되므로, 내부 탭 조작에는 위 대체 단축키나 버튼을 사용하세요.
-          </p>
         </div>
       )}
     </StyledPanel>
@@ -87,6 +84,7 @@ const StyledPanel = styled.section`
   background: ${({ theme }) => theme.colors.editor.bg2};
   color: ${({ theme }) => theme.colors.editor.fg2};
   font-size: 12px;
+  font-family: var(--font-ui, sans-serif);
   line-height: 1.65;
   overflow-wrap: anywhere;
 

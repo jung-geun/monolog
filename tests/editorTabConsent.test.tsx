@@ -4,6 +4,7 @@ import { ThemeProvider } from "@emotion/react"
 import EditorShell from "src/layouts/RootLayout/EditorChrome/EditorShell"
 import { useRegisterChrome, type TabKind } from "src/layouts/RootLayout/EditorChrome/RouteChromeContext"
 import { createTheme } from "src/styles/theme"
+import { resolveColorTheme } from "src/styles/colors"
 
 const mockRouter = {
   pathname: "/",
@@ -19,6 +20,7 @@ jest.mock("src/layouts/RootLayout/EditorChrome/ActivityBar", () => () => null)
 jest.mock("src/layouts/RootLayout/EditorChrome/FileTree", () => () => null)
 jest.mock("src/layouts/RootLayout/EditorChrome/TitleBar", () => () => null)
 jest.mock("src/layouts/RootLayout/EditorChrome/StatusBar", () => () => null)
+jest.mock("src/components/CommandPalette", () => () => null)
 
 ;(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
@@ -55,7 +57,7 @@ describe("editor tab consent choices", () => {
 
   const render = (kind: TabKind) => {
     act(() => root.render(
-      <ThemeProvider theme={createTheme({ scheme: "dark" })}>
+      <ThemeProvider theme={createTheme({ colorTheme: resolveColorTheme("one-dark-pro-mix") })}>
         <EditorShell><Document kind={kind} /></EditorShell>
       </ThemeProvider>
     ))

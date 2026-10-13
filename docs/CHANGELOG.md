@@ -4,6 +4,18 @@ monolog의 버전별 변경 이력. 프로젝트 개요는 [`../README.md`](../R
 
 ---
 
+## v1.21.0 — 2026-10-14
+
+### VS Code 읽기 전용 작업 공간
+- **테마·아이콘** — One Dark Pro Mix 기본값, Dark Modern·Light Modern·System 선택, 운영자 `blog.theme`와 방문자 설정 분리. 첫 페인트 테마 bootstrap, CSS·Prism·Notion·그래프 색상 동기화, Material Icon Theme SVG와 라이선스 포함.
+- **셸·탐색** — 실제 Command Center·history·레이아웃 설정, Explorer/Search/Knowledge 사이드바와 크기 조절, Open Editors·중첩 시리즈. 가짜 창 버튼·SSH·IP·브랜치·sync 표시 제거. 단일 클릭 미리보기·고정·닫기/복원·정렬을 연결하고 저장 동의 시 고정 탭만 영속화.
+- **문서·검색** — Welcome과 메타데이터 Search Editor, `>` 명령·`@` 제목 Quick Pick. Post/Page/About 공통 Preview·실제 Markdown Source·Split, 제목 기반 스크롤 동기화, Outline/Series·References/Comments·Reading mode. 기존 SSR 본문·복사·About 위젯·그래프·시리즈 기능 유지.
+- **상태·반응형** — 데스크톱 pane/모바일 window 스크롤, 탭·history·해시 복원, 숨겨진 모바일 Source에서 제목 이동 시 Preview 전환. 모바일 긴 제목 overflow·설정 checkbox reset·다국어 시리즈 hydration 정렬 문제 수정. 소스 HTTP 오류·Retry·요청 취소와 패널 명령의 Reading mode 해제 처리.
+- **소스 하이라이트 충돌 수정** — 코드 블록이 없는 문서에서 Source를 처음 열 때 전역 Prism 처리가 소스 행·줄 번호·제목 앵커를 덮어쓰던 오류를 수정. Notion preview만 전역 하이라이트하고 Source는 자체 렌더링을 유지.
+- **광고 경계** — 수동 슬롯을 일반 글 본문 뒤 `postBottom`으로 한정. Auto ads 계정의 제외 영역·오버레이 설정은 별도 적용이 필요함을 운영 가이드에 명시하며 게재된 광고를 강제로 숨기지 않음.
+
+---
+
 ## v1.20.4 — 2026-10-13
 
 ### 보안 취약점 제보

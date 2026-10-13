@@ -42,8 +42,7 @@ const StyledWrapper = styled.div`
     margin-bottom: 2.25rem;
     border-radius: 1rem;
     width: 100%;
-    background-color: ${({ theme }) =>
-      theme.scheme === "light" ? "white" : theme.colors.gray4};
+    background-color: ${({ theme }) => theme.colors.editor.bg2};
     @media (min-width: 768px) {
       padding: 1rem;
     }

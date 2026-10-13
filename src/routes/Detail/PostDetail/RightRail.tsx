@@ -1,23 +1,17 @@
 import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import styled from "@emotion/styled"
-import { ExtendedRecordMap } from "notion-types"
+import type { ExtendedRecordMap } from "notion-types"
 import { uuidToId } from "notion-utils"
 import { getNotionRichTextPlainText } from "src/libs/utils/notion/richText"
 import usePostsQuery from "src/hooks/usePostsQuery"
-import useSimilarPostsQuery from "src/hooks/useSimilarPostsQuery"
-import { TPost } from "src/types"
-import PostEgoGraph from "./PostEgoGraph"
-import AdSlot from "src/components/AdSlot"
-import { CONFIG } from "site.config"
+import type { TPost } from "src/types"
 import { getArticleHeadings } from "../components/NotionRenderer/headings"
+import { useWorkbench } from "src/layouts/RootLayout/EditorChrome/WorkbenchContext"
+import { getReadingScrollRoot, readingScrollOffset } from "./scrollRoot"
 
-type TocEntry = { id: string; text: string; level: number }
-
-type Props = {
-  recordMap: ExtendedRecordMap | null
-  post: TPost
-}
+export type TocEntry = { id: string; text: string; level: number }
+type Props = { recordMap: ExtendedRecordMap | null; post: TPost }
 
 export const extractToc = (recordMap: ExtendedRecordMap | null): TocEntry[] => {
   return getArticleHeadings(recordMap).flatMap(({ block, level }) => {
@@ -27,223 +21,79 @@ export const extractToc = (recordMap: ExtendedRecordMap | null): TocEntry[] => {
 }
 
 const RightRail = ({ recordMap, post }: Props) => {
-  const [activeId, setActiveId] = useState<string>("")
+  const [activeId, setActiveId] = useState("")
   const allPosts = usePostsQuery()
-  const { similar } = useSimilarPostsQuery(post.id, 5)
+  const { isSecondaryOpen, readingMode, documentMode, scrollToHeading } = useWorkbench()
   const toc = useMemo(() => extractToc(recordMap), [recordMap])
-  const postSlug = post.slug
-  const postCategory = post.category?.[0]
   const seriesName = post.series?.[0]
+  const seriesEntries = useMemo(() => seriesName ? allPosts.filter(entry => entry.series?.includes(seriesName)).sort((a, b) => new Date(a.date?.start_date || a.createdTime || 0).getTime() - new Date(b.date?.start_date || b.createdTime || 0).getTime()) : [], [allPosts, seriesName])
 
   useEffect(() => {
     if (!toc.length) return
-
+    let root = getReadingScrollRoot()
+    let frame = 0
     const update = () => {
-      for (const entry of [...toc].reverse()) {
-        const el = document.getElementById(entry.id)
-        if (el && el.getBoundingClientRect().top < 200) {
-          setActiveId(entry.id)
-          return
+      cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(() => {
+        const top = readingScrollOffset(root) + 90
+        let active = toc[0].id
+        for (const entry of toc) {
+          const element = document.getElementById(entry.id)
+          if (element && element.getBoundingClientRect().top <= top) active = entry.id
         }
-      }
+        setActiveId(active)
+      })
     }
+    const resize = () => {
+      root.removeEventListener("scroll", update)
+      root = getReadingScrollRoot()
+      root.addEventListener("scroll", update, { passive: true })
+      update()
+    }
+    root.addEventListener("scroll", update, { passive: true })
+    window.addEventListener("resize", resize)
     update()
-    window.addEventListener("scroll", update, { passive: true })
-    return () => window.removeEventListener("scroll", update)
-  }, [toc])
+    return () => { cancelAnimationFrame(frame); root.removeEventListener("scroll", update); window.removeEventListener("resize", resize) }
+  }, [toc, documentMode])
 
-  const related = useMemo(() => {
-    return allPosts
-      .filter(
-        (p) =>
-          p.slug !== postSlug &&
-          p.category?.[0] === postCategory
-      )
-      .slice(0, 3)
-  }, [allPosts, postCategory, postSlug])
-
-  const seriesEntries = useMemo(() => {
-    return seriesName
-      ? allPosts.filter((p) => p.series?.includes(seriesName))
-      : []
-  }, [allPosts, seriesName])
-
-
-  return (
-    <StyledWrapper>
-      <PostEgoGraph post={post} />
-      {toc.length > 0 && (
-        <div className="section">
-          <div className="section-label">outline</div>
-          {toc.map((entry) => (
-            <a
-              key={entry.id}
-              href={`#${entry.id}`}
-              className={`toc-item level-${entry.level}${activeId === entry.id ? " active" : ""}`}
-              onClick={(e) => {
-                e.preventDefault()
-                document.getElementById(entry.id)?.scrollIntoView({
-                  behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
-                  block: "start",
-                })
-              }}
-            >
-              {entry.text}
-            </a>
-          ))}
-        </div>
-      )}
-
-      {seriesEntries.length > 0 && (
-        <div className="section">
-          <div className="section-label">series</div>
-          <Link href={`/series/${seriesName}`} className="series-title-link">
-            § {seriesName}
-          </Link>
-          {seriesEntries.map((p) => (
-            <Link
-              key={p.slug}
-              href={`/${p.slug}`}
-              className={`related-item${p.slug === postSlug ? " current" : ""}`}
-            >
-              {p.slug === postSlug ? "▸ " : "· "}
-              {p.title.slice(0, 30)}{p.title.length > 30 ? "…" : ""}
-            </Link>
-          ))}
-        </div>
-      )}
-
-      {related.length > 0 && (
-        <div className="section">
-          <div className="section-label">related</div>
-          {related.map((p) => (
-            <Link key={p.slug} href={`/${p.slug}`} className="related-item">
-              → {p.title.slice(0, 34)}{p.title.length > 34 ? "…" : ""}
-            </Link>
-          ))}
-        </div>
-      )}
-
-      {similar.length > 0 && (
-        <div className="section">
-          <div className="section-label">ai · similar</div>
-          {similar.map((s) => (
-            <div key={s.postId} className="similar-item">
-              <Link href={`/${s.slug}`} className="similar-title">
-                → {s.title.slice(0, 34)}{s.title.length > 34 ? "…" : ""}
-              </Link>
-              {s.rationale && (
-                <span className="similar-rationale">{s.rationale}</span>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
-
-      <AdSlot
-        slot={CONFIG.googleAdsense.config.slots.postRail}
-        fullWidthResponsive={false}
-        className="mt-6"
-      />
-    </StyledWrapper>
-  )
+  if (!isSecondaryOpen || readingMode) return null
+  return <Rail aria-label="Document outline and series">
+    <details open className="section">
+      <summary>Outline <span>{toc.length}</span></summary>
+      {toc.length ? toc.map(entry => <a key={entry.id} href={`#${entry.id}`} className={`toc-item level-${entry.level}${activeId === entry.id ? " active" : ""}`} aria-current={activeId === entry.id ? "location" : undefined} onClick={event => { event.preventDefault(); scrollToHeading(entry.id) }}>{entry.text}</a>) : <p className="empty">No section headings.</p>}
+    </details>
+    {seriesEntries.length > 0 && <details open className="section"><summary>Series <span>{seriesEntries.length}</span></summary><Link href={`/series/${encodeURIComponent(seriesName!)}`} className="series-title">{seriesName}</Link>{seriesEntries.map((entry, index) => <Link href={`/${entry.slug}`} key={entry.slug} className={`series-entry${entry.slug === post.slug ? " current" : ""}`} aria-current={entry.slug === post.slug ? "page" : undefined}><span>{index + 1}.</span>{entry.title}</Link>)}</details>}
+  </Rail>
 }
 
 export default RightRail
-const StyledWrapper = styled.aside`
+const Rail = styled.aside`
   position: sticky;
-  top: ${({ theme }) => theme.variables.titleBarHeight + theme.variables.tabBarHeight}px;
-  height: calc(100vh - ${({ theme }) => theme.variables.titleBarHeight + theme.variables.tabBarHeight + theme.variables.statusBarHeight}px);
-  height: calc(100dvh - ${({ theme }) => theme.variables.titleBarHeight + theme.variables.tabBarHeight + theme.variables.statusBarHeight}px);
-  width: 240px;
-  border-left: 1px solid ${({ theme }) => theme.colors.editor.line};
-  padding: 40px 18px 60px;
-  background: ${({ theme }) => theme.colors.editor.bg2};
-  font-family: var(--font-mono, monospace);
+  top: 42px;
+  align-self: start;
+  width: 224px;
+  max-height: calc(100dvh - 144px);
   overflow-y: auto;
-  flex-shrink: 0;
-  scrollbar-width: none;
-  &::-webkit-scrollbar { display: none; }
-
-  > .section {
-    margin-bottom: 24px;
-  }
-
-  .section-label {
-    font-size: 10px;
-    color: ${({ theme }) => theme.colors.editor.fg3};
-    letter-spacing: 1.5px;
-    text-transform: uppercase;
-    margin-bottom: 8px;
-  }
-
-  .toc-item {
-    display: block;
-    font-size: 12px;
-    padding: 4px 10px;
-    margin-left: -12px;
-    color: ${({ theme }) => theme.colors.editor.fg3};
-    border-left: 2px solid transparent;
-    text-decoration: none;
-    line-height: 1.5;
-
-    &:hover { color: ${({ theme }) => theme.colors.editor.fg}; }
-    &.active {
-      color: ${({ theme }) => theme.colors.editor.fg};
-      border-left-color: ${({ theme }) => theme.colors.editor.accent};
-    }
-    &.level-2 { padding-left: 20px; }
-    &.level-3 { padding-left: 30px; }
-    &.level-4 { padding-left: 40px; }
-  }
-
-  .series-title-link {
-    display: block;
-    font-size: 11px;
-    font-weight: 500;
-    color: ${({ theme }) => theme.colors.editor.accent};
-    padding: 2px 0 6px;
-    text-decoration: none;
-    &:hover { opacity: 0.8; }
-  }
-
-  .related-item {
-    display: block;
-    font-size: 11px;
-    color: ${({ theme }) => theme.colors.editor.accent3};
-    padding: 3px 0;
-    text-decoration: none;
-    &:hover { color: ${({ theme }) => theme.colors.editor.accent}; }
-    &.current {
-      color: ${({ theme }) => theme.colors.editor.fg};
-      font-weight: 500;
-    }
-  }
-
-  .similar-item {
-    margin-bottom: 8px;
-  }
-
-  .similar-title {
-    display: block;
-    font-size: 11px;
-    color: ${({ theme }) => theme.colors.editor.accent3};
-    padding: 2px 0;
-    text-decoration: none;
-    &:hover { color: ${({ theme }) => theme.colors.editor.accent}; }
-  }
-
-  .similar-rationale {
-    display: block;
-    font-size: 10px;
-    color: ${({ theme }) => theme.colors.editor.fg3};
-    line-height: 1.4;
-    padding-left: 10px;
-    opacity: 0.75;
-  }
-
-
-  @media (max-width: ${({ theme }) => theme.variables.breakpoint}px) {
-    display: none;
-  }
+  border-left: 1px solid ${({ theme }) => theme.colors.editor.line};
+  background: ${({ theme }) => theme.colors.editor.bg2};
+  padding: 8px 0 24px;
+  font-family: var(--font-sans, system-ui, sans-serif);
+  font-size: 12px;
+  .section { padding-bottom: 12px; }
+  summary { cursor: pointer; padding: 7px 12px; font-size: 11px; font-weight: 600; color: ${({ theme }) => theme.colors.editor.fg2}; }
+  summary span { float: right; color: ${({ theme }) => theme.colors.editor.fg3}; font-weight: 400; }
+  a { color: ${({ theme }) => theme.colors.editor.fg2}; text-decoration: none; }
+  .toc-item { display: block; padding: 5px 12px; border-left: 2px solid transparent; line-height: 1.45; overflow-wrap: anywhere; }
+  .toc-item.level-2 { padding-left: 22px; }
+  .toc-item.level-3 { padding-left: 32px; }
+  .toc-item.level-4 { padding-left: 42px; }
+  .toc-item.active { color: ${({ theme }) => theme.colors.editor.fg}; border-color: ${({ theme }) => theme.colors.editor.accent}; background: ${({ theme }) => theme.colors.editor.line}; }
+  .series-title { display: block; margin: 4px 14px 8px; color: ${({ theme }) => theme.colors.editor.accent}; }
+  .series-entry { display: flex; gap: 6px; padding: 5px 14px; line-height: 1.5; }
+  .series-entry span { color: ${({ theme }) => theme.colors.editor.fg3}; font-variant-numeric: tabular-nums; }
+  .series-entry.current { color: ${({ theme }) => theme.colors.editor.fg}; background: ${({ theme }) => theme.colors.editor.line}; }
+  a:hover { background: ${({ theme }) => theme.colors.editor.line}; }
+  a:focus-visible, summary:focus-visible { outline: 2px solid ${({ theme }) => theme.colors.editor.accent}; outline-offset: -2px; }
+  .empty { padding: 4px 14px; color: ${({ theme }) => theme.colors.editor.fg3}; }
+  @media (max-width: 960px) { position: relative; top: auto; width: 100%; max-height: 320px; border-left: 0; border-top: 1px solid ${({ theme }) => theme.colors.editor.line}; }
 `

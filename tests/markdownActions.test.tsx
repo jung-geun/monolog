@@ -2,6 +2,7 @@ import { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { ThemeProvider } from "@emotion/react"
 import { createTheme } from "src/styles/theme"
+import { resolveColorTheme } from "src/styles/colors"
 import MarkdownActions from "src/routes/Detail/PostDetail/MarkdownActions"
 
 ;(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true
@@ -18,7 +19,7 @@ let clipboardDescriptor: PropertyDescriptor | undefined
 let legacyDescriptor: PropertyDescriptor | undefined
 
 const render = (slug = "first") => act(() => root.render(
-  <ThemeProvider theme={createTheme({ scheme: "dark" })}>
+  <ThemeProvider theme={createTheme({ colorTheme: resolveColorTheme("one-dark-pro-mix") })}>
     <MarkdownActions slug={slug} />
   </ThemeProvider>,
 ))

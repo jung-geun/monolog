@@ -5,53 +5,59 @@ monolog의 주요 기능 상세. 프로젝트 개요와 핵심 차별점은 [`..
 ---
 
 ## Editor chrome UI
-모든 라우트가 VS Code 에디터 윈도우처럼 보입니다.
+모든 라우트가 읽기 전용 VS Code 작업 공간을 공유하며, 각 컨트롤은 실제 탐색·보기·설정 기능에 연결됩니다.
 
 | 컴포넌트 | 설명 |
 |---|---|
-| **TitleBar** | 빨강·노랑·초록 macOS traffic-light(지름 12px, 간격 8px) + `pieroot.log — {filename}` + git 브랜치. 빨간 닫기 버튼은 hover·키보드 포커스 시 ×를 표시하고 누르는 동안 어두워짐. 브라우저가 허용하면 창을 실제로 닫고, 막으면 현재 페이지를 유지한 채 브라우저 탭 닫기·`⌘W` / `Ctrl+W` 안내를 표시. `about:blank` 이동은 하지 않음. 노랑·초록은 장식용 표시등 |
-| **ActivityBar** | explorer / search / graph / commands / theme toggle (44px). explorer 강조는 패널이 열려 있고 Search·Graph가 아닌 화면에서만 표시. Search·Graph는 explorer 패널 열림과 무관하게 현재 경로를 강조 |
-| **FileTree** | `posts/` · `categories/` · `series/` · `projects/` · `drafts/` · `public/` 트리 (240px, 토글 슬라이드). 최신 15개 글 뒤에 열린 탭의 이전 글을 중복 없이 추가하고 현재 글을 강조. 추가 항목은 탭을 닫으면 제거하며, 피드에 없는 상세 공개 글도 로드된 메타데이터로 표시. 항목 hover 시 글 메타 프리뷰 카드. 모바일의 열린 패널과 배경은 탭바·읽기 진행률보다 앞에 표시 |
-| **TabBar** | 라우트별 탭 (`README.md`, `categories/<name>.md`, `series/<name>.md`, `graph.md`, …). 현재 글 닫기 `Alt/Option+W`, 마지막으로 닫은 글 다시 열기 `Alt/Option+Shift+T`와 다시 열기 버튼 제공. `Cmd/Ctrl+W`·`Cmd/Ctrl+Shift+T`는 브라우저가 페이지로 전달할 때만 처리. 사용자가 동의하면 열린 탭과 최근 닫은 글 제목·주소만 이 브라우저 `localStorage`에 저장해 새로고침 후 복원. 거부는 이번 방문에만 적용하며, 저장 해제 시 저장된 두 항목을 삭제하고 이후에는 저장하지 않음 |
-| **StatusBar** | `ssh pieroot@log` + branch · 동기화 · entries · encoding · syntax (22px) |
-| **LineNumberGutter** | 본문 좌측 라인 넘버 — **콘텐츠 길이에 맞춰 자동 확장/축소** (`ResizeObserver` + `position:absolute` 라인 컨테이너로 자기 측정 루프 회피) |
-| **CommandPalette** | `⌘K` / `Ctrl+K` — Actions · Posts · Tags · Categories 검색 이동 |
+| **TitleBar** | 실제 뒤로/앞으로 이동, Command Center, 사이드바·패널·설정 버튼. 가짜 창 닫기·최소화·Git 브랜치 표시 제거 |
+| **ActivityBar** | Explorer / Search / Knowledge 사이드바를 현재 문서 이동 없이 전환. 명령·Reading mode·설정 접근 |
+| **FileTree** | Open Editors, 최근/열린 글, 카테고리, 시리즈 안의 실제 글, 프로젝트, public 파일. 180–420px 크기 조절; 한 번 클릭은 미리보기, 두 번 클릭은 고정. Material Icon Theme 파일·폴더 SVG |
+| **TabBar** | Welcome, 문서, Search/Graph/Ontology 사용자 정의 편집기. 교체 가능한 이탤릭 미리보기 탭과 **Keep open**, 드래그 정렬·좌우 이동·닫기·다시 열기 |
+| **StatusBar** | 문서 종류·보기 모드·읽기 위치·탭 저장 상태만 표시. 가짜 SSH·IP·브랜치·동기화 상태 없음 |
+| **Quick Pick** | `⌘/Ctrl+K`: 파일·태그·카테고리, `⌘/Ctrl+Shift+P` 또는 `>`: 명령, `@`: 실제 문서 제목. 화살표·Enter·Escape와 포커스 복원 |
+| **Settings** | One Dark Pro Mix(기본), Dark Modern, Light Modern, System 선택. 레이아웃 토글과 탭 저장 동의 관리 |
 
 각 라우트는 `useRegisterChrome(filename, statusItems, kind)`로 자기 chrome 메타와 탭 종류를 동적 등록합니다.
 
 - 글 내 앵커의 해시 이동과 앵커 주소 새로고침은 같은 문서 탭을 사용합니다. 쿼리가 다른 주소는 구분하며, 다시 열 때는 저장한 전체 주소를 사용합니다.
 - 브라우저 저장소 접근·쓰기 실패 시 새 탭 저장을 중단합니다. 이전 세션은 남아 있을 수 있으므로 저장 해제·삭제 버튼은 계속 제공하며, 저장소가 삭제도 막으면 저장 불가 상태를 유지합니다.
-- `README.md`를 포함한 모든 탭을 마우스로 드래그해 순서를 바꿀 수 있습니다. 삽입 위치를 표시하고 가로로 넘치는 탭은 드래그 중 가장자리에서 자동 스크롤합니다. 이동 중 현재 페이지와 활성 탭은 바뀌지 않으며, 탭바 밖에 놓거나 취소하면 기존 순서를 유지합니다. 저장 동의 후에는 탭 순서도 복원합니다.
+- Welcome을 포함한 모든 탭을 드래그해 순서를 바꿀 수 있습니다. 삽입 위치와 가장자리 자동 스크롤을 제공하며 이동·취소 중 현재 문서는 유지합니다. 저장에 동의하면 고정 탭 순서도 복원합니다. 미리보기 탭은 영속 저장·최근 닫은 목록에서 제외합니다.
 - 탭바의 좌우 버튼으로 현재 탭을 한 칸씩 이동할 수 있습니다. 클릭·터치와 키보드 Enter/Space를 지원하며 양 끝에서도 포커스를 잃지 않고 변경된 위치를 안내합니다. `Cmd/Ctrl+클릭`으로 다른 창에 탭을 열 때는 원래 창의 활성 탭을 변경하지 않습니다.
+- 글 탭 닫기 `Alt/Option+W`, 다시 열기 `Alt/Option+Shift+T`. 브라우저의 `Cmd/Ctrl+W`·`Cmd/Ctrl+Shift+T`는 가로채지 않습니다.
+- 운영자 기본 테마는 `CONFIG.blog.theme`, 방문자 선택은 별도 `monolog.colorTheme` 저장값으로 우선 적용합니다. 첫 페인트 전에 테마를 적용하고 System은 기기 변경을 실시간 반영합니다. 저장소가 차단돼도 이번 방문의 테마 전환은 동작합니다.
+- 데스크톱은 고정 셸 안에서 본문·사이드바가 독립 스크롤하고 탭·뒤로 가기에서 읽던 위치를 복원합니다. 모바일은 자연스러운 문서 스크롤, 닫힌 상태로 시작하는 drawer, 한 화면에 하나의 Split pane을 사용합니다.
 
 ### 독서를 방해하지 않는 모션
 - **글 열기·페이지 전환** — 기존 화면을 숨기거나 전환 완료를 지연하지 않음. 새 문서는 320ms 동안 최대 8px 올라오고, 탭 아래 2px 신호선이 이동 중에만 흐른 뒤 420ms에 사라짐. 빠른 연속 이동은 이전 진입 모션을 취소하고 마지막 요청의 완료·취소 상태를 따름.
-- **직접 진입·새로고침** — SSR 본문을 처음부터 표시한 채 360ms의 옅은 등장(불투명도 0.84→1), 타이틀바 표시등·탭의 짧은 등장만 사용. 스크롤 위치를 조작하지 않으며, 뒤로/앞으로 이동·목차 앵커·shallow 라우팅에는 문서 이동 모션을 넣지 않음.
-- **상호작용** — 메뉴 섹션·명령 팔레트·비활성 글 hover 프리뷰가 짧게 등장. 활성 탭의 강조선, 버튼 누름, 테마 아이콘 회전, 홈 글·시리즈 카드의 화살표 이동으로 피드백. 현재 읽는 글의 hover 프리뷰는 본문을 가리지 않음.
+- **직접 진입·새로고침** — 실제 SSR 본문을 처음부터 표시. 뒤로/앞으로 이동·목차 앵커·shallow 라우팅에서는 문서 이동 모션 없이 올바른 스크롤 루트의 위치를 복원합니다.
+- **상호작용** — 메뉴·Quick Pick·비활성 글 hover 프리뷰의 짧은 전환만 사용하고, 현재 글 프리뷰로 본문을 가리지 않습니다.
 - **독서 중 안정성** — 본문 단어별 애니메이션·스크롤 패럴랙스는 없음. 상태 표시등도 무한 pulse 대신 한 번의 등장으로 마침.
 - **동작 줄이기** — `prefers-reduced-motion: reduce`에서는 등장·전환·아이콘 이동·이미지 shimmer·댓글 skeleton pulse를 끄고, 이동 중 신호선은 정적으로 표시. 목차·맨 위로 이동·읽기 진행선도 즉시 반응하며 설정을 실행 중에 바꾸면 진행 중인 문서 진입 모션을 취소.
 
 
 ---
 
-## 글 목록 카드 (썸네일 통합)
-`RecentPostsCompact`(홈 latest)와 `Archive`(카테고리)의 카드가 6px 카테고리 컬러 레일 + 본문 + **카드 전체 높이를 채우는 우측 썸네일**(`object-cover`)로 구성됩니다. 썸네일이 없는 글은 자연스럽게 2단 그리드로 떨어집니다.
+## Welcome · 검색
+홈은 Start · Recent · Series로 구성된 밀도 높은 Welcome 화면입니다. Search Sidebar와 `/search?q=...` Search Editor가 제목·요약·태그·카테고리를 같은 규칙으로 검색합니다. `tag:"kolla ansible"`·`category:"Computer Science"`처럼 공백이 있는 값은 따옴표로 묶고, 화살표로 결과 링크를 이동해 Enter로 엽니다. 검색 URL과 뒤로 가기에서 검색어를 복원합니다. 본문 전체 검색이라고 표시하지 않습니다.
 
-## 본문 상단 히어로 썸네일
-`PostDetail`(non-about) 분기에서 Frontmatter 위에 16:9 히어로 썸네일이 `priority` 로딩으로 깔립니다. About 페이지는 위젯 영역으로 대체.
+## 문서 Preview · Source · Split
+Post·Page·About가 동일한 문서 작업 공간을 사용합니다. breadcrumbs·제목 다음에 접힌 Frontmatter와 요약·축소된 커버를 표시하며, 기존 Notion SSR 본문·코드 복사·시리즈 이동은 유지합니다. About의 활동·GitHub·기술·연락처 위젯은 접을 수 있는 영역에 유지합니다.
+
+- **Source**는 실제 `/{slug}.md` 응답을 지연 로드하고 읽기 전용 문법 강조·실제 줄 번호를 표시합니다. 실패 시 Retry·원본 링크를 제공하고 문서 이동 시 요청을 취소합니다.
+- **Split**은 데스크톱에서 독립된 두 pane의 일치하는 제목을 양방향 동기화합니다. Notion 블록과 Markdown 줄의 정확한 일대일 매핑은 아닙니다. 모바일에서는 Preview/Source를 전환합니다.
+- **Outline · Series**는 실제 제목 앵커와 시리즈 순서를 보여줍니다. `@` 제목 이동은 모바일의 숨겨진 Source pane에서 Preview로 전환한 뒤 올바른 스크롤 루트로 이동합니다.
+- **References · Comments**는 하단 패널로 분리합니다. 명시적 링크·같은 카테고리·AI 유사 글을 구분하며, 댓글은 처음 열 때 마운트하고 패널 전환 중 유지합니다. Reading mode는 사이드바와 패널을 숨깁니다.
 
 ## Markdown 복사 · 보기
-글 본문 오른쪽 상단에 **Markdown 복사** 아이콘과 인접한 추가 작업 disclosure를 띄우고 스크롤 중에도 탭바 아래에 유지합니다. 사이드바가 표시되면 그 왼쪽에, 숨겨진 태블릿·모바일에서는 본문 오른쪽에 배치하며 전체 너비 고정 바는 만들지 않습니다. 작은 화면에서도 표시하되 본문과 겹치지 않도록 상단 여백을 확보합니다. About 페이지에는 이 도구를 추가하지 않습니다.
+문서 도구 모음에서 **Markdown 복사**와 추가 작업 disclosure를 제공합니다. About와 작은 화면에서도 동일하게 사용할 수 있습니다.
 
 복사할 때만 현재 origin의 `/{slug}.md`를 요청하고 frontmatter를 포함한 응답 전문을 그대로 복사합니다. 요청·클립보드 실패는 실패로 안내하며, 클립보드 API가 없거나 거부되면 코드 블록과 동일한 textarea fallback을 시도하고 포커스를 복원합니다. 글 이동 시 진행 중 요청을 취소하고 이전 글의 늦은 응답·안내를 무시합니다. 로딩·성공·실패는 live status로 알립니다.
 
 추가 작업은 기본 HTML disclosure로 키보드에서 열 수 있고 Escape·바깥 클릭·다른 컨트롤로 포커스 이동 시 닫힙니다. 그 안의 **Markdown으로 보기**는 기존 Markdown 주소 생성기를 사용하는 일반 링크로 전문을 새 창에 열며 원래 글의 주소·스크롤 위치를 유지하고 `noopener noreferrer`로 새 창 접근을 차단합니다. 링크나 disclosure 표시만으로 Markdown을 미리 다운로드하지 않습니다.
 
-## 자동 광고 배치
-- AdSense Auto ads가 홈·목록 카드 사이와 글의 블록 사이를 판단할 수 있도록 목록 항목을 독립된 `article`, 홈 그룹을 이름 있는 `section`으로 표시. 본문은 단일 Notion 렌더러를 유지하며 Google이 삽입한 광고가 전체 콘텐츠 너비를 사용하고 잘리지 않도록 처리.
-- 비어 있는 수동 광고 슬롯은 광고가 채워지지 않았을 때 공백을 남기지 않음. 가짜 슬롯 ID·고정 광고 위치·빈 광고 박스는 추가하지 않음.
-- 데스크톱에서는 본문만 최대 760px로 제한하고 240px 목차·관련 글 사이드바는 사이트 오른쪽 끝에 유지. 남는 폭은 본문과 사이드바 사이에 두며, 960px 이하에서는 기존 단일 열과 사이드바 숨김을 유지하고 광고용 공백을 예약하지 않음. 사이드 레일 게재에는 AdSense의 **Side rail ads** 활성화가 필요하며, 오른쪽만 사용하려면 고급 설정의 **Right only**를 선택. [공식 사이드 레일 위치 설정](https://support.google.com/adsense/answer/9305577?hl=en#side-rail-ads).
-- AdSense 계정에서 Auto ads와 인페이지 형식을 켜야 하며 실제 위치·빈도·게재 여부는 Google이 결정. HTML 구조 개선이 광고 게재를 보장하지 않음. [공식 Auto ads 설정](https://support.google.com/adsense/answer/9261805).
+## 광고 배치
+- 수동 광고는 `googleAdsense.config.slots.postBottom` 하나만 지원하며 일반 글 본문 뒤에 배치합니다. 빈 ID는 아무것도 렌더링하지 않고 가짜 광고·빈 박스를 추가하지 않습니다. Explorer·Outline·탭·패널 컨트롤에는 슬롯을 두지 않습니다.
+- Auto ads는 별도 AdSense 계정 설정입니다. 작업 공간의 인페이지 영역은 **Excluded areas**, 앵커·사이드 레일 등은 **Overlay formats**에서 검토해야 합니다. 이 코드가 계정 설정을 변경하거나 삽입된 광고를 CSS로 숨기지 않습니다. [운영 절차](USAGE.md#광고와-작업-공간-경계).
 
 ## 코드 블록
 - 언어명과 24px 복사 버튼을 작은 헤더에 표시. 코드 상단 패딩을 4px로 줄이며 원문에 포함된 빈 줄이나 들여쓰기는 제거하지 않음.
@@ -251,4 +257,4 @@ curl -H "Authorization: Bearer $REVALIDATE_SECRET" "https://your-site.com/api/in
 - 증분 동기화 (`/api/cron/content` 15분 주기, Notion webhook, `/api/revalidate`)
 - Mermaid 다이어그램, KaTeX 수식, Prism 코드 하이라이팅
 - YouTube · Vimeo · Loom · GoogleDrive · audio 임베드
-- Light / Dark scheme 쿠키 영속 (`prefers-color-scheme` fallback)
+- 다중 named theme와 System 실시간 전환; 운영자 기본값·방문자 선택 분리, localStorage 영속

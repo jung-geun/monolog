@@ -28,9 +28,12 @@ A Next.js-based static blog using Notion as a Content Management System (CMS). T
 - **Code Quality**: ESLint, Prettier, and TypeScript strict mode applied
 
 ### 🎨 Enhanced UI/UX
-- **Improved Theme System**: Better dark/light mode switching
-- **Mobile Optimization**: Enhanced responsive design
-- **Accessibility**: Improved ARIA labels and keyboard navigation
+- **VS Code workspace**: Command Center, Explorer/Search/Knowledge sidebars, resizable navigation, preview/pinned tabs, Outline, and References/Comments panels. Controls perform real reading and navigation actions, not simulated terminal or Git operations.
+- **Themes and icons**: One Dark Pro Mix by default, with Dark Modern, Light Modern, and live System options. Set `CONFIG.blog.theme` in `site.config.js`; a visitor's saved choice takes precedence. Material Icon Theme file/folder SVGs retain their upstream MIT license.
+- **Read-only Markdown views**: Preview, real exported Source, and Split with matched-heading scroll synchronization. Reading mode hides navigation panels. Mobile uses natural document scrolling and switches between Split panes.
+- **Keyboard navigation**: `Cmd/Ctrl+K` opens Quick Pick; `>` searches commands and `@` searches the current document's headings. Explorer single click previews, double click pins. `Alt/Option+W` closes a post and `Alt/Option+Shift+T` reopens it; browser close shortcuts are left alone.
+- **Search and storage**: `/search?q=...` searches titles, summaries, tags, and categories, including `tag:"kolla ansible"`. Pinned tabs and recently closed posts are saved only after consent; preview tabs are never persisted.
+- **Advertising boundary**: The only manual slot is `googleAdsense.config.slots.postBottom`, after article content. Auto ads exclusions and overlay settings must be reviewed separately in AdSense; code cannot guarantee those account-controlled placements. See [operator instructions](docs/USAGE.md#광고와-작업-공간-경계).
 
 ### 📒 Writing with Notion
 - No need to commit to GitHub for blog posts

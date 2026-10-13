@@ -10,6 +10,5 @@ export const variables = {
   titleBarHeight: 28,
   tabBarHeight: 32,
   statusBarHeight: 22,
-  gutterWidth: 56,
   fileTreeWidth: 240,
 }

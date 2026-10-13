@@ -1,7 +1,9 @@
-import { forwardRef, useRef, useState } from "react"
+import { forwardRef, useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import styled from "@emotion/styled"
 import { useRouteChrome } from "./RouteChromeContext"
+import WorkbenchIcon from "src/components/WorkbenchIcon"
+import TabIcon from "./TabIcon"
 
 type Props = {
   preferencesOpen: boolean
@@ -13,7 +15,7 @@ const TabBar = forwardRef<HTMLButtonElement, Props>(function TabBar(
   preferencesButtonRef
 ) {
   const {
-    tabs, activeTabId, closeTab, switchTab, moveTab,
+    tabs, activeTabId, closeTab, switchTab, moveTab, pinTab,
     reopenLastPost, canReopenPost, tabStorageConsent,
   } = useRouteChrome()
   const draggedTabId = useRef<string | null>(null)
@@ -22,6 +24,20 @@ const TabBar = forwardRef<HTMLButtonElement, Props>(function TabBar(
   const [dropBeforeId, setDropBeforeId] = useState<string | null>()
   const [moveAnnouncement, setMoveAnnouncement] = useState("")
   const activeTabIndex = tabs.findIndex((tab) => tab.id === activeTabId)
+  const [menu, setMenu] = useState<{ id: string; x: number; y: number } | null>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+  const actionsButtonRef = useRef<HTMLButtonElement>(null)
+  const menuTab = tabs.find((tab) => tab.id === menu?.id)
+  useEffect(() => {
+    if (!menu) return
+    menuRef.current?.querySelector<HTMLButtonElement>("button:not(:disabled)")?.focus()
+    const dismiss = (event: PointerEvent) => {
+      if (event.target instanceof Element && event.target.closest('[aria-haspopup="menu"]')) return
+      if (!(event.target instanceof Node) || !menuRef.current?.contains(event.target)) setMenu(null)
+    }
+    window.addEventListener("pointerdown", dismiss)
+    return () => window.removeEventListener("pointerdown", dismiss)
+  }, [menu])
 
   const moveActiveTab = (direction: -1 | 1) => {
     const target = activeTabIndex + direction
@@ -94,10 +110,22 @@ const TabBar = forwardRef<HTMLButtonElement, Props>(function TabBar(
             onPointerDownCapture={(event) => { canDrag.current = !(event.target instanceof Element && event.target.closest("button")) }}
             onDragStart={(event) => handleDragStart(event, tab.id)}
             onDragEnd={finishDrag}
+            onDoubleClick={() => pinTab(tab.id)}
+            onContextMenu={(event) => {
+              event.preventDefault()
+              setMenu({ id: tab.id, x: Math.min(event.clientX, window.innerWidth - 224), y: Math.min(event.clientY, window.innerHeight - 250) })
+            }}
+            onKeyDown={(event) => {
+              if (event.shiftKey && event.key === "F10") {
+                event.preventDefault()
+                const bounds = event.currentTarget.getBoundingClientRect()
+                setMenu({ id: tab.id, x: Math.min(bounds.left, window.innerWidth - 224), y: bounds.bottom })
+              }
+            }}
           >
             <Link href={tab.href} className="tab-link" draggable={false} aria-current={isActive ? "page" : undefined} onNavigate={() => switchTab(tab.id)}>
-              <span className="icon">◧</span>
-              <span className="label">{tab.label}</span>
+              <TabIcon tab={tab} />
+              <span className={`label${tab.preview ? " preview" : ""}`}>{tab.label}</span>
             </Link>
             {tab.closeable && (
               <button
@@ -107,7 +135,7 @@ const TabBar = forwardRef<HTMLButtonElement, Props>(function TabBar(
                 title={tab.kind === "post" ? "글 닫기 · Alt/Option+W (입력 중 제외)" : "탭 닫기"}
                 onClick={() => closeTab(tab.id)}
               >
-                ×
+                <WorkbenchIcon name="close" size={14} />
               </button>
             )}
           </div>
@@ -118,24 +146,20 @@ const TabBar = forwardRef<HTMLButtonElement, Props>(function TabBar(
         <button
           type="button"
           onClick={() => moveActiveTab(-1)}
-          aria-disabled={activeTabIndex <= 0}
+          disabled={activeTabIndex <= 0}
           aria-label="현재 탭 왼쪽으로 이동"
           title="현재 탭 왼쪽으로 이동"
         >
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-            <path d="m10 4-4 4 4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
+          <WorkbenchIcon name="arrow-left" />
         </button>
         <button
           type="button"
           onClick={() => moveActiveTab(1)}
-          aria-disabled={activeTabIndex < 0 || activeTabIndex === tabs.length - 1}
+          disabled={activeTabIndex < 0 || activeTabIndex === tabs.length - 1}
           aria-label="현재 탭 오른쪽으로 이동"
           title="현재 탭 오른쪽으로 이동"
         >
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-            <path d="m6 4 4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
+          <WorkbenchIcon name="arrow-right" />
         </button>
         <button
           type="button"
@@ -144,10 +168,13 @@ const TabBar = forwardRef<HTMLButtonElement, Props>(function TabBar(
           aria-label="마지막으로 닫은 글 다시 열기"
           title="마지막으로 닫은 글 다시 열기 · Alt/Option+Shift+T (입력 중 제외)"
         >
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-            <path d="M3 5.5A5 5 0 1 1 3 11M3 2v3.5h3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
+          <WorkbenchIcon name="history" />
         </button>
+        <button ref={actionsButtonRef} type="button" aria-label="Editor actions" title="Editor actions" aria-haspopup="menu" aria-controls="editor-tab-actions" aria-expanded={menu?.id === activeTabId} onClick={(event) => {
+          if (menu) { setMenu(null); return }
+          const bounds = event.currentTarget.getBoundingClientRect()
+          setMenu({ id: activeTabId, x: Math.min(bounds.left, window.innerWidth - 224), y: Math.min(bounds.bottom, window.innerHeight - 250) })
+        }}><WorkbenchIcon name="more" /></button>
         <button
           ref={preferencesButtonRef}
           type="button"
@@ -158,14 +185,36 @@ const TabBar = forwardRef<HTMLButtonElement, Props>(function TabBar(
           aria-controls="editor-tab-session-controls"
           title={`탭 저장 설정 · ${tabStorageConsent === "enabled" ? "이 브라우저에 저장 중" : tabStorageConsent === "unavailable" ? "저장소 접근 불가 · 이번 방문만 유지" : "이번 방문만 유지"}`}
         >
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-            <path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-            <path d="M5 2.5v3M11 6.5v3M6 10.5v3" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
-          </svg>
+          <WorkbenchIcon name="settings" />
           {tabStorageConsent === "unavailable" && <span className="storage-warning" aria-hidden="true">저장 불가</span>}
         </button>
       </div>
       <span className="move-status" role="status" aria-live="polite">{moveAnnouncement}</span>
+      {menu && menuTab && <div id="editor-tab-actions" ref={menuRef} role="menu" aria-label={`${menuTab.label} tab actions`} className="context-menu" style={{ left: Math.max(4, menu.x), top: Math.max(4, menu.y) }} onClick={() => { setMenu(null); actionsButtonRef.current?.focus() }} onKeyDown={(event) => {
+        const buttons = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>("button:not(:disabled)"))
+        const index = buttons.indexOf(document.activeElement as HTMLButtonElement)
+        if (event.key === "Escape" || event.key === "Tab") {
+          setMenu(null)
+          if (event.key === "Escape") { event.preventDefault(); document.querySelector<HTMLAnchorElement>(`[data-tab-id="${CSS.escape(menu.id)}"] .tab-link`)?.focus() }
+        } else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+          event.preventDefault()
+          buttons[(index + (event.key === "ArrowDown" ? 1 : buttons.length - 1)) % buttons.length]?.focus()
+        }
+      }}>
+        {menuTab.preview && <button type="button" role="menuitem" onClick={() => pinTab(menuTab.id)}><WorkbenchIcon name="pin" />Keep open</button>}
+        <button type="button" role="menuitem" disabled={!menuTab.closeable} onClick={() => closeTab(menuTab.id)}><WorkbenchIcon name="close" />Close editor</button>
+        <button type="button" role="menuitem" disabled={!canReopenPost} onClick={reopenLastPost}><WorkbenchIcon name="history" />Reopen closed post</button>
+        <button type="button" role="menuitem" disabled={tabs[0].id === menuTab.id} onClick={() => moveTab(menuTab.id, tabs[0].id)}><WorkbenchIcon name="arrow-left" />Move to first</button>
+        <button type="button" role="menuitem" disabled={tabs[tabs.length - 1].id === menuTab.id} onClick={() => moveTab(menuTab.id, null)}><WorkbenchIcon name="arrow-right" />Move to last</button>
+        <button type="button" role="menuitem" onClick={async () => {
+          try {
+            await navigator.clipboard.writeText(new URL(menuTab.href, window.location.origin).href)
+            setMoveAnnouncement("Editor link copied")
+          } catch {
+            setMoveAnnouncement("Could not copy the editor link")
+          }
+        }}><WorkbenchIcon name="link" />Copy link</button>
+      </div>}
     </StyledWrapper>
   )
 })
@@ -176,15 +225,20 @@ const StyledWrapper = styled.div`
   height: ${({ theme }) => theme.variables.tabBarHeight}px;
   background: ${({ theme }) => theme.colors.editor.bg2};
   border-bottom: 1px solid ${({ theme }) => theme.colors.editor.line};
-  position: sticky;
-  top: ${({ theme }) => theme.variables.titleBarHeight}px;
+  position: relative;
   z-index: 30;
   display: flex;
-  font-family: var(--font-mono, monospace);
+  font-family: var(--font-ui, sans-serif);
   font-size: 12px;
   flex-shrink: 0;
   min-width: 0;
 
+  .preview { font-style: italic; }
+  .context-menu { position: fixed; z-index: 90; width: 220px; padding: 5px; background: ${({ theme }) => theme.colors.editor.bg2}; border: 1px solid ${({ theme }) => theme.colors.editor.line}; border-radius: 5px; box-shadow: 0 6px 20px #0004; }
+  .context-menu button { display: flex; gap: 8px; align-items: center; width: 100%; min-height: 32px; padding: 4px 8px; font: inherit; color: ${({ theme }) => theme.colors.editor.fg}; background: transparent; border: 0; text-align: left; cursor: pointer; }
+  .context-menu button:focus-visible, .context-menu button:hover:not(:disabled) { background: ${({ theme }) => theme.colors.editor.bg3}; outline: 1px solid ${({ theme }) => theme.colors.editor.accent}; }
+  .context-menu button:disabled { opacity: .4; cursor: default; }
+  @media (max-width: 600px) { .tab-tools > button:first-child, .tab-tools > button:nth-child(2) { display: none; } }
   .tab-list {
     display: flex;
     flex: 1;

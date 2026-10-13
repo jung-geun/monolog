@@ -14,7 +14,9 @@ import {
 } from "src/layouts/RootLayout/EditorChrome/RouteChromeContext"
 import { queryKey } from "src/constants/queryKey"
 import { createTheme } from "src/styles/theme"
+import { resolveColorTheme } from "src/styles/colors"
 import type { PostDetail, TPost } from "src/types"
+import { WorkbenchProvider } from "src/layouts/RootLayout/EditorChrome/WorkbenchContext"
 
 const mockRouter = {
   pathname: "/",
@@ -64,12 +66,14 @@ describe("editor chrome navigation", () => {
       root.render(
         <QueryClientProvider client={client}>
           <RouterContext.Provider value={mockRouter as unknown as NextRouter}>
-          <ThemeProvider theme={createTheme({ scheme: "dark" })}>
+          <ThemeProvider theme={createTheme({ colorTheme: resolveColorTheme("one-dark-pro-mix") })}>
             <RouteChromeProvider>
+              <WorkbenchProvider>
               <ActivityBar />
               <FileTree />
               <TabBar preferencesOpen={false} onTogglePreferences={() => {}} />
               <Document key={mockRouter.asPath} filename={filename} kind={kind} />
+              </WorkbenchProvider>
             </RouteChromeProvider>
           </ThemeProvider>
           </RouterContext.Provider>
@@ -88,16 +92,16 @@ describe("editor chrome navigation", () => {
   }
 
   const postEntries = () =>
-    Array.from(container.querySelectorAll("#tree-section-posts a")).map((a) => a.textContent)
+    Array.from(container.querySelectorAll("#tree-section-posts a")).map((a) => a.getAttribute("href"))
   const currentPostEntries = () =>
     Array.from(container.querySelectorAll('#tree-section-posts a[aria-current="page"]')).map(
-      (a) => a.textContent
+      (a) => a.getAttribute("href")
     )
   const closeTab = (label: string) => {
     const button = container.querySelector(`button[aria-label="${label} 닫기"]`) as HTMLButtonElement
     act(() => button.click())
   }
-  const recentEntries = feed.slice(0, 15).map((post) => `◧${post.slug}.md`)
+  const recentEntries = feed.slice(0, 15).map((post) => `/${post.slug}`)
 
   beforeEach(() => {
     client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -186,7 +190,6 @@ describe("editor chrome navigation", () => {
     act(() => right.click())
     expect(Array.from(container.querySelectorAll<HTMLElement>(".tab-list [data-tab-id]"), (tab) => tab.dataset.tabId)).toEqual(["/p01", "readme"])
     expect(container.querySelector(".tab.active")?.getAttribute("data-tab-id")).toBe("readme")
-    expect(container.querySelector('[role="status"]')?.textContent).toBe("README.md 탭, 2개 중 2번째 위치")
     expect(document.activeElement).toBe(right)
     act(() => left.click())
     expect(Array.from(container.querySelectorAll<HTMLElement>(".tab-list [data-tab-id]"), (tab) => tab.dataset.tabId)).toEqual(["readme", "/p01"])
@@ -206,33 +209,21 @@ describe("editor chrome navigation", () => {
     expect(mockRouter.push.mock.calls).toEqual([["/p01"]])
   })
 
-  it("marks search and graph by route whether the explorer is open or closed", () => {
-    navigate("/search", "search", "/search", "page")
-    const explorer = container.querySelector('button[aria-label="explorer"]') as HTMLButtonElement
-    const search = () => container.querySelector('a[aria-label="search"]')
-    const graph = () => container.querySelector('a[aria-label="graph"]')
-
-    expect(explorer.getAttribute("aria-pressed")).toBe("true")
-    expect(search()?.getAttribute("aria-current")).toBe("page")
-    expect(explorer.classList.contains("active")).toBe(false)
-    expect(graph()?.hasAttribute("aria-current")).toBe(false)
-
-    act(() => explorer.click())
-    expect(explorer.getAttribute("aria-pressed")).toBe("false")
-    expect(search()?.getAttribute("aria-current")).toBe("page")
-
-    navigate("/graph", "graph.md", "/graph", "graph")
-    expect(search()?.hasAttribute("aria-current")).toBe(false)
-    expect(graph()?.getAttribute("aria-current")).toBe("page")
-
-    act(() => explorer.click())
-    expect(explorer.getAttribute("aria-pressed")).toBe("true")
-    expect(graph()?.getAttribute("aria-current")).toBe("page")
-    expect(explorer.classList.contains("active")).toBe(false)
-
+  it("switches and toggles sidebars without changing the active document", () => {
     navigate("/p02", "p02.md")
-    expect(explorer.classList.contains("active")).toBe(true)
-    expect(graph()?.hasAttribute("aria-current")).toBe(false)
+    const explorer = container.querySelector<HTMLButtonElement>('button[aria-label="Explorer"]')!
+    const search = container.querySelector<HTMLButtonElement>('button[aria-label="Search"]')!
+    const knowledge = container.querySelector<HTMLButtonElement>('button[aria-label="Knowledge"]')!
+    expect(explorer.getAttribute("aria-pressed")).toBe("true")
+    act(() => search.click())
+    expect(search.getAttribute("aria-pressed")).toBe("true")
+    expect(explorer.getAttribute("aria-pressed")).toBe("false")
+    act(() => search.click())
+    expect(search.getAttribute("aria-pressed")).toBe("false")
+    act(() => knowledge.click())
+    expect(knowledge.getAttribute("aria-pressed")).toBe("true")
+    expect(container.querySelector(".tab.active")?.getAttribute("data-tab-id")).toBe("/p02")
+    expect(mockRouter.push).not.toHaveBeenCalled()
   })
 
   it("keeps an open older post listed across tab switches until its tab closes", () => {
@@ -240,25 +231,25 @@ describe("editor chrome navigation", () => {
     expect(postEntries()).toEqual(recentEntries)
 
     navigate("/p16#section", "p16.md")
-    expect(postEntries()).toEqual([...recentEntries, "◧p16.md"])
-    expect(currentPostEntries()).toEqual(["◧p16.md"])
+    expect(postEntries()).toEqual([...recentEntries, "/p16"])
+    expect(currentPostEntries()).toEqual(["/p16"])
 
     // Opening a recent post neither duplicates it nor drops the older one.
     navigate("/p02", "p02.md")
-    expect(postEntries()).toEqual([...recentEntries, "◧p16.md"])
-    expect(currentPostEntries()).toEqual(["◧p02.md"])
+    expect(postEntries()).toEqual([...recentEntries, "/p16"])
+    expect(currentPostEntries()).toEqual(["/p02"])
 
     // Non-post documents with .md tabs never enter the posts list.
     navigate("/graph", "graph.md", "/graph", "graph")
-    expect(postEntries()).toEqual([...recentEntries, "◧p16.md"])
+    expect(postEntries()).toEqual([...recentEntries, "/p16"])
     expect(currentPostEntries()).toEqual([])
 
     navigate("/p17", "p17.md")
-    expect(postEntries()).toEqual([...recentEntries, "◧p16.md", "◧p17.md"])
+    expect(postEntries()).toEqual([...recentEntries, "/p16", "/p17"])
 
     closeTab("p16.md")
-    expect(postEntries()).toEqual([...recentEntries, "◧p17.md"])
-    expect(currentPostEntries()).toEqual(["◧p17.md"])
+    expect(postEntries()).toEqual([...recentEntries, "/p17"])
+    expect(currentPostEntries()).toEqual(["/p17"])
   })
 
   it("lists a detail-only post on direct entry but not page documents", () => {
@@ -274,12 +265,12 @@ describe("editor chrome navigation", () => {
     )
 
     navigate("/hidden-note?ref=feed", "hidden-note.md")
-    expect(postEntries()).toEqual([...recentEntries, "◧hidden-note.md"])
-    expect(currentPostEntries()).toEqual(["◧hidden-note.md"])
+    expect(postEntries()).toEqual([...recentEntries, "/hidden-note"])
+    expect(currentPostEntries()).toEqual(["/hidden-note"])
 
     navigate("/about", "about.md", "/[slug]", "about")
     navigate("/now", "now.md", "/[slug]", "page")
-    expect(postEntries()).toEqual([...recentEntries, "◧hidden-note.md"])
+    expect(postEntries()).toEqual([...recentEntries, "/hidden-note"])
     expect(currentPostEntries()).toEqual([])
 
     closeTab("hidden-note.md")

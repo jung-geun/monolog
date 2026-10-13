@@ -1,6 +1,7 @@
 import styled from "@emotion/styled"
 import { useRouter } from "next/router"
 import React from "react"
+import { getReadingScrollRoot } from "./scrollRoot"
 
 type Props = {}
 
@@ -9,7 +10,7 @@ const Footer: React.FC<Props> = () => {
   return (
     <StyledWrapper>
       <button type="button" onClick={() => router.push("/")}>← Back</button>
-      <button type="button" onClick={() => window.scrollTo({
+      <button type="button" onClick={() => getReadingScrollRoot().scrollTo({
         top: 0,
         behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
       })}>

@@ -1,134 +1,68 @@
 import { useState, useEffect } from "react"
 import styled from "@emotion/styled"
+import WorkbenchIcon from "src/components/WorkbenchIcon"
+import { useRouteChrome } from "./RouteChromeContext"
+import { useWorkbench } from "./WorkbenchContext"
+import { getReadingScrollRoot } from "src/routes/Detail/PostDetail/scrollRoot"
 
-type Props = {
-  items: string[]
-}
-
-
-const StatusBar = ({ items }: Props) => {
-  const [ip, setIp] = useState("0.0.0.0")
-
+const StatusBar = ({ items }: { items: string[] }) => {
+  const { tabs, activeTabId, tabStorageConsent } = useRouteChrome()
+  const { documentMode, documentContext, setSettingsOpen } = useWorkbench()
+  const [progress, setProgress] = useState(0)
+  const tab = tabs.find((entry) => entry.id === activeTabId)
   useEffect(() => {
-    let cancelled = false
-    fetch("https://api.ipify.org?format=json")
-      .then((r) => r.json())
-      .then((d) => { if (!cancelled) setIp(d.ip) })
-      .catch(() => {})
-    return () => { cancelled = true }
-  }, [])
-
-  return (
-    <StyledWrapper>
-      <div className="ssh-segment">
-        <span className="dot" />
-        <span className="ssh-label">ssh</span>
-        <span className="host">pieroot@log</span>
-        <span className="sep">·</span>
-        <span className="ip">{ip}</span>
-      </div>
-      <div className="accent-strip">
-        {items.map((item, i) => (
-          <span
-            key={i}
-            className={i === items.length - 1 ? "last" : ""}
-            style={{ fontWeight: i === 0 ? 600 : 400 }}
-          >
-            {item}
-          </span>
-        ))}
-      </div>
-    </StyledWrapper>
-  )
+    const roots = Array.from(document.querySelectorAll<HTMLElement>(".page-content, .document-panes--split .document-preview"))
+    const update = () => {
+      const root = getReadingScrollRoot()
+      const position = root instanceof HTMLElement ? root.scrollTop : window.scrollY
+      const height = root instanceof HTMLElement ? root.scrollHeight - root.clientHeight : document.documentElement.scrollHeight - window.innerHeight
+      setProgress(height > 0 ? Math.min(100, Math.max(0, Math.round(position / height * 100))) : 100)
+    }
+    update()
+    for (const root of roots) root.addEventListener("scroll", update, { passive: true })
+    window.addEventListener("scroll", update, { passive: true })
+    window.addEventListener("resize", update)
+    const observer = new ResizeObserver(update)
+    observer.observe(document.documentElement)
+    for (const root of roots) {
+      observer.observe(root)
+      for (const child of root.children) observer.observe(child)
+    }
+    return () => {
+      for (const root of roots) root.removeEventListener("scroll", update)
+      window.removeEventListener("scroll", update)
+      window.removeEventListener("resize", update)
+      observer.disconnect()
+    }
+  }, [activeTabId, documentMode, documentContext])
+  const metadata = items.filter((item) => item !== "main" && !/synced|ssh|0\.0\.0\.0/i.test(item))
+  return <StyledWrapper aria-label="Editor status">
+    <span className="document-state"><WorkbenchIcon name={tab?.kind === "post" ? "book" : "info"} size={14} />{tab?.kind === "post" ? "Published post" : tab?.kind === "about" ? "Published page" : "Read-only workspace"}{tab?.preview && <span className="preview-note"> · Preview</span>}</span>
+    <button type="button" className="storage-state" onClick={() => setSettingsOpen(true)} title="Local tab storage settings">{tabStorageConsent === "enabled" ? "Tabs saved locally" : tabStorageConsent === "unavailable" ? "Local storage unavailable" : "Tabs: this visit"}</button>
+    <div className="metadata">{metadata.map((item, index) => <span key={`${index}:${item}`}>{item}</span>)}</div>
+    {documentContext && <span className="reading-progress" title="Reading position">{progress}% · {documentMode}</span>}
+  </StyledWrapper>
 }
-
 export default StatusBar
 
-const StyledWrapper = styled.div`
-  position: sticky;
-  bottom: 0;
-  z-index: 40;
+const StyledWrapper = styled.footer`
   flex-shrink: 0;
   width: 100%;
-  height: ${({ theme }) => theme.variables.statusBarHeight}px;
+  min-height: ${({ theme }) => theme.variables.statusBarHeight}px;
   display: flex;
-  align-items: stretch;
-  font-family: var(--font-mono, monospace);
+  align-items: center;
+  gap: 14px;
+  padding: 0 12px;
+  font-family: var(--font-ui, sans-serif);
   font-size: 11px;
   background: ${({ theme }) => theme.colors.editor.bg2};
+  color: ${({ theme }) => theme.colors.editor.fg2};
   border-top: 1px solid ${({ theme }) => theme.colors.editor.line};
-
-  .ssh-segment {
-    background: ${({ theme }) => theme.colors.editor.bg3};
-    color: ${({ theme }) => theme.colors.editor.fg2};
-    display: flex;
-    align-items: center;
-    padding: 0 10px 0 12px;
-    border-right: 1px solid ${({ theme }) => theme.colors.editor.line};
-    white-space: nowrap;
-    flex-shrink: 0;
-
-    > * + * { margin-left: 8px; }
-
-    .dot {
-      width: 6px;
-      height: 6px;
-      border-radius: 50%;
-      background: ${({ theme }) => theme.colors.editor.accent};
-      box-shadow: 0 0 6px ${({ theme }) => theme.colors.editor.accent};
-      flex-shrink: 0;
-      animation: monolog-dot-arrive 420ms var(--motion-ease);
-    }
-    .ssh-label { color: ${({ theme }) => theme.colors.editor.fg}; font-weight: 600; }
-    .host { color: ${({ theme }) => theme.colors.editor.fg}; }
-    .sep { color: ${({ theme }) => theme.colors.editor.fg2}; }
-    .ip { color: ${({ theme }) => theme.colors.editor.fg2}; }
-  }
-
-  .accent-strip {
-    flex: 1;
-    background: ${({ theme }) => theme.colors.editor.bg2};
-    color: ${({ theme }) => theme.colors.editor.fg2};
-    display: flex;
-    align-items: center;
-    padding: 0 12px;
-    min-width: 0;
-    overflow: hidden;
-    flex-wrap: nowrap;
-
-    > span {
-      white-space: nowrap;
-      flex-shrink: 0;
-    }
-
-    > span + span {
-      margin-left: 16px;
-    }
-
-    .last {
-      margin-left: auto;
-      color: ${({ theme }) => theme.colors.editor.fg};
-      font-weight: 500;
-    }
-  }
-
-  @media (max-width: ${({ theme }) => theme.variables.breakpoint}px) {
-    .ssh-segment {
-      padding: 0 8px;
-      .ip { display: none; }
-      .sep { display: none; }
-      > * + * { margin-left: 4px; }
-    }
-    .accent-strip {
-      padding: 0 10px;
-      > span + span { margin-left: 8px; }
-      > span:not(:first-of-type):not(:last-of-type) {
-        display: none;
-      }
-    }
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .ssh-segment .dot { animation: none; }
-  }
+  .document-state { display: flex; align-items: center; gap: 5px; white-space: nowrap; }
+  .metadata { display: flex; gap: 14px; flex: 1; overflow: hidden; white-space: nowrap; }
+  .storage-state { background: transparent; color: inherit; font: inherit; cursor: pointer; padding: 2px 4px; border: 0; white-space: nowrap; }
+  .storage-state:hover { background: ${({ theme }) => theme.colors.editor.bg3}; }
+  .storage-state:focus-visible { outline: 1px solid ${({ theme }) => theme.colors.editor.accent}; }
+  .reading-progress { margin-left: auto; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  @media (max-width: 960px) { position: sticky; bottom: 0; z-index: 35; min-height: 24px; gap: 8px; padding: 0 8px; .metadata, .preview-note { display: none; } .storage-state { margin-left: auto; font-size: 10px; } }
 `

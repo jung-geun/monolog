@@ -1,6 +1,6 @@
 import Link from "next/link"
 import styled from "@emotion/styled"
-import { TPost, TPosts } from "src/types"
+import type { TPost, TPosts } from "src/types"
 
 type Props = {
   post: TPost
@@ -32,7 +32,7 @@ const SeriesNav = ({ post, allPosts }: Props) => {
     <StyledWrapper>
       <div className="series-label">
         <span className="icon">§</span>
-        <Link href={`/series/${seriesName}`} className="series-name">{seriesName}</Link>
+        <Link href={`/series/${encodeURIComponent(seriesName)}`} className="series-name">{seriesName}</Link>
         <span className="pos">
           {currentIdx + 1} / {seriesPosts.length}
         </span>

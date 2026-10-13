@@ -1,6 +1,5 @@
 import useMermaidEffect from "./hooks/useMermaidEffect"
 import PostDetail from "./PostDetail"
-import PageDetail from "./PageDetail"
 import styled from "@emotion/styled"
 import usePostQuery from "src/hooks/usePostQuery"
 
@@ -13,8 +12,7 @@ const Detail: React.FC<Props> = () => {
   if (!data) return null
   return (
     <StyledWrapper data-type={data.type}>
-      {data.type[0] === "Page" && <PageDetail />}
-      {data.type[0] !== "Page" && <PostDetail />}
+      <PostDetail />
     </StyledWrapper>
   )
 }
