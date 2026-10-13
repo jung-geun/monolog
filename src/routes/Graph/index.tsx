@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import styled from "@emotion/styled"
 import dynamic from "next/dynamic"
 import Link from "next/link"
+import WorkbenchIcon from "src/components/WorkbenchIcon"
 import { useIsFetching, useQuery } from "@tanstack/react-query"
 import useNotionGraphQuery from "src/hooks/useNotionGraphQuery"
 import useOntologyQuery from "src/hooks/useOntologyQuery"
@@ -198,7 +199,7 @@ const Graph = () => {
   const statusItems = useMemo(() => [
     "3D graph", `${nodes.length} nodes`, `${edges.length} source relations`, "WebGL · perspective",
   ], [nodes.length, edges.length])
-  useRegisterChrome("graph.md", statusItems, "graph")
+  useRegisterChrome("Knowledge graph", statusItems, "graph")
 
   const handleSelect = useCallback((index: number) => {
     setSelectedId((previous) => index < 0 || nodes[index]?.id === previous ? null : nodes[index]?.id ?? null)
@@ -271,12 +272,12 @@ const Graph = () => {
           )}
           {!nodes.length && (
             <div className="graph-message" role="status">
-              {isFetching ? "Loading graph data…" : "No graph data available. Check the content connection."}
+              {isFetching ? "Loading graph data…" : "No graph data is currently available."}
             </div>
           )}
 
           <header className="graph-heading">
-            <div className="heading-line"><h1>Knowledge graph</h1><span className="dimension">3D</span></div>
+            <div className="heading-line"><WorkbenchIcon name="graph" size={18} /><h1>Knowledge graph</h1><span className="dimension">3D</span></div>
             <p>{shownCounts.nodes} nodes <span>·</span> {shownCounts.links} relations</p>
             {graph.embedding && <p className="embedding-status">
               {graph.embedding.embedded > 0 ? `EmbeddingGemma · PCA 3D · ${graph.embedding.embedded}/${graph.embedding.total} posts` : "Relationship layout · post embeddings pending"}
@@ -327,7 +328,7 @@ const Graph = () => {
               Reset view
             </button>
             <details className="control-popover">
-              <summary>Graph controls</summary>
+              <summary><WorkbenchIcon name="settings" size={14} /> Graph controls</summary>
               <div className="control-popover-body">
                 <div className="panel-label">Relations</div>
                 <div className="relation-toggles">
@@ -427,16 +428,18 @@ const Graph = () => {
         <aside className={`detail-panel${selected ? " is-open" : ""}`} aria-hidden={!selected} aria-label="Node relationships">
           {selected && (
             <>
-              <button type="button" className="detail-close" onClick={clearSelection} aria-label="Close node details">×</button>
+              <button type="button" className="detail-close" onClick={clearSelection} aria-label="Close node details"><WorkbenchIcon name="close" size={16} /></button>
               <div className="panel-label">{selected.kind}</div>
               <h2 className="selected-title">{selected.title}</h2>
               {selected.kind === "post" && (
                 <>
-                  <div className="selected-meta">{selected.category}{selected.readTime ? ` · ${selected.readTime} min read` : ""}</div>
-                  <div className="selected-tags">{(selected.tags ?? []).map((tag) => <span key={tag}>#{tag}</span>)}</div>
-                  {selected.slug && <Link href={`/${selected.slug}`} className="open-link">Open post →</Link>}
+                  <div className="selected-meta">{selected.category && <Link href={`/categories/${encodeURIComponent(selected.category)}`}>{selected.category}</Link>}{selected.readTime ? ` · ${selected.readTime} min read` : ""}</div>
+                  <div className="selected-tags">{(selected.tags ?? []).map((tag) => <Link key={tag} href={{ pathname: "/search", query: { q: `tag:${JSON.stringify(tag)}` } }}>#{tag}</Link>)}</div>
+                  {selected.slug && <Link href={`/${selected.slug}`} className="open-link">Open post <WorkbenchIcon name="arrow-right" size={14} /></Link>}
                 </>
               )}
+              {selected.kind === "tag" && <Link href={{ pathname: "/search", query: { q: `tag:${JSON.stringify(selected.title)}` } }} className="open-link">Browse tagged posts <WorkbenchIcon name="arrow-right" size={14} /></Link>}
+              {selected.kind === "series" && <Link href={`/series/${encodeURIComponent(selected.title)}`} className="open-link">Open series <WorkbenchIcon name="arrow-right" size={14} /></Link>}
               <div className="selection-actions">
                 <button type="button" className="control-btn" onClick={() => focusNode(selectedIndex)}>Focus node</button>
                 <button type="button" className="control-btn" aria-pressed={neighborhoodOnly} onClick={() => setNeighborhoodOnly((value) => !value)}>Connections only</button>
@@ -487,9 +490,11 @@ export default Graph
 const StyledWrapper = styled.div`
   display: flex;
   flex-direction: column;
-  height: calc(100dvh - ${({ theme }) => theme.variables.titleBarHeight + theme.variables.tabBarHeight + theme.variables.statusBarHeight}px);
+  flex: 1;
+  min-height: 480px;
+  height: 100%;
   overflow: hidden;
-  font-family: var(--font-mono, monospace);
+  font-family: var(--font-ui, sans-serif);
   color: ${({ theme }) => theme.colors.editor.fg};
 
   .graph-layout { position: relative; flex: 1; min-height: 0; isolation: isolate; }
@@ -501,7 +506,7 @@ const StyledWrapper = styled.div`
   button, a { transition: color 0.16s, background 0.16s, border-color 0.16s; }
   button:active:not(:disabled) { transform: translateY(1px); }
 
-  .graph-heading { position: absolute; top: 22px; left: 24px; z-index: 2; pointer-events: none; }
+  .graph-heading { position: absolute; top: 16px; left: 16px; z-index: 2; pointer-events: none; }
   .heading-line { display: flex; gap: 10px; align-items: center; }
   h1 { margin: 0; font-size: 15px; font-weight: 500; letter-spacing: -0.4px; }
   .dimension { color: ${({ theme }) => theme.colors.editor.accent}; font-size: 10px; padding: 2px 5px; border: 1px solid ${({ theme }) => theme.colors.editor.line}; }
@@ -521,15 +526,15 @@ const StyledWrapper = styled.div`
   .search-results small { display: block; color: ${({ theme }) => theme.colors.editor.fg3}; font-size: 9px; margin-top: 3px; }
   .search-results p { padding: 0 12px; font-size: 11px; color: ${({ theme }) => theme.colors.editor.fg3}; }
 
-  .floating-controls { position: absolute; display: flex; align-items: flex-start; gap: 6px; top: 20px; right: 20px; z-index: 4; transition: right 0.22s ease; }
-  .floating-controls.drawer-open { right: 358px; }
+  .floating-controls { position: absolute; display: flex; align-items: flex-start; gap: 6px; top: 16px; right: 16px; z-index: 4; transition: right 0.22s ease; }
+  .floating-controls.drawer-open { right: 320px; top: auto; bottom: 84px; }
   .reset-view { flex: none; white-space: nowrap; }
   .control-popover { width: 224px; background: ${({ theme }) => theme.colors.editor.bg2}; border: 1px solid ${({ theme }) => theme.colors.editor.line}; }
   .control-popover:not([open]) { width: 132px; }
-  .control-popover summary { list-style: none; padding: 9px 10px; font-size: 10px; color: ${({ theme }) => theme.colors.editor.fg2}; cursor: pointer; user-select: none; &::-webkit-details-marker { display: none; } &::after { content: "+"; float: right; color: ${({ theme }) => theme.colors.editor.fg3}; } }
+  .control-popover summary { display: flex; align-items: center; gap: 6px; list-style: none; padding: 8px; font-size: 11px; color: ${({ theme }) => theme.colors.editor.fg2}; cursor: pointer; user-select: none; &::-webkit-details-marker { display: none; } &::after { content: "+"; margin-left: auto; color: ${({ theme }) => theme.colors.editor.fg3}; } }
   .control-popover[open] { box-shadow: 0 10px 24px rgba(0,0,0,0.12); summary { border-bottom: 1px solid ${({ theme }) => theme.colors.editor.line}; &::after { content: "−"; } } }
-  .control-popover-body { max-height: calc(100dvh - 150px); overflow-y: auto; padding: 12px; scrollbar-width: thin; }
-  .panel-label { color: ${({ theme }) => theme.colors.editor.fg3}; font-size: 10px; letter-spacing: 0.6px; margin-bottom: 9px; }
+  .control-popover-body { max-height: min(55dvh, 480px); overflow-y: auto; padding: 12px; scrollbar-width: thin; }
+  .panel-label { color: ${({ theme }) => theme.colors.editor.fg3}; font-size: 11px; margin-bottom: 8px; }
   .section-label { margin-top: 22px; }
   .control-note { color: ${({ theme }) => theme.colors.editor.fg3}; font-size: 10px; line-height: 1.6; margin: 0 0 10px; }
   .control-row { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
@@ -560,14 +565,15 @@ const StyledWrapper = styled.div`
   .interaction-hint { position: absolute; bottom: 19px; left: 24px; color: ${({ theme }) => theme.colors.editor.fg3}; font-size: 9px; pointer-events: none; b { margin: 0 6px; font-weight: 400; color: ${({ theme }) => theme.colors.editor.fg4}; } }
   .mobile-hint { display: none; }
 
-  .detail-panel { position: absolute; inset: 0 0 0 auto; width: 338px; padding: 24px 20px; box-sizing: border-box; z-index: 5; background: ${({ theme }) => theme.colors.editor.bg2}; border-left: 1px solid ${({ theme }) => theme.colors.editor.line}; overflow-y: auto; scrollbar-width: thin; pointer-events: none; visibility: hidden; opacity: 0; transform: translateX(100%); transition: transform 0.24s ease, opacity 0.18s ease, visibility 0s linear 0.24s; }
+  .detail-panel { position: absolute; inset: 0 0 0 auto; width: 304px; padding: 18px 16px; box-sizing: border-box; z-index: 5; background: ${({ theme }) => theme.colors.editor.bg2}; border-left: 1px solid ${({ theme }) => theme.colors.editor.line}; overflow-y: auto; scrollbar-width: thin; pointer-events: none; visibility: hidden; opacity: 0; transform: translateX(100%); transition: transform 0.24s ease, opacity 0.18s ease, visibility 0s linear 0.24s; }
   .detail-panel.is-open { pointer-events: auto; visibility: visible; opacity: 1; transform: translateX(0); transition-delay: 0s; }
   .detail-close { position: absolute; top: 14px; right: 14px; padding: 2px 6px; border: 1px solid ${({ theme }) => theme.colors.editor.line}; background: transparent; color: ${({ theme }) => theme.colors.editor.fg3}; font-size: 16px; }
   .detail-close:hover { color: ${({ theme }) => theme.colors.editor.accent}; }
   .selected-title { color: ${({ theme }) => theme.colors.editor.fg}; font-size: 18px; font-weight: 500; line-height: 1.45; letter-spacing: -0.4px; margin: 0 14px 8px 0; overflow-wrap: anywhere; }
   .selected-meta { color: ${({ theme }) => theme.colors.editor.fg3}; font-size: 10px; margin-bottom: 12px; }
   .selected-tags { display: flex; flex-wrap: wrap; gap: 5px 9px; margin-bottom: 12px; color: ${({ theme }) => theme.colors.editor.accent3}; font-size: 10px; }
-  .open-link { display: inline-block; margin: 0 0 18px; color: ${({ theme }) => theme.colors.editor.accent}; text-decoration: none; font-size: 11px; &:hover { color: ${({ theme }) => theme.colors.editor.accent3}; } }
+  .selected-meta a, .selected-tags a { color: inherit; text-decoration: none; &:hover { color: ${({ theme }) => theme.colors.editor.accent}; } }
+  .open-link { display: inline-flex; align-items: center; gap: 5px; margin: 0 0 14px; color: ${({ theme }) => theme.colors.editor.accent}; text-decoration: none; font-size: 12px; &:hover { color: ${({ theme }) => theme.colors.editor.accent3}; } }
   .selection-actions { margin: 14px 0 0; }
   .connected-item { border-bottom: 1px solid ${({ theme }) => theme.colors.editor.line}; padding: 12px 0; }
   .connected-title { display: flex; align-items: flex-start; gap: 8px; width: 100%; border: none; padding: 0; background: transparent; color: ${({ theme }) => theme.colors.editor.fg2}; font-size: 11px; line-height: 1.6; text-align: left; &:hover { color: ${({ theme }) => theme.colors.editor.accent}; } .node-symbol { margin-top: 5px; } }
@@ -581,10 +587,13 @@ const StyledWrapper = styled.div`
 
   @media (max-width: 1100px) { .floating-controls.drawer-open .reset-view { visibility: hidden; } }
   @media (max-width: ${({ theme }) => theme.variables.breakpoint}px) {
+    flex: none;
+    height: 74dvh;
+    min-height: 480px;
     .graph-heading { top: 16px; left: 14px; }
     h1 { font-size: 12px; }
     .graph-search { width: min(222px, calc(100vw - 132px)); }
-    .floating-controls, .floating-controls.drawer-open { top: 14px; right: 10px; }
+    .floating-controls, .floating-controls.drawer-open { top: 14px; right: 10px; bottom: auto; }
     .floating-controls .reset-view { display: none; }
     .control-popover:not([open]) { width: 108px; }
     .control-popover summary { font-size: 9px; }

@@ -52,6 +52,8 @@ describe("editor tab sessions", () => {
     ))
   }
   const navigate = (href: string, nextKind: TabKind = "post", nextFilename = post(href).label) => {
+    const routeStart = mockRouter.events.on.mock.calls.find(([event]) => event === "routeChangeStart")?.[1]
+    act(() => routeStart?.(href))
     mockRouter.asPath = href
     filename = nextFilename
     kind = nextKind
@@ -88,6 +90,38 @@ describe("editor tab sessions", () => {
     originalStorage.removeItem(TAB_CONSENT_KEY)
     originalStorage.removeItem(TAB_SESSION_KEY)
     jest.clearAllMocks()
+  })
+
+  it("replaces a preview until pinned and persists only pinned documents after consent", () => {
+    render()
+    act(() => chrome.allowTabStorage())
+    act(() => chrome.previewPost(post("/alpha")))
+    navigate("/alpha")
+    expect(chrome.previewTabId).toBe("/alpha")
+    act(() => chrome.previewPost(post("/beta")))
+    navigate("/beta")
+    expect(chrome.tabs.map((tab) => tab.id)).toEqual(["readme", "/beta"])
+    expect(JSON.parse(originalStorage.getItem(TAB_SESSION_KEY)!).tabs.map((tab: Tab) => tab.id)).toEqual(["readme"])
+    act(() => chrome.pinTab("/beta"))
+    act(() => chrome.previewPost(post("/gamma")))
+    navigate("/gamma")
+    expect(chrome.tabs.map((tab) => tab.id)).toEqual(["readme", "/beta", "/gamma"])
+    expect(JSON.parse(originalStorage.getItem(TAB_SESSION_KEY)!).tabs.map((tab: Tab) => tab.id)).toEqual(["readme", "/beta"])
+    act(() => chrome.closeTab("/gamma"))
+    expect(chrome.canReopenPost).toBe(false)
+    act(() => chrome.closeTab("/beta"))
+    expect(chrome.canReopenPost).toBe(true)
+  })
+
+  it("pins an existing preview when normal navigation returns to that document", () => {
+    render()
+    act(() => chrome.previewPost(post("/alpha")))
+    navigate("/alpha")
+    navigate("/beta")
+    navigate("/alpha")
+    expect(chrome.previewTabId).toBeNull()
+    act(() => chrome.previewPost(post("/gamma")))
+    expect(chrome.tabs.map((tab) => tab.id)).toEqual(["readme", "/alpha", "/beta", "/gamma"])
   })
 
   it("closes inactive tabs without navigation and active posts toward the left adjacent route", () => {
@@ -213,7 +247,7 @@ describe("editor tab sessions", () => {
     expect(mockRouter.push).not.toHaveBeenCalled()
   })
 
-  it("uses physical Option codes and best-effort browser commands, not the window-close shortcut", () => {
+  it("uses physical Option codes without intercepting browser close/reopen shortcuts", () => {
     render()
     navigate("/alpha")
     expect(keydown({ code: "KeyW", key: "W", metaKey: true, shiftKey: true }).defaultPrevented).toBe(false)
@@ -221,9 +255,9 @@ describe("editor tab sessions", () => {
     expect(chrome.activeTabId).toBe("readme")
     expect(keydown({ code: "KeyT", key: "ˇ", altKey: true, shiftKey: true }).defaultPrevented).toBe(true)
     expect(chrome.activeTabId).toBe("/alpha")
-    expect(keydown({ key: "w", ctrlKey: true }).defaultPrevented).toBe(true)
-    expect(keydown({ key: "T", metaKey: true, shiftKey: true }).defaultPrevented).toBe(true)
-    expect(mockRouter.push.mock.calls).toEqual([["/"], ["/alpha"], ["/"], ["/alpha"]])
+    expect(keydown({ key: "w", ctrlKey: true }).defaultPrevented).toBe(false)
+    expect(keydown({ key: "T", metaKey: true, shiftKey: true }).defaultPrevented).toBe(false)
+    expect(mockRouter.push.mock.calls).toEqual([["/"], ["/alpha"]])
   })
 
   it("ignores editable targets, repeat and composition, and removes its listener on unmount", () => {
@@ -300,7 +334,7 @@ describe("editor tab sessions", () => {
     expect(saved).toEqual({
       version: 1,
       tabs: [
-        { id: "readme", kind: "readme", label: "README.md", href: "/" },
+        expect.objectContaining({ id: "readme", kind: "readme", href: "/" }),
         { id: "/beta?mode=two", kind: "post", label: "beta.md", href: "/beta?mode=two#end" },
       ],
       closedPosts: [{ id: "/alpha", kind: "post", label: "alpha.md", href: "/alpha" }],

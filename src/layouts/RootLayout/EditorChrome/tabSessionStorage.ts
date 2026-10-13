@@ -7,7 +7,7 @@ export const CLOSED_POST_LIMIT = 20
 export const README_TAB: Tab = {
   id: "readme",
   kind: "readme",
-  label: "README.md",
+  label: "Welcome",
   href: "/",
   closeable: false,
 }
@@ -30,7 +30,7 @@ const parseTab = (value: unknown): Tab | null => {
   const tab = value as Record<string, unknown>
   if (typeof tab.id !== "string" || typeof tab.kind !== "string" || typeof tab.label !== "string" || typeof tab.href !== "string") return null
   if (tab.kind === "readme") {
-    return tab.id === "readme" && tab.href === "/" && tab.label === "README.md"
+    return tab.id === "readme" && tab.href === "/" && (tab.label === "README.md" || tab.label === "Welcome")
       ? README_TAB : null
   }
   if (!kinds.includes(tab.kind as TabKind) || !tab.label.trim() || !isLocalTabHref(tab.href) || tab.href === "/" || tab.id !== tab.href.split("#", 1)[0]) return null
@@ -58,7 +58,7 @@ export const parseTabSession = (raw: string): StoredTabSession | null => {
 export const serializeTabSession = (session: StoredTabSession): string => {
   return JSON.stringify({
     version: 1,
-    tabs: session.tabs.map(({ id, kind, label, href }) => ({ id, kind, label, href })),
+    tabs: session.tabs.filter((tab) => !tab.preview).map(({ id, kind, label, href }) => ({ id, kind, label, href })),
     closedPosts: session.closedPosts.map(({ id, kind, label, href }) => ({ id, kind, label, href })),
   })
 }

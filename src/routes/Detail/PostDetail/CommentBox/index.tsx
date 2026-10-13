@@ -1,4 +1,4 @@
-import { TPost } from "src/types"
+import type { TPost } from "src/types"
 import { CONFIG } from "site.config"
 import dynamic from "next/dynamic"
 
@@ -28,7 +28,7 @@ type Props = {
 const CommentBox: React.FC<Props> = ({ data }) => {
   return (
     <div>
-      {(CONFIG as any).notionComments?.enable && (
+      {CONFIG.notionComments.enable && (
         <NotionCommentsComponent slug={data.slug} postId={data.id} />
       )}
       {CONFIG.utterances.enable && <UtterancesComponent issueTerm={data.id} />}

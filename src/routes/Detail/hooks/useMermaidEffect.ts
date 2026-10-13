@@ -1,19 +1,12 @@
-import { useQuery, skipToken } from "@tanstack/react-query"
 import { useEffect, useRef } from "react"
-import { queryKey } from "src/constants/queryKey"
+import useColorTheme from "src/hooks/useColorTheme"
 
 const useMermaidEffect = () => {
   const memoMermaidRef = useRef<Map<number, string>>(new Map())
 
-  const { data, isFetched } = useQuery({
-    queryKey: queryKey.scheme(),
-    queryFn: skipToken,
-    enabled: false,
-  })
+  const { theme } = useColorTheme()
 
   useEffect(() => {
-    if (!isFetched) return
-
     let cancelled = false
     const startTime = Date.now()
 
@@ -31,7 +24,23 @@ const useMermaidEffect = () => {
       const { default: mermaid } = await import("mermaid")
       mermaid.initialize({
         startOnLoad: true,
-        theme: (data as "dark" | "light") === "dark" ? "dark" : "default",
+        theme: "base",
+        themeVariables: {
+          darkMode: theme.scheme === "dark",
+          background: theme.editor.bg,
+          primaryColor: theme.editor.bg3,
+          primaryTextColor: theme.editor.fg,
+          primaryBorderColor: theme.editor.line2,
+          secondaryColor: theme.editor.bg2,
+          secondaryTextColor: theme.editor.fg,
+          tertiaryColor: theme.editor.accentSoft,
+          tertiaryTextColor: theme.editor.fg2,
+          lineColor: theme.editor.fg3,
+          textColor: theme.editor.fg,
+          clusterBkg: theme.editor.bg2,
+          edgeLabelBackground: theme.editor.bg,
+          fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "Pretendard Variable", sans-serif',
+        },
       })
 
       const promises = Array.from(elements)
@@ -67,7 +76,7 @@ const useMermaidEffect = () => {
     return () => {
       cancelled = true
     }
-  }, [data, isFetched])
+  }, [theme])
 }
 
 export default useMermaidEffect

@@ -26,6 +26,7 @@ export type Tab = {
   label: string
   href: string
   closeable: boolean
+  preview?: boolean
 }
 
 export type TabStorageConsent = "loading" | "prompt" | "enabled" | "disabled" | "unavailable"
@@ -38,14 +39,17 @@ export type ChromeConfig = {
 }
 
 const defaultChrome: ChromeConfig = {
-  filename: "README.md",
-  statusItems: ["main", "✓ synced", "UTF-8", "Markdown"],
+  filename: "Welcome",
+  statusItems: [],
 }
 
 export type RouteChromeContextValue = {
   tabs: Tab[]
   activeTabId: string
   openTab: (tab: Tab) => void
+  previewPost: (tab: Tab) => void
+  pinTab: (id: string) => void
+  previewTabId: string | null
   closeTab: (id: string) => void
   switchTab: (id: string) => void
   moveTab: (id: string, beforeId: string | null) => void
@@ -65,11 +69,11 @@ export type RouteChromeContextValue = {
 }
 
 const defaultExpanded: Record<string, boolean> = {
+  openEditors: true,
   posts: true,
   categories: false,
   series: false,
   projects: false,
-  drafts: false,
   public: false,
 }
 
@@ -77,6 +81,9 @@ const RouteChromeContext = createContext<RouteChromeContextValue>({
   tabs: [README_TAB],
   activeTabId: "readme",
   openTab: () => {},
+  previewPost: () => {},
+  pinTab: () => {},
+  previewTabId: null,
   closeTab: () => {},
   switchTab: () => {},
   moveTab: () => {},
@@ -108,6 +115,7 @@ export const RouteChromeProvider = ({ children }: { children: ReactNode }) => {
   const sessionRef = useRef(session)
   const consentRef = useRef<TabStorageConsent>("loading")
   const initializedRef = useRef(false)
+  const previewNavigationRef = useRef<string | null>(null)
 
   useEffect(() => {
     routerRef.current = router
@@ -229,8 +237,31 @@ export const RouteChromeProvider = ({ children }: { children: ReactNode }) => {
     const index = current.tabs.findIndex((entry) => entry.id === tab.id)
     const tabs = [...current.tabs]
     if (index < 0) tabs.push(tab)
-    else tabs[index] = tab
+    else tabs[index] = { ...tab, preview: current.tabs[index].preview }
     updateSession({ ...current, tabs, activeTabId: tab.id })
+  }, [updateSession])
+
+  const pinTab = useCallback((id: string) => {
+    const current = sessionRef.current
+    updateSession({ ...current, tabs: current.tabs.map((tab) => tab.id === id ? { ...tab, preview: false } : tab) })
+  }, [updateSession])
+
+  const previewPost = useCallback((tab: Tab) => {
+    if (tab.kind !== "post" || !isLocalTabHref(tab.href)) return
+    const current = sessionRef.current
+    const existing = current.tabs.find((entry) => entry.id === tab.id)
+    const tabs = existing
+      ? current.tabs
+      : [...current.tabs.filter((entry) => !entry.preview), { ...tab, preview: true }]
+    const next = { ...current, tabs, activeTabId: tab.id }
+    updateSession(next)
+    previewNavigationRef.current = tab.href
+    const navigation = routerRef.current?.push(tab.href, undefined, { scroll: false })
+    navigation?.then((completed) => {
+      if (!completed && sessionRef.current === next) updateSession(current)
+    }).catch(() => {
+      if (sessionRef.current === next) updateSession(current)
+    })
   }, [updateSession])
 
   const closeTab = useCallback((id: string) => {
@@ -241,7 +272,7 @@ export const RouteChromeProvider = ({ children }: { children: ReactNode }) => {
     const tabs = current.tabs.filter((entry) => entry.id !== id)
     const adjacent = tabs[Math.max(0, index - 1)]
     const isActive = id === current.activeTabId
-    const closedPosts = tab.kind === "post"
+    const closedPosts = tab.kind === "post" && !tab.preview
       ? [...current.closedPosts.filter((entry) => entry.id !== id), tab].slice(-CLOSED_POST_LIMIT)
       : current.closedPosts
     updateSession({ tabs, activeTabId: isActive ? adjacent.id : current.activeTabId, closedPosts })
@@ -267,7 +298,10 @@ export const RouteChromeProvider = ({ children }: { children: ReactNode }) => {
 
   const switchTab = useCallback((id: string) => {
     const current = sessionRef.current
-    if (current.tabs.some((tab) => tab.id === id)) updateSession({ ...current, activeTabId: id })
+    const tab = current.tabs.find((entry) => entry.id === id)
+    if (!tab) return
+    if (tab.preview) previewNavigationRef.current = tab.href
+    updateSession({ ...current, activeTabId: id })
   }, [updateSession])
 
   const moveTab = useCallback((id: string, beforeId: string | null) => {
@@ -285,12 +319,18 @@ export const RouteChromeProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     if (!router) return
-    const handleRouteChange = () => {
+    const handleRouteChange = (url: string) => {
+      if (previewNavigationRef.current === url) previewNavigationRef.current = null
+      else {
+        previewNavigationRef.current = null
+        const target = sessionRef.current.tabs.find((tab) => tab.id === url.split("#", 1)[0])
+        if (target?.preview) pinTab(target.id)
+      }
       if (window.matchMedia("(max-width: 960px)").matches) setFileTreeOpen(false)
     }
     router.events.on("routeChangeStart", handleRouteChange)
     return () => router.events.off("routeChangeStart", handleRouteChange)
-  }, [router])
+  }, [router, pinTab])
 
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
@@ -298,11 +338,9 @@ export const RouteChromeProvider = ({ children }: { children: ReactNode }) => {
       const target = event.target
       if (target instanceof Element && target.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"]')) return
       const fallback = event.altKey && !event.metaKey && !event.ctrlKey
-      const command = (event.metaKey || event.ctrlKey) && !event.altKey
-      // Browser-owned commands are best effort only. Option's key value can
-      // be Unicode, so use physical codes for the reliable app alternatives.
-      const close = !event.shiftKey && ((fallback && event.code === "KeyW") || (command && event.key.toLowerCase() === "w"))
-      const reopen = event.shiftKey && ((fallback && event.code === "KeyT") || (command && event.key.toLowerCase() === "t"))
+      // Only app alternatives: never intercept browser close/reopen commands.
+      const close = !event.shiftKey && fallback && event.code === "KeyW"
+      const reopen = event.shiftKey && fallback && event.code === "KeyT"
       if (close && sessionRef.current.tabs.find((tab) => tab.id === sessionRef.current.activeTabId)?.kind === "post") {
         event.preventDefault()
         closeActivePost()
@@ -321,6 +359,9 @@ export const RouteChromeProvider = ({ children }: { children: ReactNode }) => {
         tabs: session.tabs,
         activeTabId: session.activeTabId,
         openTab,
+        previewPost,
+        pinTab,
+        previewTabId: session.tabs.find((tab) => tab.preview)?.id ?? null,
         closeTab,
         switchTab,
         moveTab,

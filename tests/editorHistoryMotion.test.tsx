@@ -4,6 +4,7 @@ import { ThemeProvider } from "@emotion/react"
 import Router from "next/router"
 import EditorShell from "src/layouts/RootLayout/EditorChrome/EditorShell"
 import { createTheme } from "src/styles/theme"
+import { resolveColorTheme } from "src/styles/colors"
 
 jest.mock("next/router", () => {
   const listeners = new Map<string, Set<(...args: any[]) => void>>()
@@ -36,6 +37,7 @@ jest.mock("src/layouts/RootLayout/EditorChrome/FileTree", () => () => null)
 jest.mock("src/layouts/RootLayout/EditorChrome/TabBar", () => () => null)
 jest.mock("src/layouts/RootLayout/EditorChrome/TitleBar", () => () => null)
 jest.mock("src/layouts/RootLayout/EditorChrome/StatusBar", () => () => null)
+jest.mock("src/components/CommandPalette", () => () => null)
 
 ;(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
@@ -52,7 +54,7 @@ describe("document motion during browser history traversal", () => {
     document.body.appendChild(container)
     root = createRoot(container)
     act(() => root.render(
-      <ThemeProvider theme={createTheme({ scheme: "dark" })}>
+      <ThemeProvider theme={createTheme({ colorTheme: resolveColorTheme("one-dark-pro-mix") })}>
         <EditorShell><article>Readable article</article></EditorShell>
       </ThemeProvider>
     ))
@@ -76,7 +78,7 @@ describe("document motion during browser history traversal", () => {
     expect(container.querySelector(".page-content")?.getAttribute("aria-busy")).toBe("false")
   }
 
-  it("skips entry for history, then permits ordinary visits including the previous history target", () => {
+  it("skips entry for browser history and previously visited documents", () => {
     navigate("/first")
     expect(animate).toHaveBeenCalledTimes(1)
     animate.mockClear()
@@ -91,6 +93,6 @@ describe("document motion during browser history traversal", () => {
     navigate("/third")
     expect(animate).toHaveBeenCalledTimes(1)
     navigate("/second")
-    expect(animate).toHaveBeenCalledTimes(2)
+    expect(animate).toHaveBeenCalledTimes(1)
   })
 })

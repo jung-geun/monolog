@@ -2,15 +2,19 @@ import { useState, useEffect, useCallback } from "react"
 
 const useCommandPalette = () => {
   const [open, setOpen] = useState(false)
+  const [initialQuery, setInitialQuery] = useState("")
 
-  const openPalette = useCallback(() => setOpen(true), [])
+  const openPalette = useCallback((query = "") => {
+    setInitialQuery(query)
+    setOpen(true)
+  }, [])
   const closePalette = useCallback(() => setOpen(false), [])
 
   useEffect(() => {
-    const handler = () => setOpen(true)
+    const handler = (event: Event) => openPalette((event as CustomEvent<{ query?: string }>).detail?.query ?? "")
     window.addEventListener("open-command-palette", handler)
     return () => window.removeEventListener("open-command-palette", handler)
-  }, [])
+  }, [openPalette])
 
   useEffect(() => {
     if (!open) return
@@ -21,7 +25,7 @@ const useCommandPalette = () => {
     return () => window.removeEventListener("keydown", handler)
   }, [open])
 
-  return { open, openPalette, closePalette }
+  return { open, initialQuery, closePalette }
 }
 
 export default useCommandPalette

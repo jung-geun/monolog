@@ -14,6 +14,8 @@ type Props = {
 
 const Frontmatter = ({ title, date, modifiedDate, authors, category, tags, readTime }: Props) => (
   <StyledWrapper>
+    <summary>Frontmatter <span className="metadata-summary">{date ? calendarDate(date) : category || "metadata"}{tags?.length ? ` · ${tags.length} tags` : ""}</span></summary>
+    <div className="metadata-fields">
     <div>---</div>
     <div><span className="key">title</span>: {title}</div>
     <div><span className="key">author</span>: {authors?.length ? authors.join(", ") : CONFIG.profile.name}</div>
@@ -31,17 +33,22 @@ const Frontmatter = ({ title, date, modifiedDate, authors, category, tags, readT
       <div><span className="key">read</span>: {readTime}m</div>
     )}
     <div>---</div>
+    </div>
   </StyledWrapper>
 )
 
 export default Frontmatter
 
-const StyledWrapper = styled.div`
+const StyledWrapper = styled.details`
   font-family: var(--font-mono, "JetBrains Mono", monospace);
   font-size: 13px;
   color: var(--color-mute, rgb(var(--c-mute)));
-  margin-bottom: 24px;
+  margin-bottom: 20px;
   line-height: 1.6;
+  summary { cursor: pointer; padding: 7px 0; color: ${({ theme }) => theme.colors.editor.fg2}; }
+  summary:focus-visible { outline: 2px solid ${({ theme }) => theme.colors.editor.accent}; outline-offset: 3px; }
+  .metadata-summary { margin-left: 10px; color: ${({ theme }) => theme.colors.editor.fg3}; font-size: 11px; }
+  .metadata-fields { padding: 8px 12px; border-left: 1px solid ${({ theme }) => theme.colors.editor.line}; overflow-wrap: anywhere; }
 
   .key {
     color: var(--color-signal, rgb(var(--c-signal)));

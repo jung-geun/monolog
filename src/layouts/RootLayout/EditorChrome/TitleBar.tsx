@@ -1,152 +1,80 @@
 import { useEffect, useRef, useState } from "react"
+import { useRouter } from "next/compat/router"
 import styled from "@emotion/styled"
+import WorkbenchIcon from "src/components/WorkbenchIcon"
+import { useRouteChrome } from "./RouteChromeContext"
+import { useWorkbench } from "./WorkbenchContext"
 
-type Props = {
-  filename: string
-}
-
-const TitleBar = ({ filename }: Props) => {
-  const [closeDenied, setCloseDenied] = useState(false)
-  const closeTimer = useRef<number | undefined>(undefined)
-  useEffect(() => () => clearTimeout(closeTimer.current), [])
-
-  const exitSite = () => {
-    clearTimeout(closeTimer.current)
-    window.close()
-    closeTimer.current = window.setTimeout(() => {
-      if (!window.closed) setCloseDenied(true)
-    }, 200)
-  }
-
-  return (
-  <StyledWrapper data-close-notice={closeDenied || undefined}>
-    <div className="traffic-lights">
-      <button type="button" className="window-close" aria-label="사이트 닫기 / 나가기" title="사이트 닫기 / 나가기" onClick={exitSite}>
-        <span className="dot close" aria-hidden="true">
-          <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
-            <path d="M2 2l4 4m0-4L2 6" stroke="currentColor" strokeWidth="1.2" />
-          </svg>
-        </span>
-      </button>
-      <span className="dot minimize" aria-hidden="true" />
-      <span className="dot maximize" aria-hidden="true" />
+const TitleBar = ({ filename }: { filename: string }) => {
+  const events = useRouter()?.events
+  const { isFileTreeOpen, setFileTreeOpen } = useRouteChrome()
+  const { isSecondaryOpen, setSecondaryOpen, isPanelOpen, setPanelOpen, readingMode, setReadingMode, settingsOpen, setSettingsOpen, documentContext } = useWorkbench()
+  const historyEntries = useRef<string[]>([])
+  const historyIndex = useRef(0)
+  const [historyPosition, setHistoryPosition] = useState({ index: 0, length: 1 })
+  useEffect(() => {
+    if (!events) return
+    const record = () => {
+      const key = String(window.history.state?.key ?? window.location.href)
+      const entries = historyEntries.current
+      const existing = entries.indexOf(key)
+      if (existing >= 0) {
+        historyIndex.current = existing
+        setHistoryPosition({ index: existing, length: entries.length })
+      } else {
+        const next = entries.slice(0, historyIndex.current + 1)
+        next.push(key)
+        historyEntries.current = next
+        historyIndex.current = next.length - 1
+        setHistoryPosition({ index: historyIndex.current, length: next.length })
+      }
+    }
+    historyEntries.current = [String(window.history.state?.key ?? window.location.href)]
+    historyIndex.current = 0
+    events.on("routeChangeComplete", record)
+    events.on("hashChangeComplete", record)
+    return () => {
+      events.off("routeChangeComplete", record)
+      events.off("hashChangeComplete", record)
+    }
+  }, [events])
+  return <StyledWrapper>
+    <span className="workspace-name">pieroot.log</span>
+    <div className="history-controls">
+      <button type="button" aria-label="Go back" title="Go back" disabled={historyPosition.index === 0} onClick={() => window.history.back()}><WorkbenchIcon name="arrow-left" /></button>
+      <button type="button" aria-label="Go forward" title="Go forward" disabled={historyPosition.index >= historyPosition.length - 1} onClick={() => window.history.forward()}><WorkbenchIcon name="arrow-right" /></button>
     </div>
-    {closeDenied && (
-      <div className="close-notice" role="status">
-        <span>브라우저가 자동 탭 닫기를 허용하지 않습니다. 탭의 닫기 버튼이나 ⌘W / Ctrl+W를 사용해 주세요.</span>
-        <button type="button" aria-label="탭 닫기 안내 숨기기" onClick={() => setCloseDenied(false)}>확인</button>
-      </div>
-    )}
-    <div className="title">pieroot.log — {filename}</div>
-    <div className="branch">main</div>
+    <button type="button" className="command-center" title="Search workspace · Cmd/Ctrl+K" aria-label="Search workspace" onClick={() => window.dispatchEvent(new CustomEvent("open-command-palette", { detail: { query: "" } }))}>
+      <WorkbenchIcon name="search" /><span>Search pieroot.log</span><span className="current-file">{filename === "README.md" ? "Welcome" : filename}</span>
+    </button>
+    <div className="layout-controls">
+      <button type="button" aria-label="Toggle primary sidebar" title="Toggle primary sidebar" aria-pressed={isFileTreeOpen && !readingMode} onClick={() => { setReadingMode(false); setFileTreeOpen(readingMode || !isFileTreeOpen) }}><WorkbenchIcon name="layout-sidebar" /></button>
+      <button type="button" aria-label="Toggle bottom panel" title={documentContext ? "Toggle bottom panel" : "Open a post to show references and comments"} disabled={!documentContext} aria-pressed={!!documentContext && isPanelOpen && !readingMode} onClick={() => { setReadingMode(false); setPanelOpen(readingMode || !isPanelOpen) }}><WorkbenchIcon name="layout-panel" /></button>
+      <button type="button" aria-label="Toggle secondary sidebar" title={documentContext ? "Toggle secondary sidebar" : "Open a post to show its outline and series"} disabled={!documentContext} aria-pressed={!!documentContext && isSecondaryOpen && !readingMode} onClick={() => { setReadingMode(false); setSecondaryOpen(readingMode || !isSecondaryOpen) }}><WorkbenchIcon name="layout-right" /></button>
+      <button type="button" aria-label="Open settings" title="Settings" aria-pressed={settingsOpen} onClick={() => setSettingsOpen(!settingsOpen)}><WorkbenchIcon name="settings" /></button>
+    </div>
   </StyledWrapper>
-  )
 }
-
 export default TitleBar
 
-const StyledWrapper = styled.div`
+const StyledWrapper = styled.header`
   height: ${({ theme }) => theme.variables.titleBarHeight}px;
-  background: ${({ theme }) => theme.colors.editor.bg2};
-  border-bottom: 1px solid ${({ theme }) => theme.colors.editor.line};
-  position: sticky;
-  top: 0;
-  z-index: 40;
+  flex-shrink: 0;
   display: flex;
   align-items: center;
-  padding: 0 14px;
-  flex-shrink: 0;
-
-  &[data-close-notice="true"] { z-index: 70; }
-
-  .close-notice {
-    position: absolute;
-    top: calc(100% + 8px);
-    left: 8px;
-    width: min(360px, calc(100vw - 32px));
-    box-sizing: border-box;
-    margin: 0;
-    padding: 12px;
-    border: 1px solid ${({ theme }) => theme.colors.editor.line};
-    border-radius: 6px;
-    background: ${({ theme }) => theme.colors.editor.bg2};
-    color: ${({ theme }) => theme.colors.editor.fg};
-    font-size: 12px;
-    line-height: 1.5;
-    box-shadow: 0 4px 16px rgb(0 0 0 / 0.16);
-
-    button {
-      display: block;
-      margin-top: 8px;
-      padding: 4px 8px;
-      border: 1px solid ${({ theme }) => theme.colors.editor.line};
-      border-radius: 4px;
-      color: inherit;
-      cursor: pointer;
-    }
-  }
-
-  > * + * { margin-left: 10px; }
-
-  .traffic-lights {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex-shrink: 0;
-
-    .window-close {
-      all: unset;
-      position: relative;
-      display: grid;
-      place-items: center;
-      width: 12px;
-      height: 12px;
-      cursor: default;
-      border-radius: 50%;
-
-      &::before { content: ""; position: absolute; inset: -4px; border-radius: 50%; }
-      &:focus-visible { outline: 2px solid ${({ theme }) => theme.colors.editor.accent}; outline-offset: 3px; }
-      &:active .dot { filter: brightness(0.82); }
-    }
-
-    .dot {
-      display: grid;
-      place-items: center;
-      box-sizing: border-box;
-      width: 12px;
-      height: 12px;
-      border: 1px solid;
-      border-radius: 50%;
-      box-shadow: inset 0 0.5px 0 rgba(255, 255, 255, 0.35);
-      animation: monolog-dot-arrive 320ms var(--motion-ease);
-
-      &.close { background: #ff5f57; border-color: #e0443e; color: #4b0b08; }
-      &.minimize { background: #febc2e; border-color: #dea123; animation-delay: 45ms; }
-      &.maximize { background: #28c840; border-color: #1aab29; animation-delay: 90ms; }
-    }
-
-    svg { opacity: 0; transition: opacity var(--motion-fast); }
-    &:hover svg, &:focus-within svg { opacity: 1; }
-  }
-
-  .title {
-    flex: 1;
-    text-align: center;
-    font-size: 11px;
-    color: ${({ theme }) => theme.colors.editor.fg3};
-    font-family: var(--font-mono, monospace);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .branch {
-    font-size: 11px;
-    color: ${({ theme }) => theme.colors.editor.fg3};
-    white-space: nowrap;
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .traffic-lights .dot { animation: none; }
-  }
+  gap: 8px;
+  padding: 0 10px;
+  border-bottom: 1px solid ${({ theme }) => theme.colors.editor.line};
+  background: ${({ theme }) => theme.colors.editor.bg2};
+  font-family: var(--font-ui, sans-serif);
+  font-size: 12px;
+  .workspace-name { width: 140px; color: ${({ theme }) => theme.colors.editor.fg2}; }
+  .history-controls, .layout-controls { display: flex; gap: 2px; }
+  button { display: flex; align-items: center; justify-content: center; gap: 8px; border: 0; background: transparent; color: ${({ theme }) => theme.colors.editor.fg2}; min-width: 28px; min-height: 28px; border-radius: 4px; cursor: pointer; font: inherit; }
+  button:hover:not(:disabled), button[aria-pressed="true"] { background: ${({ theme }) => theme.colors.editor.bg3}; color: ${({ theme }) => theme.colors.editor.fg}; }
+  button:focus-visible { outline: 1px solid ${({ theme }) => theme.colors.editor.accent}; outline-offset: -1px; }
+  button:disabled { opacity: .35; cursor: default; }
+  .command-center { flex: 1; max-width: 640px; margin: 0 auto; padding: 0 12px; min-width: 0; min-height: 26px; border: 1px solid ${({ theme }) => theme.colors.editor.line}; background: ${({ theme }) => theme.colors.editor.bg3}; }
+  .current-file { margin-left: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; opacity: .65; }
+  @media (max-width: 960px) { position: sticky; top: 0; z-index: 60; .workspace-name, .current-file, .layout-controls button:nth-child(2), .layout-controls button:nth-child(3) { display: none; } gap: 4px; padding: 0 5px; }
 `

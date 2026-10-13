@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import styled from "@emotion/styled"
+import WorkbenchIcon from "src/components/WorkbenchIcon"
 import {
   forceSimulation,
   forceLink,
@@ -143,15 +144,15 @@ const OntologyView = () => {
   const [simLinks, setSimLinks] = useState<OLink[]>([])
   const simRef = useRef<Simulation<ONode, OLink> | null>(null)
   const statusItems = useMemo(
-    () => ["main", "ontology", ontology ? `${ontology.entities.length} entities` : "not built"],
+    () => ["Ontology", ontology ? `${ontology.entities.length} entities` : "No data available", "Inferred relationships"],
     [ontology]
   )
-  useRegisterChrome("ontology.md", statusItems, "page")
+  useRegisterChrome("Ontology", statusItems, "page")
 
   const postMap = new Map(
-    graph.nodes
-      .filter((n) => n.kind === "post")
-      .map((n) => [n.id, { id: n.id, title: (n as any).title, slug: (n as any).slug }])
+    graph.nodes.flatMap((node) => node.kind === "post" && node.slug
+      ? [[node.id, { id: node.id, title: node.title, slug: node.slug }] as const]
+      : [])
   )
 
   useEffect(() => {
@@ -186,12 +187,13 @@ const OntologyView = () => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ontology, view])
 
-  if (isLoading) return <StyledWrapper><div className="status">Loading ontology…</div></StyledWrapper>
-  if (!ontology) return (
+  if (isLoading) return <StyledWrapper><div className="status" role="status"><WorkbenchIcon name="link" size={24} /><h1>Ontology</h1><p>Loading entities and inferred relationships…</p></div></StyledWrapper>
+  if (!ontology || (!ontology.entities.length && !ontology.edges.length)) return (
     <StyledWrapper>
-      <div className="status">
-        Ontology not built yet.{" "}
-        <code>POST /api/cron/ontology</code> 를 실행하세요.
+      <div className="status" role="status"><WorkbenchIcon name="link" size={24} /><h1>Ontology</h1>
+        <p>No entities or inferred relationships are currently available.</p>
+        <p>Explore posts and explicit connections in the knowledge graph.</p>
+        <Link href="/graph">Open knowledge graph <WorkbenchIcon name="arrow-right" size={14} /></Link>
       </div>
     </StyledWrapper>
   )
@@ -206,31 +208,35 @@ const OntologyView = () => {
 
   return (
     <StyledWrapper>
+      <header className="editor-heading"><WorkbenchIcon name="link" size={18} /><h1>Ontology</h1><span>{ontology.entities.length} entities · {ontology.edges.length} inferred relations</span></header>
       <div className="toolbar">
         <div className="view-toggle">
-          <button className={view === "entity" ? "active" : ""} onClick={() => setView("entity")}>
-            entity
+          <button type="button" aria-pressed={view === "entity"} className={view === "entity" ? "active" : ""} onClick={() => setView("entity")}>
+            Entities
           </button>
-          <button className={view === "relation" ? "active" : ""} onClick={() => setView("relation")}>
-            relations
+          <button type="button" aria-pressed={view === "relation"} className={view === "relation" ? "active" : ""} onClick={() => setView("relation")}>
+            Relations
           </button>
         </div>
         <input
           className="search"
-          placeholder="search entity…"
+          type="search"
+          aria-label="Find an ontology entity"
+          placeholder="Find an entity…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
+          onKeyDown={event => { if (event.key === "Escape") setSearch("") }}
         />
       </div>
 
       <div className="canvas-panel">
-        <svg viewBox={`0 0 ${W} ${H}`} width="100%" height="100%">
+        <svg viewBox={`0 0 ${W} ${H}`} width="100%" height="100%" aria-label="Ontology relationship visualization">
           <g>
             {simLinks.map((l, i) => {
               const src = l.source as ONode
               const tgt = l.target as ONode
               if (!src.x || !tgt.x) return null
-              const color = l.edgeKind === "mentions" ? "#444" : (EDGE_COLOR[l.edgeKind] ?? "#666")
+              const color = l.edgeKind === "mentions" ? "rgb(var(--c-hairline))" : (EDGE_COLOR[l.edgeKind] ?? "currentColor")
               return (
                 <line
                   key={i}
@@ -257,13 +263,18 @@ const OntologyView = () => {
                 <g
                   key={n.id}
                   transform={`translate(${n.x},${n.y})`}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`${n.kind}: ${n.label}`}
+                  aria-pressed={isSelected}
                   style={{ cursor: "pointer", opacity: dim ? 0.15 : 1 }}
                   onClick={() => setSelected(isSelected ? null : n)}
+                  onKeyDown={event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); setSelected(isSelected ? null : n) } }}
                 >
                   <circle
                     r={isSelected ? r + 3 : r}
                     fill={fill}
-                    stroke={isSelected ? "#fff" : "transparent"}
+                    stroke={isSelected ? "currentColor" : "transparent"}
                     strokeWidth={1.5}
                   />
                   {(isEntity || isSelected) && (
@@ -271,7 +282,7 @@ const OntologyView = () => {
                       x={r + 4}
                       y={4}
                       fontSize={isEntity ? 11 : 9}
-                      fill="#ccc"
+                      fill="currentColor"
                       fontFamily="var(--font-mono, monospace)"
                     >
                       {n.label.length > 20 ? n.label.slice(0, 20) + "…" : n.label}
@@ -285,18 +296,18 @@ const OntologyView = () => {
 
         {selected && (
           <div className="panel">
-            <button className="close" onClick={() => setSelected(null)}>✕</button>
+            <button type="button" className="close" aria-label="Close ontology details" onClick={() => setSelected(null)}><WorkbenchIcon name="close" size={16} /></button>
             <div className="panel-kind">{selected.entityKind ?? "post"}</div>
             <div className="panel-name">{selected.label}</div>
             {selected.description && (
               <div className="panel-desc">{selected.description}</div>
             )}
             {selected.slug && (
-              <Link href={`/${selected.slug}`} className="panel-link">→ 포스트 읽기</Link>
+              <Link href={`/${selected.slug}`} className="panel-link">Open post <WorkbenchIcon name="arrow-right" size={14} /></Link>
             )}
             {selected.postIds && selected.postIds.length > 0 && (
               <div className="panel-posts">
-                <div className="panel-posts-label">관련 포스트</div>
+                <div className="panel-posts-label">Related posts</div>
                 {selected.postIds.map((pid) => {
                   const p = postMap.get(pid)
                   if (!p) return null
@@ -338,26 +349,29 @@ export default OntologyView
 const StyledWrapper = styled.div`
   display: flex;
   flex-direction: column;
-  height: calc(100vh - ${({ theme }) => theme.variables.titleBarHeight + theme.variables.tabBarHeight + theme.variables.statusBarHeight}px);
-  height: calc(100dvh - ${({ theme }) => theme.variables.titleBarHeight + theme.variables.tabBarHeight + theme.variables.statusBarHeight}px);
+  flex: 1;
+  height: 100%;
+  min-height: 480px;
   background: ${({ theme }) => theme.colors.editor.bg};
   color: ${({ theme }) => theme.colors.editor.fg};
-  font-family: var(--font-mono, monospace);
+  font-family: var(--font-ui, sans-serif);
   padding: 16px 20px;
   box-sizing: border-box;
   overflow: hidden;
 
-  .status {
-    margin: auto;
-    font-size: 13px;
-    color: ${({ theme }) => theme.colors.editor.fg3};
-    code { font-size: 12px; }
-  }
+  .status { margin: auto; max-width: 480px; padding: 24px; line-height: 1.7; font-size: 13px; color: ${({ theme }) => theme.colors.editor.fg2}; }
+  .status h1 { font-size: 20px; color: ${({ theme }) => theme.colors.editor.fg}; margin: 12px 0; }
+  .status a { display: inline-flex; align-items: center; gap: 5px; color: ${({ theme }) => theme.colors.editor.accent}; text-decoration: none; }
+  .editor-heading { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; }
+  .editor-heading h1 { margin: 0; font-size: 16px; font-weight: 500; }
+  .editor-heading > span { font-size: 11px; color: ${({ theme }) => theme.colors.editor.fg3}; margin-left: auto; }
+  button:focus-visible, a:focus-visible, input:focus-visible, svg g[role=button]:focus-visible { outline: 1px solid ${({ theme }) => theme.colors.editor.accent}; outline-offset: 2px; }
 
   .toolbar {
     display: flex;
     align-items: center;
     gap: 12px;
+    flex-wrap: wrap;
     margin-bottom: 12px;
     flex-shrink: 0;
   }
@@ -382,7 +396,7 @@ const StyledWrapper = styled.div`
   }
 
   .search {
-    background: none;
+    background: ${({ theme }) => theme.colors.editor.bg3};
     border: 1px solid ${({ theme }) => theme.colors.editor.line};
     color: ${({ theme }) => theme.colors.editor.fg};
     font-family: inherit;
@@ -408,6 +422,8 @@ const StyledWrapper = styled.div`
     width: 220px;
     background: ${({ theme }) => theme.colors.editor.bg2};
     border: 1px solid ${({ theme }) => theme.colors.editor.line};
+    max-height: calc(100% - 24px);
+    overflow-y: auto;
     padding: 14px 16px;
     font-size: 11px;
   }
@@ -448,7 +464,9 @@ const StyledWrapper = styled.div`
   }
 
   .panel-link {
-    display: block;
+    display: flex;
+    align-items: center;
+    gap: 6px;
     font-size: 11px;
     color: ${({ theme }) => theme.colors.editor.accent};
     text-decoration: none;
@@ -500,5 +518,13 @@ const StyledWrapper = styled.div`
     width: 16px;
     height: 2px;
     flex-shrink: 0;
+  }
+
+  @media (max-width: ${({ theme }) => theme.variables.breakpoint}px) {
+    flex: none; height: 74dvh; min-height: 480px; padding: 16px 12px;
+    .editor-heading { flex-wrap: wrap; }
+    .editor-heading > span { flex-basis: 100%; margin-left: 26px; }
+    .panel { top: auto; bottom: 10px; left: 10px; right: 10px; width: auto; max-height: 45%; }
+    .legend { gap: 8px 12px; }
   }
 `

@@ -1,175 +1,44 @@
-import { useRouter } from "next/compat/router"
-import Link from "next/link"
 import styled from "@emotion/styled"
-import useScheme from "src/hooks/useScheme"
+import WorkbenchIcon from "src/components/WorkbenchIcon"
 import { useRouteChrome } from "./RouteChromeContext"
-import {
-  ExplorerIcon,
-  SearchIcon,
-  GraphIcon,
-  CommandIcon,
-  DraftsIcon,
-  SunIcon,
-  MoonIcon,
-  SettingsIcon,
-} from "./ActivityIcons"
+import { SidebarView, useWorkbench } from "./WorkbenchContext"
+
+const views = [
+  { view: "explorer", icon: "files", label: "Explorer" },
+  { view: "search", icon: "search", label: "Search" },
+  { view: "knowledge", icon: "graph", label: "Knowledge" },
+] as const
 
 const ActivityBar = () => {
-  const router = useRouter()
-  const pathname = router?.pathname
-  const [scheme, setScheme] = useScheme()
-  const { isFileTreeOpen, toggleFileTree } = useRouteChrome()
-  // Panel visibility and the current document are independent.
-  const isSearchRoute = pathname === "/search"
-  const isGraphRoute = pathname === "/graph"
-  const isExplorerRoute = !isSearchRoute && !isGraphRoute
-
-  const handleCommandsClick = () => {
-    window.dispatchEvent(new CustomEvent("open-command-palette"))
+  const { isFileTreeOpen, setFileTreeOpen } = useRouteChrome()
+  const { sidebarView, setSidebarView, settingsOpen, setSettingsOpen, readingMode, setReadingMode } = useWorkbench()
+  const selectView = (view: SidebarView) => {
+    setReadingMode(false)
+    setFileTreeOpen(readingMode || sidebarView !== view || !isFileTreeOpen)
+    setSidebarView(view)
   }
-
-  return (
-    <StyledWrapper>
-      <button
-        className={`icon-btn${isFileTreeOpen && isExplorerRoute ? " active" : ""}`}
-        title="explorer"
-        aria-label="explorer"
-        aria-pressed={isFileTreeOpen}
-        onClick={toggleFileTree}
-      >
-        <ExplorerIcon />
-      </button>
-
-      <Link
-        href="/search"
-        className={`icon-btn${isSearchRoute ? " active" : ""}`}
-        title="search"
-        aria-label="search"
-        aria-current={isSearchRoute ? "page" : undefined}
-      >
-        <SearchIcon />
-      </Link>
-
-      <Link
-        href="/graph"
-        prefetch={false}
-        className={`icon-btn${isGraphRoute ? " active" : ""}`}
-        title="graph"
-        aria-label="graph"
-        aria-current={isGraphRoute ? "page" : undefined}
-      >
-        <GraphIcon />
-      </Link>
-
-      <button
-        className="icon-btn"
-        title="commands"
-        aria-label="commands"
-        onClick={handleCommandsClick}
-      >
-        <CommandIcon />
-      </button>
-
-      <button className="icon-btn disabled" title="drafts" aria-label="drafts">
-        <DraftsIcon />
-      </button>
-
-      <div className="spacer" />
-
-      <button
-        className="icon-btn theme-toggle"
-        title="Toggle theme"
-        aria-label="Toggle theme"
-        onClick={() => setScheme(scheme === "light" ? "dark" : "light")}
-      >
-        <span className="theme-icon" key={scheme} aria-hidden="true">
-          {scheme === "light" ? <SunIcon /> : <MoonIcon />}
-        </span>
-      </button>
-
-      <button className="icon-btn disabled" title="settings" aria-label="settings">
-        <SettingsIcon />
-      </button>
-    </StyledWrapper>
-  )
+  return <StyledWrapper aria-label="Workbench views">
+    {views.map(({ view, icon, label }) => <button key={view} type="button" title={label} aria-label={label} aria-pressed={sidebarView === view && isFileTreeOpen && !readingMode} aria-controls="primary-sidebar" onClick={() => selectView(view)}><WorkbenchIcon name={icon} size={24} /></button>)}
+    <button type="button" title="Command palette · Cmd/Ctrl+Shift+P" aria-label="Command palette" onClick={() => window.dispatchEvent(new CustomEvent("open-command-palette", { detail: { query: ">" } }))}><WorkbenchIcon name="command" size={24} /></button>
+    <div className="spacer" />
+    <button type="button" title="Reading mode" aria-label="Toggle reading mode" aria-pressed={readingMode} onClick={() => setReadingMode(!readingMode)}><WorkbenchIcon name="book" size={24} /></button>
+    <button type="button" title="Settings" aria-label="Settings" aria-pressed={settingsOpen} onClick={() => setSettingsOpen(!settingsOpen)}><WorkbenchIcon name="settings" size={24} /></button>
+  </StyledWrapper>
 }
-
 export default ActivityBar
 
-const StyledWrapper = styled.aside`
-  position: sticky;
-  top: ${({ theme }) => theme.variables.titleBarHeight}px;
-  height: calc(100vh - ${({ theme }) => theme.variables.titleBarHeight + theme.variables.statusBarHeight}px);
-  height: calc(100dvh - ${({ theme }) => theme.variables.titleBarHeight + theme.variables.statusBarHeight}px);
-  align-self: flex-start;
+const StyledWrapper = styled.nav`
   width: ${({ theme }) => theme.variables.activityBarWidth}px;
-  background: ${({ theme }) => theme.colors.editor.bg2};
-  border-right: 1px solid ${({ theme }) => theme.colors.editor.line};
+  flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  padding: 12px 0;
-  z-index: 30;
-
-  > * + * { margin-top: 8px; }
+  background: ${({ theme }) => theme.colors.editor.bg2};
+  border-right: 1px solid ${({ theme }) => theme.colors.editor.line};
+  font-family: var(--font-ui, sans-serif);
+  button { position: relative; display: grid; place-items: center; width: 100%; height: 48px; border: 0; border-left: 2px solid transparent; background: transparent; color: ${({ theme }) => theme.colors.editor.fg3}; cursor: pointer; }
+  button:hover, button[aria-pressed="true"] { color: ${({ theme }) => theme.colors.editor.fg}; background: ${({ theme }) => theme.colors.editor.bg3}; }
+  button[aria-pressed="true"] { border-left-color: ${({ theme }) => theme.colors.editor.accent}; }
+  button:focus-visible { outline: 1px solid ${({ theme }) => theme.colors.editor.accent}; outline-offset: -3px; }
   .spacer { flex: 1; }
-
-  .icon-btn {
-    width: 32px;
-    height: 32px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: ${({ theme }) => theme.colors.editor.fg3};
-    border-left: 2px solid transparent;
-    cursor: pointer;
-    text-decoration: none;
-    background: transparent;
-    border-top: none;
-    border-right: none;
-    border-bottom: none;
-    padding: 0;
-    transition: color var(--motion-fast), background var(--motion-fast);
-
-    svg {
-      display: block;
-      transition: transform var(--motion-fast) var(--motion-ease);
-    }
-
-    .theme-icon { animation: monolog-icon-turn 280ms var(--motion-ease); }
-
-    &:hover:not(.disabled) {
-      color: ${({ theme }) => theme.colors.editor.fg};
-      background: ${({ theme }) => theme.colors.editor.bg3};
-      svg { transform: translateY(-1px) scale(1.08); }
-    }
-
-    &:active:not(.disabled) svg { transform: scale(0.9); }
-
-    &:focus-visible {
-      outline: 1px solid ${({ theme }) => theme.colors.editor.accent};
-      outline-offset: 2px;
-    }
-
-    &.active {
-      color: ${({ theme }) => theme.colors.editor.fg};
-      border-left-color: ${({ theme }) => theme.colors.editor.accent};
-    }
-
-    &.disabled {
-      opacity: 0.35;
-      cursor: default;
-    }
-  }
-
-  @media (max-width: ${({ theme }) => theme.variables.breakpoint}px) {
-    padding: 8px 0;
-    > * + * { margin-top: 4px; }
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .icon-btn .theme-icon { animation: none; }
-    .icon-btn:hover:not(.disabled) svg,
-    .icon-btn:active:not(.disabled) svg { transform: none; }
-  }
+  @media (max-width: 960px) { width: 100%; flex-direction: row; position: sticky; top: ${({ theme }) => theme.variables.titleBarHeight}px; z-index: 55; border-right: 0; border-bottom: 1px solid ${({ theme }) => theme.colors.editor.line}; button { width: 44px; height: 40px; border-left: 0; border-bottom: 2px solid transparent; } button[aria-pressed="true"] { border-bottom-color: ${({ theme }) => theme.colors.editor.accent}; } }
 `

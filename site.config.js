@@ -32,7 +32,7 @@ const CONFIG = {
   blog: {
     title: "pieroot log",
     description: "시스템 개발자 jung-geun의 기술 블로그. 개발 과정에서 배운 내용과 논문, 프로젝트 기록을 공유합니다.",
-    scheme: "system", // 'light' | 'dark' | 'system'
+    theme: "one-dark-pro-mix", // 'one-dark-pro-mix' | 'dark-modern' | 'light-modern' | 'system'
   },
 
   // CONFIG configration (required)
@@ -61,7 +61,6 @@ const CONFIG = {
       // Display ad unit slot IDs (AdSense > Ads > By ad unit > Display). "" = slot not rendered.
       slots: {
         postBottom: "",
-        postRail: "",
       },
     },
   },

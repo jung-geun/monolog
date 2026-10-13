@@ -28,13 +28,15 @@ function App({ Component, pageProps }: AppPropsWithLayout) {
     typeof window === "undefined" ? createServerQueryClient() : sharedQueryClient
   )
 
-  // ⌘K / Ctrl+K global listener — opens command palette
+  // Keep the browser's location/search shortcuts; expose Quick Open and commands.
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+      const key = e.key.toLowerCase()
+      if ((e.metaKey || e.ctrlKey) && (key === "k" || (e.shiftKey && key === "p"))) {
         e.preventDefault()
-        // Dispatch a custom event that CommandPalette listens to
-        window.dispatchEvent(new CustomEvent("open-command-palette"))
+        window.dispatchEvent(new CustomEvent("open-command-palette", {
+          detail: { query: key === "p" ? ">" : "" },
+        }))
       }
     }
     window.addEventListener("keydown", handler)

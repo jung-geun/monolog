@@ -18,13 +18,15 @@
 
 ## 이 프로젝트만의 특징
 
-### Editor chrome — 모든 라우트가 IDE
-TitleBar · ActivityBar · FileTree · TabBar · StatusBar · LineNumberGutter가 전 라우트에 일관되게 깔립니다. 글 하나를 읽는 경험이 IDE에서 파일을 여는 경험과 같습니다. 각 라우트는 `useRegisterChrome(filename, statusItems, kind)`로 자기 메타와 탭 종류를 동적 등록합니다.
+### VS Code 방식의 읽기 전용 작업 공간
+Command Center · Activity Bar · 크기 조절 사이드바 · Open Editors · 탭 · Outline · References/Comments 패널을 실제 블로그 기능에 연결했습니다. 기본 테마는 **One Dark Pro Mix**이며 방문자는 **Dark Modern · Light Modern · System**을 선택할 수 있습니다. 운영자 기본값은 `site.config.js`의 `blog.theme`로 설정합니다. 파일·폴더에는 **Material Icon Theme** SVG를 사용합니다.
 
-### `⌘K` 커맨드 팔레트 + 다중 탭
-`⌘K` 하나로 Actions · Posts · Tags · Categories를 검색해 어디든 점프합니다. 글 탭은 `Alt/Option+W`로 닫고 `Alt/Option+Shift+T`로 다시 열 수 있습니다. 브라우저가 `Cmd/Ctrl+W`·`Cmd/Ctrl+Shift+T`를 페이지에 전달할 때만 같은 동작을 처리합니다. 사용자가 동의하면 열린 탭과 최근 닫은 글 주소를 이 브라우저에 저장해 새로고침 후 복원합니다. 탭 간 전환은 항상 새로고침 없는 SPA 이동 — FileTree · 본문 내 링크 모두 `router.push`로 처리됩니다.
+### Quick Pick · Preview 탭 · Markdown 편집기 뷰
+`⌘/Ctrl+K`는 파일 검색, `⌘/Ctrl+Shift+P`는 명령 검색을 엽니다. `>`는 명령, `@`는 현재 문서의 실제 제목을 찾습니다. Explorer 한 번 클릭은 교체 가능한 미리보기 탭, 두 번 클릭이나 **Keep open**은 고정 탭입니다. 일반 링크 이동은 고정 탭으로 열립니다.
 
-`README.md`를 포함한 모든 탭은 마우스로 드래그해 순서를 바꿀 수 있습니다. 드래그 대신 탭바의 좌우 버튼을 클릭하거나 키보드로 실행해 현재 탭을 이동할 수도 있습니다. 순서를 바꿔도 현재 읽는 페이지는 유지되고, 탭 저장에 동의하면 바꾼 순서도 복원합니다.
+문서는 **Preview · Source · Split**으로 읽습니다. Source는 실제 `.md` 응답을 필요할 때 가져오며, Split은 일치하는 제목 기준으로 스크롤을 맞춥니다. Reading mode는 탐색 패널을 숨깁니다. 검색은 제목·요약·태그·카테고리를 대상으로 하며 `/search?q=...` 주소로 공유할 수 있습니다.
+
+`Alt/Option+W`로 글 탭을 닫고 `Alt/Option+Shift+T`로 다시 엽니다. 브라우저 고유 닫기 단축키는 가로채지 않습니다. Welcome을 포함한 탭은 드래그나 좌우 버튼으로 정렬하고, 동의한 경우에만 고정 탭·최근 닫은 글을 브라우저에 저장합니다. 미리보기 탭은 저장하지 않습니다.
 
 ### Three.js 3D 지식 그래프
 Three.js 원근 카메라로 실제 포스트·태그·시리즈 관계를 탐색합니다. 포스트는 `google/embeddinggemma-2` 문서 벡터의 3D PCA 위치에 배치하고, 태그·시리즈는 실제 연결에 따라 XYZ 시뮬레이션으로 정렬합니다. 연결 수가 많은 노드일수록 더 투명하게 표시하고, 선명한 관계선과 frosted 라벨을 에디터 테마에 맞춥니다.
@@ -54,10 +56,10 @@ Notion webhook과 운영 호스트의 15분 cron 대조가 바뀐 글만 다시 
 |---|---|
 | Framework | Next.js 16 (Pages Router, `output: standalone`) |
 | Language | TypeScript 6 strict |
-| UI | React 19 · Emotion (CSS-in-JS) · Tailwind 3 |
+| UI | React 19 · Emotion (CSS-in-JS) · Tailwind 4 |
 | Data | TanStack Query v5 · `@notionhq/client` v5 · `react-notion-x` 7.x |
 | Graph | Three.js · d3-force-3d (3D 뷰) · d3-force (서버·온톨로지) |
-| Color | Radix Colors 2 (custom palette) |
+| Color / Icons | One Dark Pro Mix · VS Code Modern · Material Icon Theme · Codicons |
 | Test | Jest 30 + @swc/jest |
 | Container | Docker Compose + GHCR (`linux/amd64` 운영 이미지) |
 

@@ -29,14 +29,14 @@ export default function GraphScene(props: GraphSceneProps) {
   const labelsRef = useRef<HTMLDivElement>(null)
   const statusRef = useRef<HTMLDivElement>(null)
   const latest = useRef(props)
-  const palette = useRef(theme.colors.editor)
+  const palette = useRef(theme.colorTheme.editor)
   const runtime = useRef<Runtime | null>(null)
   const errorRef = useRef<HTMLDivElement>(null)
 
   useLayoutEffect(() => {
     latest.current = props
-    palette.current = theme.colors.editor
-  }, [props, theme.colors.editor])
+    palette.current = theme.colorTheme.editor
+  }, [props, theme.colorTheme.editor])
 
   useEffect(() => {
     const host = hostRef.current
