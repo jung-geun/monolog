@@ -94,9 +94,12 @@ About 라우트는 다음 위젯들을 한 화면에 묶어 보여줍니다.
 
 - **YAML frontmatter** — `site.config.js`의 `profile.name` / `role` / `bio`
 - **StatsGrid** — posts · categories · series · tags · words 집계
-- **ActivityHeatmap** — GitHub-style 26 × 7 활동 히트맵
+- **ActivityHeatmap** — Bklit UI Heatmap 기반 52 × 7 글 활동 달력. ISR 게시물 쿼리 기준 시각과 UTC 날짜를 사용해 방문자 시간대와 무관하게 같은 칸을 표시.
+- **GitHubContributions** — 공개 GitHub 기여 52주 달력. GitHub 제공 색상 레벨과 실제 기여 횟수를 분리해 원본 건수를 유지하며, 로딩·실패 안내와 프로필 링크 제공.
 - **StackGrid** — `site.config.js`의 `stack` 객체를 카테고리별 chip으로 자동 렌더 (정의 없으면 위젯 자체 숨김)
 - **ContactBlock** — email · GitHub · LinkedIn · Instagram (config-driven)
+
+두 달력은 `ActivityCalendar`에서 실제 [Bklit UI Heatmap](https://bklit.com/docs/components/heatmap-chart) 소스를 조합합니다. 월·요일 레이블과 연동되는 Less/More 범례, 원본 날짜·건수 tooltip, 한 칸씩 이동하는 방향키·Escape를 지원합니다. 작은 화면에서는 달력만 가로 스크롤하고 기존 색상 테마를 따릅니다. 소스·MIT 라이선스와 registry 원본 해시는 `src/components/charts/`에 보관합니다. Bklit UI가 제공하지 않는 네트워크·3D 지식 그래프와 Mermaid는 기존 렌더러를 유지합니다.
 
 ---
 

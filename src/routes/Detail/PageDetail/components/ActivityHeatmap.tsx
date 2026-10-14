@@ -1,10 +1,11 @@
 import { useMemo } from "react"
+import dynamic from "next/dynamic"
 import usePostsQuery from "src/hooks/usePostsQuery"
 import { useQueryClient } from "@tanstack/react-query"
 import { queryKey } from "src/constants/queryKey"
 import { buildActivityGrid } from "./activityGrid"
-import HeatmapGrid from "./HeatmapGrid"
 
+const ActivityCalendar = dynamic(() => import("./ActivityCalendar"))
 
 const ActivityHeatmap = () => {
   const posts = usePostsQuery()
@@ -21,7 +22,8 @@ const ActivityHeatmap = () => {
         <span className="text-mute ml-2 italic text-[11px]">{"// last 52 weeks"}</span>
       </p>
 
-      <HeatmapGrid
+      <ActivityCalendar
+        label="Writing activity"
         weeks={weeks}
         months={months}
         formatTooltip={(cell) =>

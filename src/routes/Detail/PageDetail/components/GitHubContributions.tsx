@@ -1,17 +1,19 @@
 import { useMemo } from "react"
+import dynamic from "next/dynamic"
 import { useQuery } from "@tanstack/react-query"
 import type {
   GitHubContributionData,
   GitHubContributionDay,
 } from "src/libs/github/contributions"
-import HeatmapGrid from "./HeatmapGrid"
-import type { HeatmapCell, HeatmapMonth } from "./HeatmapGrid"
+import type { ActivityCalendarCell, ActivityCalendarMonth } from "./activityCalendarTypes"
+
+const ActivityCalendar = dynamic(() => import("./ActivityCalendar"))
 
 const WEEK_COUNT = 52
 
 function buildGrid(days: GitHubContributionDay[]): {
-  weeks: HeatmapCell[][]
-  months: HeatmapMonth[]
+  weeks: ActivityCalendarCell[][]
+  months: ActivityCalendarMonth[]
 } {
   if (days.length === 0) return { weeks: [], months: [] }
 
@@ -20,12 +22,12 @@ function buildGrid(days: GitHubContributionDay[]): {
   const firstSunday = new Date(latest)
   firstSunday.setUTCDate(latest.getUTCDate() - latest.getUTCDay() - (WEEK_COUNT - 1) * 7)
 
-  const weeks: HeatmapCell[][] = []
-  const months: HeatmapMonth[] = []
+  const weeks: ActivityCalendarCell[][] = []
+  const months: ActivityCalendarMonth[] = []
   let lastMonth = -1
 
   for (let weekIndex = 0; weekIndex < WEEK_COUNT; weekIndex++) {
-    const column: HeatmapCell[] = []
+    const column: ActivityCalendarCell[] = []
     for (let dayIndex = 0; dayIndex < 7; dayIndex++) {
       const date = new Date(firstSunday)
       date.setUTCDate(firstSunday.getUTCDate() + weekIndex * 7 + dayIndex)
@@ -107,7 +109,8 @@ const GitHubContributions = ({ username }: Props) => {
 
       {data && weeks.length > 0 && (
         <>
-          <HeatmapGrid
+          <ActivityCalendar
+            label={`GitHub contributions for @${username}`}
             weeks={weeks}
             months={months}
             formatTooltip={(cell) =>

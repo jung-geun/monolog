@@ -1,9 +1,9 @@
 import type { TPost } from "src/types"
-import type { HeatmapCell, HeatmapMonth } from "./HeatmapGrid"
+import type { ActivityCalendarCell, ActivityCalendarMonth } from "./activityCalendarTypes"
 
 export function buildActivityGrid(posts: Pick<TPost, "date" | "createdTime">[], referenceTime: number): {
-  weeks: HeatmapCell[][]
-  months: HeatmapMonth[]
+  weeks: ActivityCalendarCell[][]
+  months: ActivityCalendarMonth[]
 } {
   // The publication query timestamp is serialized with ISR HTML. Using that
   // same civil-day anchor prevents timezone and cache-age hydration drift.
@@ -18,12 +18,12 @@ export function buildActivityGrid(posts: Pick<TPost, "date" | "createdTime">[], 
     if (date) countByDate[date] = (countByDate[date] || 0) + 1
   }
 
-  const weeks: HeatmapCell[][] = []
-  const months: HeatmapMonth[] = []
+  const weeks: ActivityCalendarCell[][] = []
+  const months: ActivityCalendarMonth[] = []
   let lastMonth = -1
   const cursor = new Date(startDate)
   for (let week = 0; week < 52; week++) {
-    const column: HeatmapCell[] = []
+    const column: ActivityCalendarCell[] = []
     for (let day = 0; day < 7; day++) {
       const date = cursor.toISOString().slice(0, 10)
       const count = countByDate[date] || 0
