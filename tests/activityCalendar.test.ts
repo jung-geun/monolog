@@ -4,7 +4,7 @@
 
 import { spawnSync } from "child_process"
 import path from "path"
-import type { HeatmapCell, HeatmapMonth } from "src/routes/Detail/PageDetail/components/HeatmapGrid"
+import type { ActivityCalendarCell, ActivityCalendarMonth } from "src/routes/Detail/PageDetail/components/activityCalendarTypes"
 
 it("keeps hydrated civil dates and publication counts identical across server and visitor timezones", () => {
   const modulePath = path.resolve(__dirname, "../src/routes/Detail/PageDetail/components/activityGrid.ts")
@@ -20,7 +20,7 @@ it("keeps hydrated civil dates and publication counts identical across server an
       env: { ...process.env, TZ }, encoding: "utf8", timeout: 10000,
     })
     if (result.status !== 0) throw new Error(result.stderr || String(result.error))
-    return JSON.parse(result.stdout) as { weeks: HeatmapCell[][]; months: HeatmapMonth[] }
+    return JSON.parse(result.stdout) as { weeks: ActivityCalendarCell[][]; months: ActivityCalendarMonth[] }
   })
 
   expect(grids[1]).toEqual(grids[0])

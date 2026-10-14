@@ -423,7 +423,7 @@ gh workflow run docker-build.yml --ref main -f image-tag=1.20.0
 src/
 ├── apis/notion-client/      — Notion v5 + 캐시 (getPosts · getRecordMap · getDatabase)
 ├── components/
-│   ├── ActivityGrid/        — GitHub-style 활동 히트맵
+│   ├── charts/              — Bklit UI Heatmap registry 소스 · MIT 라이선스 · 원본 해시
 │   ├── CommandPalette/      — 파일 · 명령(>) · 문서 제목(@) Quick Pick
 │   ├── Frontmatter/         — YAML 메타데이터 블록
 │   ├── ImageWithLoading/    — next/Image + skeleton overlay

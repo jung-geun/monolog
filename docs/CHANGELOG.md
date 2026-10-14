@@ -4,6 +4,17 @@ monolog의 버전별 변경 이력. 프로젝트 개요는 [`../README.md`](../R
 
 ---
 
+## v1.21.2 — 2026-10-15
+
+### Bklit UI 활동 달력
+- About의 글 활동·GitHub 기여 달력을 [Bklit UI](https://github.com/bklit/bklit-ui)의 실제 Heatmap registry 소스로 교체. 공통 `ActivityCalendar`가 SVG 셀·월/요일 축·연동 범례·tooltip을 조합하며 기존 사용자 정의 `HeatmapGrid`는 제거.
+- 기존 52주 UTC 날짜·ISR 쿼리 기준 시각·원본 건수·GitHub 제공 레벨을 유지. 라이브러리의 0–4 색상 레벨과 실제 기여 횟수를 분리해 큰 값도 tooltip에서 그대로 표시.
+- 현재 VS Code 색상 역할을 축·tooltip에 연결. 달력 안에서만 가로 스크롤하고 키보드 방향키·Escape 탐색을 지원하며 불필요한 진입 애니메이션 없이 표시.
+- 라이브러리에 네트워크·3D 그래프가 없어 사용자 선택에 따라 지식 그래프·온톨로지·글별 연결 그래프·Mermaid는 유지. 가져온 소스의 MIT 라이선스·원본 해시는 `src/components/charts/LICENSE`와 각 파일에 기록.
+- 실제 공개 About 데이터·GitHub 응답으로 두 달력의 728칸 원본 건수와 레벨, 다크/라이트 테마, 키보드 tooltip, 서울·LA 새로고침을 로컬 Next.js 화면에서 검증. 모바일 About의 기존 Notion 데이터베이스 가로 넘침은 교체 전 운영 화면에도 존재하며 이번 변경 범위에서 수정하지 않음.
+
+---
+
 ## v1.21.1 — 2026-10-14
 
 ### About 활동 달력 hydration 수정
