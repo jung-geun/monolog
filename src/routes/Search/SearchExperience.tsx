@@ -1,5 +1,6 @@
 import { Fragment, useId, useMemo, useRef, useState, type KeyboardEvent } from "react"
 import Link from "next/link"
+import Image from "next/image"
 import { useRouter } from "next/router"
 import styled from "@emotion/styled"
 import FileIcon from "src/components/FileIcon"
@@ -79,7 +80,9 @@ export default function SearchExperience({ query, onQueryChange, sidebar = false
       {hits.map((post, index) => <li key={post.id}>
         <Link href={`/${post.slug}`} prefetch={false} ref={element => { results.current[index] = element }}
           onFocus={() => setActive(index)} onClick={onSelect} onKeyDown={event => keyDown(event, index)}>
-          <FileIcon name={`${post.slug}.md`} />
+          <span className="result-thumbnail" aria-hidden="true">
+            {post.thumbnail ? <Image src={post.thumbnail} alt="" fill sizes={sidebar ? "56px" : "(max-width: 960px) 96px, 136px"} /> : <FileIcon name={`${post.slug}.md`} size={sidebar ? 20 : 28} />}
+          </span>
           <div className="result-content">
             <span className="result-title"><Highlight text={post.title} terms={terms} field="title" /></span>
             {post.summary && <p className="summary"><Highlight text={post.summary} terms={terms} field="summary" /></p>}
@@ -117,15 +120,19 @@ const StyledSearch = styled.div`
   .results { list-style: none; margin: 0; padding: 0; }
   .results a { display: flex; align-items: flex-start; gap: 10px; padding: 10px 8px; text-decoration: none; color: inherit; border-bottom: 1px solid ${({ theme }) => theme.colors.editor.line}; }
   .results a:hover, .results a:focus { background: ${({ theme }) => theme.colors.editor.bg3}; }
-  .results a > svg, .results a > img { flex-shrink: 0; margin-top: 2px; }
+  .results a > svg { flex-shrink: 0; margin-top: 2px; }
+  .result-thumbnail { position: relative; display: flex; align-items: center; justify-content: center; width: 136px; aspect-ratio: 8 / 5; flex-shrink: 0; overflow: hidden; background: ${({ theme }) => theme.colors.editor.bg3}; border: 1px solid ${({ theme }) => theme.colors.editor.line}; }
+  .result-thumbnail img { object-fit: cover; }
   .result-content { flex: 1; min-width: 0; }
   .result-title { display: block; font-weight: 500; line-height: 1.5; overflow-wrap: anywhere; }
   .summary { color: ${({ theme }) => theme.colors.editor.fg2}; font-size: 12px; margin: 4px 0; line-height: 1.6; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   .metadata { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 11px; line-height: 1.5; margin-top: 3px; color: ${({ theme }) => theme.colors.editor.fg3}; }
   .metadata time { margin-left: auto; font-variant-numeric: tabular-nums; }
+  .metadata > span { overflow-wrap: anywhere; max-width: 100%; }
   mark { color: ${({ theme }) => theme.colors.editor.fg}; background: ${({ theme }) => theme.colors.editor.accentSoft}; box-shadow: inset 0 -1px ${({ theme }) => theme.colors.editor.accent}; }
   .empty { color: ${({ theme }) => theme.colors.editor.fg2}; padding: 20px 0; }
   .open-editor { display: flex; align-items: center; gap: 6px; padding: 8px 0; color: ${({ theme }) => theme.colors.editor.accent}; text-decoration: none; }
   a:focus-visible, button:focus-visible { outline: 1px solid ${({ theme }) => theme.colors.editor.accent}; outline-offset: -1px; }
-  &[data-sidebar=true] { .results a { padding: 8px 2px; gap: 6px; } .summary { -webkit-line-clamp: 1; font-size: 11px; } .result-title { font-size: 12px; } .metadata { font-size: 10px; } }
+  @media (max-width: ${({ theme }) => theme.variables.breakpoint}px) { .result-thumbnail { width: 96px; } .results a { gap: 10px; padding: 12px 0; } .results a > svg { display: none; } }
+  &[data-sidebar=true] { .results a { padding: 8px 2px; gap: 8px; } .result-thumbnail { width: 56px; } .summary { -webkit-line-clamp: 1; font-size: 11px; } .result-title { font-size: 12px; } .metadata { font-size: 10px; } }
 `

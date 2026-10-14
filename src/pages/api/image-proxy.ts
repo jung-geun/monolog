@@ -16,7 +16,7 @@ import { extractS3ImageId } from 'src/libs/utils/image/cache/hashUtils'
 import { getIpHash, checkImageProxyRateLimit } from 'src/libs/utils/security'
 
 const FETCH_TIMEOUT_MS = 10_000
-const MAX_IMAGE_BYTES = 10 * 1024 * 1024
+const MAX_IMAGE_BYTES = 16 * 1024 * 1024
 
 const REFRESHABLE_STATUS = new Set([401, 403, 404, 410])
 
@@ -720,6 +720,6 @@ export default async function handler(
 export const config = {
   api: {
     bodyParser: false,
-    responseLimit: '10mb',
+    responseLimit: '16mb',
   },
 }

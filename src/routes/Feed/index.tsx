@@ -60,12 +60,14 @@ const StyledWrapper = styled.main`
   .section-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
   .section-heading a { font-size: 11px; display: inline-flex; gap: 4px; align-items: center; white-space: nowrap; }
   .entry-list { list-style: none; margin: 0; padding: 0; }
-  .entry-row { display: flex; align-items: flex-start; gap: 9px; padding: 8px 4px; color: ${({ theme }) => theme.colors.editor.fg2}; }
+  .entry-row { display: flex; align-items: flex-start; gap: 12px; padding: 12px 4px; color: ${({ theme }) => theme.colors.editor.fg2}; border-bottom: 1px solid ${({ theme }) => theme.colors.editor.line}; }
   .entry-row:hover { background: ${({ theme }) => theme.colors.editor.bg3}; }
-  .entry-row > img, .entry-row > svg { flex-shrink: 0; margin-top: 2px; }
+  .entry-thumbnail { position: relative; display: flex; align-items: center; justify-content: center; width: 112px; aspect-ratio: 8 / 5; flex-shrink: 0; overflow: hidden; background: ${({ theme }) => theme.colors.editor.bg3}; border: 1px solid ${({ theme }) => theme.colors.editor.line}; }
+  .entry-thumbnail img { object-fit: cover; }
   .entry-text { min-width: 0; flex: 1; }
-  .entry-title { display: block; line-height: 1.5; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .entry-summary { display: block; font-size: 11px; color: ${({ theme }) => theme.colors.editor.fg3}; margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .entry-title { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.5; overflow-wrap: anywhere; color: ${({ theme }) => theme.colors.editor.fg}; }
+  .entry-summary { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 11px; line-height: 1.6; color: ${({ theme }) => theme.colors.editor.fg3}; margin-top: 4px; overflow-wrap: anywhere; }
+  .entry-text time { display: block; margin-top: 6px; }
   time, .entry-count { font-size: 10px; color: ${({ theme }) => theme.colors.editor.fg3}; font-variant-numeric: tabular-nums; white-space: nowrap; padding-top: 3px; }
   .empty { color: ${({ theme }) => theme.colors.editor.fg3}; font-size: 12px; }
   .browse-section { margin-top: 30px; padding-top: 22px; border-top: 1px solid ${({ theme }) => theme.colors.editor.line}; }
@@ -77,5 +79,5 @@ const StyledWrapper = styled.main`
   .tags a { display: inline-flex; gap: 5px; align-items: center; padding: 3px 0; font-size: 12px; }
   .tags a:hover, .browse-columns nav > a:hover { color: ${({ theme }) => theme.colors.editor.fg}; }
   @media (max-width: 1050px) { padding: 24px; .welcome-columns { grid-template-columns: minmax(0, 1fr); gap: 28px; } }
-  @media (max-width: ${({ theme }) => theme.variables.breakpoint}px) { padding: 22px 18px 36px; .start-actions, .browse-columns { grid-template-columns: 1fr; gap: 10px; } .browse-columns { gap: 20px; } }
+  @media (max-width: ${({ theme }) => theme.variables.breakpoint}px) { padding: 22px 18px 36px; .start-actions, .browse-columns { grid-template-columns: 1fr; gap: 10px; } .browse-columns { gap: 20px; } .entry-thumbnail { width: 88px; } .entry-row { gap: 10px; } }
 `

@@ -39,6 +39,7 @@ monolog의 주요 기능 상세. 프로젝트 개요와 핵심 차별점은 [`..
 
 ## Welcome · 검색
 홈은 Start · Recent · Series로 구성된 밀도 높은 Welcome 화면입니다. Search Sidebar와 `/search?q=...` Search Editor가 제목·요약·태그·카테고리를 같은 규칙으로 검색합니다. `tag:"kolla ansible"`·`category:"Computer Science"`처럼 공백이 있는 값은 따옴표로 묶고, 화살표로 결과 링크를 이동해 Enter로 엽니다. 검색 URL과 뒤로 가기에서 검색어를 복원합니다. 본문 전체 검색이라고 표시하지 않습니다.
+Welcome의 Recent와 Search Editor·Sidebar는 각 글의 실제 Notion `Thumbnail` 이미지를 제목·요약 옆에 표시합니다. 썸네일이 없는 글은 파일 아이콘을 유지하며, 모바일과 좁은 검색 사이드바에서도 이미지를 숨기지 않고 크기를 줄입니다. 기존 이미지 프록시·Next.js 이미지 최적화와 지연 로딩을 사용합니다.
 
 ## 문서 Preview · Source · Split
 Post·Page·About가 동일한 문서 작업 공간을 사용합니다. breadcrumbs·제목 다음에 접힌 Frontmatter와 요약·축소된 커버를 표시하며, 기존 Notion SSR 본문·코드 복사·시리즈 이동은 유지합니다. About의 활동·GitHub·기술·연락처 위젯은 접을 수 있는 영역에 유지합니다.
