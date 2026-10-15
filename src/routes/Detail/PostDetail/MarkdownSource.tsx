@@ -5,9 +5,10 @@ import type { Token } from "prismjs"
 import "prismjs/components/prism-markdown"
 import { markdownUrl } from "src/libs/seo"
 import type { DocumentContext } from "src/layouts/RootLayout/EditorChrome/WorkbenchContext"
+import type { MarkdownSourceMap } from "src/libs/utils/notion/markdown"
 
 type Props = { slug: string; headings: DocumentContext["headings"] }
-type SourceState = { status: "loading" | "error"; message?: string } | { status: "ready"; text: string }
+type SourceState = { status: "loading" | "error"; message?: string } | { status: "ready"; text: string; blocks: MarkdownSourceMap }
 
 // Preview code is highlighted explicitly; automatic DOM highlighting would
 // destroy the React-owned source rows even before the layout observer runs.
@@ -35,21 +36,20 @@ const MarkdownSource = ({ slug, headings }: Props) => {
     const controller = new AbortController()
     const load = async () => {
       try {
-        const response = await fetch(new URL(href).pathname, { signal: controller.signal, mode: "same-origin" })
+        const response = await fetch(`/api/markdown/${encodeURIComponent(slug)}?sourceMap=1`, { signal: controller.signal, mode: "same-origin" })
         if (!response.ok) throw new Error(`HTTP ${response.status}`)
-        const text = await response.text()
-        if (!controller.signal.aborted) setState({ status: "ready", text })
+        const document: { markdown: string; blocks: MarkdownSourceMap } = await response.json()
+        if (!controller.signal.aborted) setState({ status: "ready", text: document.markdown, blocks: document.blocks })
       } catch (error) {
         if (!controller.signal.aborted) setState({ status: "error", message: error instanceof Error ? error.message : "Request failed" })
       }
     }
     void load()
     return () => controller.abort()
-  }, [href, attempt])
+  }, [slug, attempt])
 
   const rendered = useMemo(() => {
     if (state.status !== "ready") return null
-    const rawLines = state.text.split("\n")
     const highlighted = [""]
     for (const token of Prism.tokenize(state.text, Prism.languages.markdown)) {
       const parts = tokenLines(token)
@@ -57,26 +57,17 @@ const MarkdownSource = ({ slug, headings }: Props) => {
       highlighted.push(...parts.slice(1))
     }
     const headingIds = new Map<number, string>()
-    let fence: string | null = null
-    let headingIndex = 0
-    rawLines.forEach((line, index) => {
-      const marker = line.match(/^\s*(`{3,}|~{3,})/)
-      if (marker) {
-        if (!fence) fence = marker[1][0]
-        else if (marker[1][0] === fence) fence = null
-        return
-      }
-      if (fence) return
-      const match = line.match(/^#{2,6}\s+(.+?)\s*#*$/)
-      if (!match) return
-      const text = match[1].replace(/\[([^\]]+)\]\([^)]*\)/g, "$1").replace(/\\([\\`*_{}\[\]()#+.!-])/g, "$1").replace(/[*`_]/g, "").trim()
-      const position = headings.findIndex((heading, candidate) => candidate >= headingIndex && heading.text.trim() === text)
-      if (position >= 0) {
-        headingIds.set(index, headings[position].id)
-        headingIndex = position + 1
-      }
-    })
-    return { highlighted, headingIds }
+    const headingByBlock = new Map(headings.map(heading => [heading.id.replace(/-/g, "").toLowerCase(), heading.id]))
+    for (const block of state.blocks) {
+      const headingId = headingByBlock.get(block.blockId)
+      if (headingId) headingIds.set(block.startLine - 1, headingId)
+    }
+    const blockIds = new Map<number, string>()
+    // Parents cover descendants too: the narrowest exported span owns a row.
+    for (const block of [...state.blocks].sort((a, b) => (b.endLine - b.startLine) - (a.endLine - a.startLine))) {
+      for (let line = block.startLine; line <= block.endLine; line++) blockIds.set(line, block.blockId)
+    }
+    return { highlighted, headingIds, blockIds }
   }, [state, headings])
 
   return (
@@ -84,7 +75,7 @@ const MarkdownSource = ({ slug, headings }: Props) => {
       <div className="source-caption">{slug}.md <span>Read-only · exported Markdown</span></div>
       {state.status === "loading" && <p role="status" className="source-state">Loading Markdown source…</p>}
       {state.status === "error" && <div role="alert" className="source-state"><p>Unable to load Markdown source ({state.message}). Preview remains available.</p><button type="button" onClick={() => { setState({ status: "loading" }); setAttempt(value => value + 1) }}>Retry</button> <a href={href} target="_blank" rel="noopener noreferrer">Open Markdown</a></div>}
-      {rendered && <pre tabIndex={0} aria-label="Markdown source with line numbers"><code className="language-markdown">{rendered.highlighted.map((html, index) => <span className="source-line" data-source-heading={rendered.headingIds.get(index)} data-source-line={index + 1} key={index}><span className="source-number" aria-hidden="true">{index + 1}</span><span className="source-text" dangerouslySetInnerHTML={{ __html: html || " " }} /></span>)}</code></pre>}
+      {rendered && <pre tabIndex={0} aria-label="Markdown source with line numbers"><code className="language-markdown">{rendered.highlighted.map((html, index) => <span className="source-line" data-source-block={rendered.blockIds.get(index + 1)} data-source-heading={rendered.headingIds.get(index)} data-source-line={index + 1} key={index}><span className="source-number" aria-hidden="true">{index + 1}</span><span className="source-text" dangerouslySetInnerHTML={{ __html: html || " " }} /></span>)}</code></pre>}
     </Source>
   )
 }

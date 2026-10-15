@@ -38,7 +38,7 @@ const copyLegacy = (content: string) => {
 }
 
 export const Code = (props: Props) => (
-  <SafeBlock name="Code" fallback={<pre className="notion-code"><code>{props.block.properties.title?.map(segment => segment[0]).join("") ?? ""}</code></pre>}>
+  <SafeBlock name="Code" fallback={<pre className={`notion-code notion-block-${props.block.id.replace(/-/g, "").toLowerCase()}`}><code>{props.block.properties.title?.map(segment => segment[0]).join("") ?? ""}</code></pre>}>
     <CodeContent {...props} />
   </SafeBlock>
 )
@@ -95,7 +95,7 @@ const CodeContent = ({ block, defaultLanguage = "typescript", className }: Props
 
   return (
     <>
-      <Figure className="notion-code-figure">
+      <Figure className={`notion-code-figure notion-block-${block.id.replace(/-/g, "").toLowerCase()}`}>
         <Frame className="notion-code-frame">
           <div className="code-toolbar">
             <span className="code-language">{notionLanguage}</span>

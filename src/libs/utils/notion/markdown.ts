@@ -1,3 +1,4 @@
+import { randomUUID } from "crypto"
 import type { ExtendedRecordMap, Block } from "notion-types"
 import type { TPost, TPosts, TNotionDatabase } from "src/types"
 import { getBlockById } from "src/libs/utils/notion/unwrapBlock"
@@ -186,6 +187,89 @@ function getRichTextPlainText(richTextArray: unknown[] | undefined | null): stri
   return text
 }
 
+/** Inclusive, 1-based lines in the final Markdown, including nested block spans. */
+export interface MarkdownBlockRange {
+  blockId: string
+  startLine: number
+  endLine: number
+}
+
+export type MarkdownSourceMap = MarkdownBlockRange[]
+
+export interface MarkdownDocument {
+  markdown: string
+  blocks: MarkdownSourceMap
+}
+
+interface MappingContext {
+  prefix: string
+  blocks: string[]
+}
+
+function markChunk(chunk: string, blockId: string, mapping?: MappingContext): string {
+  if (!mapping || !chunk) return chunk
+  // Close before trailing newlines so ancestor quote prefixes do not extend a child span.
+  const end = chunk.trimEnd().length
+  if (!end) return chunk
+  const index = mapping.blocks.push(normalizeNotionId(blockId)) - 1
+  return `${mapping.prefix}${index}:s\0${chunk.slice(0, end)}${mapping.prefix}${index}:e\0${chunk.slice(end)}`
+}
+
+// Markers are inline, so quote/list indentation sees exactly the same newlines.
+// Strip before trimming: an end marker must never preserve otherwise-trimmed bytes.
+function resolveSourceMap(marked: string, mapping: MappingContext): MarkdownDocument {
+  const marker = new RegExp(`${mapping.prefix}(\\d+):([se])\\0`, "g")
+  const pieces: string[] = []
+  const spans: { blockId: string; start: number; end: number }[] = []
+  const open = new Map<number, { blockId: string; start: number; end: number }>()
+  let cursor = 0
+  let offset = 0
+  let match: RegExpExecArray | null
+  while ((match = marker.exec(marked))) {
+    const text = marked.slice(cursor, match.index)
+    pieces.push(text)
+    offset += text.length
+    const index = Number(match[1])
+    if (match[2] === "s") {
+      const span = { blockId: mapping.blocks[index], start: offset, end: offset }
+      spans.push(span)
+      open.set(index, span)
+    } else {
+      const span = open.get(index)
+      if (span) span.end = offset
+      open.delete(index)
+    }
+    cursor = marker.lastIndex
+  }
+  pieces.push(marked.slice(cursor))
+  const content = pieces.join("").trimEnd()
+  const lineStarts = [0]
+  for (let i = 0; i < content.length; i++) {
+    if (content[i] === "\n") lineStarts.push(i + 1)
+  }
+  const lineAt = (position: number): number => {
+    let low = 0
+    let high = lineStarts.length
+    while (low + 1 < high) {
+      const mid = (low + high) >>> 1
+      if (lineStarts[mid] <= position) low = mid
+      else high = mid
+    }
+    return low + 1
+  }
+  const blocks: MarkdownBlockRange[] = []
+  for (const span of spans) {
+    let start = span.start
+    let end = Math.min(span.end, content.length)
+    while (start < end && /\s/.test(content[start])) start++
+    while (end > start && /\s/.test(content[end - 1])) end--
+    if (start < end) {
+      blocks.push({ blockId: span.blockId, startLine: lineAt(start), endLine: lineAt(end - 1) })
+    }
+  }
+  return { markdown: content + "\n", blocks }
+}
+
 interface RenderContext {
   post: TPost
   recordMap: ExtendedRecordMap
@@ -195,6 +279,7 @@ interface RenderContext {
   visitedIds: Set<string>
   listLevel: number
   headingLevels: Record<string, number>
+  mapping?: MappingContext
 }
 
 function renderBlockChildren(
@@ -227,6 +312,10 @@ function indentChunk(chunk: string, indent: string): string {
 
 
 function renderBlock(block: Block, ctx: RenderContext): string {
+  return markChunk(renderBlockContent(block, ctx), block.id, ctx.mapping)
+}
+
+function renderBlockContent(block: Block, ctx: RenderContext): string {
   ctx.visitedIds.add(block.id)
 
   const type = block.type as string
@@ -460,7 +549,7 @@ function renderBlock(block: Block, ctx: RenderContext): string {
           formattedCell = formattedCell.replace(/\|/g, "\\|").replace(/\n/g, "<br>")
           cellValues.push(formattedCell)
         }
-        rowLines.push(`| ${cellValues.join(" | ")} |`)
+        rowLines.push(markChunk(`| ${cellValues.join(" | ")} |`, row.id, ctx.mapping))
       }
 
       const tableMd = [headerRow, delimiterRow, ...rowLines].join("\n")
@@ -517,10 +606,12 @@ function renderBlock(block: Block, ctx: RenderContext): string {
         headerCells = Array(colCount).fill("")
       }
 
-      const headerLine = `| ${headerCells.join(" | ")} |`
+      const headerLine = hasHeader
+        ? markChunk(`| ${headerCells.join(" | ")} |`, childRows[0].id, ctx.mapping)
+        : `| ${headerCells.join(" | ")} |`
       const delimiterLine = `| ${Array(colCount).fill("---").join(" | ")} |`
 
-      const bodyLines = bodyRows.map((r) => `| ${renderRowCells(r).join(" | ")} |`)
+      const bodyLines = bodyRows.map((r) => markChunk(`| ${renderRowCells(r).join(" | ")} |`, r.id, ctx.mapping))
 
       return [headerLine, delimiterLine, ...bodyLines].join("\n")
     }
@@ -586,6 +677,26 @@ export function renderPostMarkdown(
   recordMap: ExtendedRecordMap,
   databases: ReadonlyMap<string, TNotionDatabase>,
   options: { siteUrl: string; allPosts: TPosts }
+): string {
+  return renderPost(post, recordMap, databases, options)
+}
+
+export function renderPostMarkdownDocument(
+  post: TPost,
+  recordMap: ExtendedRecordMap,
+  databases: ReadonlyMap<string, TNotionDatabase>,
+  options: { siteUrl: string; allPosts: TPosts }
+): MarkdownDocument {
+  const mapping: MappingContext = { prefix: `\0${randomUUID()}:`, blocks: [] }
+  return resolveSourceMap(renderPost(post, recordMap, databases, options, mapping), mapping)
+}
+
+function renderPost(
+  post: TPost,
+  recordMap: ExtendedRecordMap,
+  databases: ReadonlyMap<string, TNotionDatabase>,
+  options: { siteUrl: string; allPosts: TPosts },
+  mapping?: MappingContext
 ): string {
   const rootBlock = getBlockById(recordMap, post.id)
   if (!rootBlock) {
@@ -671,6 +782,7 @@ export function renderPostMarkdown(
     visitedIds,
     listLevel: 0,
     headingLevels: Object.fromEntries(getArticleHeadings(recordMap, post.id).map(({ block, level }) => [block.id, level])),
+    mapping,
   }
 
   const childIds = rootBlock?.content || []
@@ -690,16 +802,17 @@ export function renderPostMarkdown(
   // Section assembly: Frontmatter -> H1 Title -> Summary -> Body Chunks
   const titleH1 = `# ${escapeMarkdownText(post.title || "")}`
 
-  const topSections: string[] = [frontmatter, titleH1]
+  const topSections: string[] = [frontmatter, markChunk(titleH1, "title", mapping)]
 
   if (description) {
-    topSections.push(escapeMarkdownText(description))
+    topSections.push(markChunk(escapeMarkdownText(description), "summary", mapping))
   }
 
   if (bodyChunks.length > 0) {
     topSections.push(...bodyChunks)
   }
 
-  const result = topSections.join("\n\n").trimEnd() + "\n"
-  return result
+  const result = topSections.join("\n\n")
+  if (mapping) return result
+  return result.trimEnd() + "\n"
 }

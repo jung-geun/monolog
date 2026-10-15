@@ -18,7 +18,7 @@ let root: Root
 const originalFetch = globalThis.fetch
 
 beforeEach(() => {
-  globalThis.fetch = jest.fn(async () => ({ ok: true, text: async () => markdown } as Response))
+  globalThis.fetch = jest.fn(async () => ({ ok: true, json: async () => ({ markdown, blocks: [{ blockId: "title", startLine: 1, endLine: 1 }, { blockId: "contact", startLine: 3, endLine: 3 }] }) } as Response))
   container = document.createElement("div")
   document.body.appendChild(container)
   root = createRoot(container)

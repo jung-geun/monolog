@@ -25,7 +25,7 @@ export function Equation({ block, math, inline = false, className }: Props) {
   if (!expression) return null
   return (
     <span
-      className={["notion-equation", inline ? "notion-equation-inline" : "notion-equation-block", className].filter(Boolean).join(" ")}
+      className={["notion-equation", inline ? "notion-equation-inline" : `notion-equation-block notion-block-${block.id.replace(/-/g, "").toLowerCase()}`, className].filter(Boolean).join(" ")}
       dangerouslySetInnerHTML={{ __html: html }}
     />
   )
