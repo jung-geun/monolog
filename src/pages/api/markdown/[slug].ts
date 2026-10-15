@@ -1,7 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next"
 import { getPosts, getRecordMap, getRecordMapDatabases } from "src/apis"
 import { getSlugRedirect, readContentRecordMap } from "src/libs/content/registry"
-import { renderPostMarkdown } from "src/libs/utils/notion/markdown"
+import { renderPostMarkdown, renderPostMarkdownDocument } from "src/libs/utils/notion/markdown"
 import { markdownUrl, postUrl, publicDetails } from "src/libs/seo"
 import { CONFIG } from "site.config"
 import { errorLog } from "src/libs/utils/logger"
@@ -58,6 +58,10 @@ export default async function handler(
       "Bad Request\n"
     )
   }
+  const mapped = req.query.sourceMap === "1"
+  const sourceMapQuery = typeof req.query.sourceMap === "string"
+    ? `?sourceMap=${encodeURIComponent(req.query.sourceMap)}`
+    : ""
 
   try {
     const posts = await getPosts()
@@ -72,7 +76,7 @@ export default async function handler(
           return sendResponse(req, res, 308, {
             "Content-Type": "text/plain; charset=utf-8",
             "Cache-Control": "no-store",
-            Location: markdownUrl(target.slug),
+            Location: `${markdownUrl(target.slug)}${sourceMapQuery}`,
           }, "Permanent Redirect\n")
         }
       }
@@ -109,10 +113,16 @@ export default async function handler(
     }
 
     const dbs = await getRecordMapDatabases(recordMap)
-    const markdown = renderPostMarkdown(post, recordMap, dbs, {
-      siteUrl: CONFIG.link,
-      allPosts: filteredPosts,
-    })
+    const options = { siteUrl: CONFIG.link, allPosts: filteredPosts }
+    if (mapped) {
+      const document = renderPostMarkdownDocument(post, recordMap, dbs, options)
+      return sendResponse(req, res, 200, {
+        "Content-Type": "application/json; charset=utf-8",
+        "Cache-Control": "no-store",
+        Link: `<${postUrl(post.slug)}>; rel="canonical"`,
+      }, JSON.stringify(document))
+    }
+    const markdown = renderPostMarkdown(post, recordMap, dbs, options)
 
     const safeSlug =
       post.slug.replace(/[^A-Za-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "") ||

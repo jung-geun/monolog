@@ -27,6 +27,7 @@ import StatsGrid from "src/routes/Feed/StatsGrid"
 import { getStats } from "src/libs/utils/stats"
 import { publishedDate, modifiedDate, calendarDate, summaryText } from "src/libs/seo"
 import { getArticleDescription } from "src/libs/utils/notion/articleSummary"
+import useSplitSelection from "./useSplitSelection"
 
 const MarkdownSource = dynamic(() => import("./MarkdownSource"), { loading: () => <p role="status" className="source-loading">Loading source viewer…</p> })
 const modes: { id: DocumentMode; label: string; icon: "preview" | "code" | "split" }[] = [{ id: "preview", label: "Preview", icon: "preview" }, { id: "source", label: "Source", icon: "code" }, { id: "split", label: "Split", icon: "split" }]
@@ -38,6 +39,7 @@ const PostDetail = () => {
   const [mobilePane, setMobilePane] = useState<"preview" | "source">("preview")
   const [syncScroll, setSyncScroll] = useState(true)
   const panes = useRef<HTMLDivElement>(null)
+  const selectionSync = useSplitSelection(panes, documentMode === "split", data?.slug)
   const headings = useMemo(() => extractToc(data?.recordMap ?? null).map(heading => ({ ...heading, level: heading.level + 1 })), [data?.recordMap])
   const isAbout = Boolean(CONFIG.aboutSlug) && data?.slug === CONFIG.aboutSlug
   const isPage = data?.type[0] === "Page"
@@ -58,7 +60,7 @@ const PostDetail = () => {
     let locked: HTMLElement | null = null
     let releaseFrame = 0
     const synchronize = (origin: HTMLElement, target: HTMLElement, fromSource: boolean) => {
-      if (locked === origin || !window.matchMedia("(min-width: 961px)").matches) return
+      if (locked === origin || selectionSync.current || !window.matchMedia("(min-width: 961px)").matches) return
       const top = origin.getBoundingClientRect().top + 100
       const candidates = fromSource ? Array.from(origin.querySelectorAll<HTMLElement>("[data-source-heading]")) : headings.map(heading => document.getElementById(heading.id)).filter((element): element is HTMLElement => Boolean(element))
       let current: HTMLElement | undefined
@@ -82,7 +84,7 @@ const PostDetail = () => {
     preview.addEventListener("scroll", fromPreview, { passive: true })
     source.addEventListener("scroll", fromSource, { passive: true })
     return () => { cancelAnimationFrame(releaseFrame); preview.removeEventListener("scroll", fromPreview); source.removeEventListener("scroll", fromSource) }
-  }, [documentMode, headings, syncScroll])
+  }, [documentMode, headings, syncScroll, selectionSync])
 
   if (!data) return null
   const category = data.category?.[0]
@@ -105,7 +107,7 @@ const PostDetail = () => {
         <MarkdownActions slug={data.slug} />
       </div>
     </div>
-    {documentMode === "split" && <div className="split-options"><label><input type="checkbox" checked={syncScroll} onChange={event => setSyncScroll(event.target.checked)} /> Synchronize matched headings</label><span>Exported Markdown is not an exact Notion line map.</span><div className="mobile-pane-switch"><button type="button" aria-pressed={mobilePane === "preview"} onClick={() => setMobilePane("preview")}>Preview</button><button type="button" aria-pressed={mobilePane === "source"} onClick={() => setMobilePane("source")}>Source</button></div></div>}
+    {documentMode === "split" && <div className="split-options"><label><input type="checkbox" checked={syncScroll} onChange={event => setSyncScroll(event.target.checked)} /> Synchronize matched headings</label><span>Drag to highlight matching blocks and reveal the selection in the other pane.</span><div className="mobile-pane-switch"><button type="button" aria-pressed={mobilePane === "preview"} onClick={() => setMobilePane("preview")}>Preview</button><button type="button" aria-pressed={mobilePane === "source"} onClick={() => setMobilePane("source")}>Source</button></div></div>}
     <div className={`document-grid${isSecondaryOpen && !readingMode ? " with-rail" : ""}`}>
       <div className="document-main">
         <div ref={panes} className={`document-panes document-panes--${documentMode} mobile-pane--${mobilePane}`}>
@@ -153,6 +155,8 @@ const Workspace = styled.div`
   .document-panes--split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); height: calc(100dvh - 190px); min-height: 360px; }
   .document-panes--split .document-preview, .document-panes--split .document-source { overflow: auto; }
   .document-source { border-left: 1px solid ${({ theme }) => theme.colors.editor.line}; }
+  .split-selection-match { background-color: color-mix(in srgb, ${({ theme }) => theme.colors.editor.accent} 14%, transparent); box-shadow: inset 3px 0 ${({ theme }) => theme.colors.editor.accent}; }
+  ::highlight(split-selection) { background-color: ${({ theme }) => theme.colors.editor.accent}; color: ${({ theme }) => theme.colors.editor.bg}; }
   .document-panes--source .document-source { border-left: 0; }
   .split-options { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 18px; padding: 6px 16px; border-bottom: 1px solid ${({ theme }) => theme.colors.editor.line}; color: ${({ theme }) => theme.colors.editor.fg3}; font-size: 10px; }
   .split-options label { display: inline-flex; align-items: center; gap: 6px; }

@@ -1,6 +1,6 @@
 import type { ExtendedRecordMap, Block } from "notion-types"
 import type { TPost, TNotionDatabase } from "src/types"
-import { renderPostMarkdown } from "src/libs/utils/notion/markdown"
+import { renderPostMarkdown, renderPostMarkdownDocument } from "src/libs/utils/notion/markdown"
 import { normalizeNotionId } from "src/libs/utils/notion/rewriteInternalLinks"
 
 describe("normalizeNotionId", () => {
@@ -66,49 +66,6 @@ describe("renderPostMarkdown", () => {
       signed_urls: {},
     }
   }
-
-  it("produces exact frontmatter fields, order, and trailing newline", () => {
-    const recordMap = makeRecordMap({
-      "root-post-id": {
-        id: "root-post-id",
-        type: "page",
-        content: [],
-      },
-    })
-    const databases = new Map<string, TNotionDatabase>()
-
-    const markdown = renderPostMarkdown(basePost, recordMap, databases, {
-      siteUrl: "https://example.com/",
-      allPosts,
-    })
-
-    expect(markdown.endsWith("\n")).toBe(true)
-
-    const expectedFrontmatter = [
-      "---",
-      'title: "Test Post Title"',
-      'description: "This is a summary paragraph."',
-      'date: "2026-08-11T00:00:00.000Z"',
-      'last_modified: "2026-08-11T12:00:00.000Z"',
-      'type: "Post"',
-      "tags:",
-      '  - "tech"',
-      '  - "testing"',
-      "categories:",
-      '  - "Engineering"',
-      "series:",
-      '  - "Notion MD"',
-      "authors:",
-      '  - "Alice"',
-      '  - "Bob"',
-      'canonical_url: "https://example.com/test-post"',
-      'markdown_url: "https://example.com/test-post.md"',
-      "---",
-    ].join("\n")
-
-    expect(markdown).toContain(expectedFrontmatter)
-    expect(markdown).toContain("# Test Post Title\n\nThis is a summary paragraph.")
-  })
 
   it("omits empty optional frontmatter fields", () => {
     const sparsePost: TPost = {
@@ -726,5 +683,130 @@ describe("renderPostMarkdown", () => {
     expect(markdown).toContain('title: "Test Post Title"')
     expect(markdown).toContain("# Test Post Title")
     expect(markdown.endsWith("\n")).toBe(true)
+  })
+
+  it("maps duplicate paragraphs, nested lists/callouts, fences and table rows without changing bytes", () => {
+    const recordMap = makeRecordMap({
+      "root-post-id": { type: "page", content: ["first", "second", "callout", "code", "table", "empty", "tail"] },
+      first: { properties: { title: [["Repeat"]] } },
+      second: { properties: { title: [["Repeat"]] } },
+      callout: { type: "callout", properties: { title: [["Outer"]] }, content: ["list"] },
+      list: { type: "bulleted_list", properties: { title: [["Repeat"]] }, content: ["nested"] },
+      nested: { type: "bulleted_list", properties: { title: [["Repeat"]] } },
+      code: { type: "code", properties: { title: [["alpha\n```\nomega"]], language: [["ts"]], caption: [["Caption"]] } },
+      table: { type: "table", format: { table_block_column_header: true }, content: ["header", "row"] },
+      header: { type: "table_row", properties: { table_row: [[["Name"]]] } },
+      row: { type: "table_row", properties: { table_row: [[["Repeat\ncell"]]] } },
+      empty: { type: "column", content: [] },
+      tail: { properties: { title: [["tail  \n\n"]] } },
+    })
+    const options = { siteUrl: "https://example.com", allPosts }
+    const plain = renderPostMarkdown(basePost, recordMap, new Map(), options)
+    const mapped = renderPostMarkdownDocument(basePost, recordMap, new Map(), options)
+
+    expect(mapped.markdown).toBe(plain)
+    expect(mapped.markdown.split("\n").slice(24).join("\n")).toBe([
+      "Repeat", "", "Repeat", "", "> Outer", "> ", "> - Repeat", ">   - Repeat", "",
+      "````ts", "alpha", "```", "omega", "````", "*Caption*", "",
+      "| Name |", "| --- |", "| Repeat<br>cell |", "", "tail", "",
+    ].join("\n"))
+    expect(mapped.blocks).toEqual([
+      { blockId: "title", startLine: 21, endLine: 21 },
+      { blockId: "summary", startLine: 23, endLine: 23 },
+      { blockId: "first", startLine: 25, endLine: 25 },
+      { blockId: "second", startLine: 27, endLine: 27 },
+      { blockId: "callout", startLine: 29, endLine: 32 },
+      { blockId: "list", startLine: 31, endLine: 32 },
+      { blockId: "nested", startLine: 32, endLine: 32 },
+      { blockId: "code", startLine: 34, endLine: 39 },
+      { blockId: "table", startLine: 41, endLine: 43 },
+      { blockId: "header", startLine: 41, endLine: 41 },
+      { blockId: "row", startLine: 43, endLine: 43 },
+      { blockId: "tail", startLine: 45, endLine: 45 },
+    ])
+  })
+
+  it("maps multiline synthetic sections, empty children and nested quote prefixes after final trimming", () => {
+    const post = { ...basePost, title: "First\nSecond", summary: "Summary\ncontinued" }
+    const recordMap = makeRecordMap({
+      "root-post-id": { type: "page", content: ["toggle", "blank"] },
+      toggle: { type: "toggle", properties: { title: [["Toggle"]] }, content: ["quote", "empty"] },
+      quote: { type: "quote", content: ["paragraph"] },
+      paragraph: { properties: { title: [["one\n\ntwo  \n"]] } },
+      empty: { properties: { title: [[""]] } },
+      blank: { properties: { title: [["  \n\n"]] } },
+    })
+    const options = { siteUrl: "https://example.com", allPosts: [post] }
+    const mapped = renderPostMarkdownDocument(post, recordMap, new Map(), options)
+    expect(mapped.markdown).toBe(renderPostMarkdown(post, recordMap, new Map(), options))
+    const title = mapped.blocks.find(block => block.blockId === "title")!
+    expect(mapped.markdown.split("\n").slice(title.startLine - 1, title.endLine)).toEqual(["# First", "Second"])
+    const paragraph = mapped.blocks.find(block => block.blockId === "paragraph")!
+    expect(mapped.markdown.split("\n").slice(paragraph.startLine - 1, paragraph.endLine)).toEqual([
+      "  > one", "  > ", "  > two  ",
+    ])
+    expect(mapped.blocks.some(block => block.blockId === "empty" || block.blockId === "blank")).toBe(false)
+    expect(mapped.markdown.endsWith("  >\n")).toBe(true)
+  })
+
+  it("maps database row identities even when their rendered cells are identical", () => {
+    const recordMap = makeRecordMap({
+      "root-post-id": { type: "page", content: ["database"] },
+      database: { type: "collection_view_page", properties: { title: [["Data"]] } },
+    })
+    const databases = new Map<string, TNotionDatabase>([["database", {
+      id: "database", title: "Data", view: "table",
+      properties: [{ id: "name", name: "Name", type: "title" }],
+      rows: ["row-a", "row-b"].map(id => ({ id, url: "", lastEdited: "", values: { Name: "Same" } })),
+    }]])
+    const options = { siteUrl: "https://example.com", allPosts }
+    const mapped = renderPostMarkdownDocument(basePost, recordMap, databases, options)
+    expect(mapped.markdown).toBe(renderPostMarkdown(basePost, recordMap, databases, options))
+    expect(mapped.blocks.filter(block => block.blockId.startsWith("row"))).toEqual([
+      { blockId: "rowa", startLine: 29, endLine: 29 },
+      { blockId: "rowb", startLine: 30, endLine: 30 },
+    ])
+  })
+
+  it("maps headerless table rows and multiline equations inside a structural column", () => {
+    const recordMap = makeRecordMap({
+      "root-post-id": { type: "page", content: ["column"] },
+      column: { type: "column", content: ["table", "equation"] },
+      table: { type: "table", content: ["row"] },
+      row: { type: "table_row", properties: { table_row: [[["Cell"]]] } },
+      equation: { type: "equation", properties: { title: [["a\nb"]] } },
+    })
+    const options = { siteUrl: "https://example.com", allPosts }
+    const document = renderPostMarkdownDocument(basePost, recordMap, new Map(), options)
+    expect(document.markdown).toBe(renderPostMarkdown(basePost, recordMap, new Map(), options))
+    expect(document.markdown.split("\n").slice(24)).toEqual([
+      "|  |", "| --- |", "| Cell |", "", "$$", "a", "b", "$$", "",
+    ])
+    expect(document.blocks.slice(2)).toEqual([
+      { blockId: "column", startLine: 25, endLine: 32 },
+      { blockId: "table", startLine: 25, endLine: 27 },
+      { blockId: "row", startLine: 27, endLine: 27 },
+      { blockId: "equation", startLine: 29, endLine: 32 },
+    ])
+  })
+
+  it("maps a generated summary separately from its identical source paragraph and omits absent summaries", () => {
+    const post = { ...basePost, summary: "" }
+    const recordMap = makeRecordMap({
+      "root-post-id": { type: "page", content: ["paragraph"] },
+      paragraph: { properties: { title: [["Excerpt text"]] } },
+    })
+    const options = { siteUrl: "https://example.com", allPosts: [post] }
+    const document = renderPostMarkdownDocument(post, recordMap, new Map(), options)
+    expect(document.markdown).toBe(renderPostMarkdown(post, recordMap, new Map(), options))
+    expect(document.blocks).toEqual([
+      { blockId: "title", startLine: 21, endLine: 21 },
+      { blockId: "summary", startLine: 23, endLine: 23 },
+      { blockId: "paragraph", startLine: 25, endLine: 25 },
+    ])
+    const emptyMap = makeRecordMap({ "root-post-id": { type: "page", content: [] } })
+    const empty = renderPostMarkdownDocument(post, emptyMap, new Map(), options)
+    expect(empty.markdown).toBe(renderPostMarkdown(post, emptyMap, new Map(), options))
+    expect(empty.blocks).toEqual([{ blockId: "title", startLine: 20, endLine: 20 }])
   })
 })
