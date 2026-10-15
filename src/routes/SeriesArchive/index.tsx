@@ -1,5 +1,6 @@
 import { useMemo } from "react"
 import Link from "next/link"
+import Image from "next/image"
 import styled from "@emotion/styled"
 import usePostsQuery from "src/hooks/usePostsQuery"
 import { useSeriesQuery } from "src/hooks/useSeriesQuery"
@@ -111,21 +112,28 @@ const SeriesArchive = ({ seriesName }: Props) => {
                 <Link
                   key={post.id}
                   href={`/${post.slug}`}
-                  className="group flex items-start gap-3 rounded-md border border-hairline bg-card/60 p-3 transition-colors hover:border-signal/45 hover:bg-card/85"
+                  className="series-post group flex items-start gap-3 rounded-md border border-hairline bg-card/60 p-3 transition-colors hover:border-signal/45 hover:bg-card/85"
                 >
-                  <span className={`font-mono text-base font-medium shrink-0 w-7 text-right tabular-nums ${ACCENT_NUM[color]}`}>
-                    {String(i).padStart(2, "0")}
-                  </span>
+                  {post.thumbnail && (
+                    <span className="post-thumbnail" aria-hidden="true">
+                      <Image src={post.thumbnail} alt="" fill sizes="(max-width: 960px) 96px, 136px" />
+                    </span>
+                  )}
                   <div className="flex-1 min-w-0">
-                    <h3 className="text-[14px] font-medium text-strong leading-snug line-clamp-2 mb-1">
-                      {post.title}
-                    </h3>
+                    <div className="series-entry-heading">
+                      <span className={`font-mono text-base font-medium shrink-0 tabular-nums ${ACCENT_NUM[color]}`}>
+                        {String(i).padStart(2, "0")}
+                      </span>
+                      <h3 className="text-[14px] font-medium text-strong leading-snug line-clamp-2 mb-1">
+                        {post.title}
+                      </h3>
+                    </div>
                     {post.summary && (
                       <p className="text-[12px] text-soft line-clamp-2 mb-1.5">{post.summary}</p>
                     )}
                     <p className="font-mono text-[10px] text-mute">{dateOnly}</p>
                   </div>
-                  <span className="font-mono text-xs text-mute transition-colors group-hover:text-signal dark:group-hover:text-signal-200 shrink-0">
+                  <span className="series-post-arrow font-mono text-xs text-mute transition-colors group-hover:text-signal dark:group-hover:text-signal-200 shrink-0">
                     →
                   </span>
                 </Link>
@@ -157,6 +165,18 @@ const StyledWrapper = styled.div`
     @media (max-width: ${({ theme }) => theme.variables.breakpoint}px) {
       padding: 20px 20px;
     }
+  }
+
+  .series-post { text-decoration: none; }
+  .post-thumbnail { position: relative; display: block; width: 136px; aspect-ratio: 8 / 5; flex-shrink: 0; overflow: hidden; background: ${({ theme }) => theme.colors.editor.bg3}; border: 1px solid ${({ theme }) => theme.colors.editor.line}; }
+  .post-thumbnail img { object-fit: cover; }
+  .series-entry-heading { display: flex; align-items: flex-start; gap: 8px; }
+  .series-entry-heading h3 { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+  .series-post:focus-visible { outline: 1px solid ${({ theme }) => theme.colors.editor.accent}; outline-offset: 2px; }
+  @media (max-width: ${({ theme }) => theme.variables.breakpoint}px) {
+    .series-post { gap: 10px; }
+    .post-thumbnail { width: 96px; }
+    .series-post-arrow { display: none; }
   }
 
   .series-nav {

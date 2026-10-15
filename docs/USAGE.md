@@ -62,7 +62,7 @@ blog: {
 
 Search Sidebar와 `/search?q=...`는 **제목·요약·태그·카테고리**를 검색합니다. `tag:"kolla ansible"` 또는 `category:"Computer Science"`처럼 값을 따옴표로 묶을 수 있습니다. 글 전문을 대상으로 하는 의미 검색은 기존 Graph의 Meaning 검색과 임베딩 서비스 설정을 사용합니다.
 
-Welcome의 Recent, Search Editor와 Search Sidebar에서 실제 글의 `Thumbnail`을 함께 확인할 수 있습니다. Notion의 썸네일 값을 그대로 사용하며, 값이 없는 글만 파일 아이콘으로 표시합니다. 모바일에서도 썸네일을 표시하고 글 제목·요약은 줄바꿈합니다.
+Welcome의 Recent, Search Editor·Search Sidebar와 시리즈 상세에서 실제 글의 `Thumbnail`을 함께 확인할 수 있습니다. 시리즈 인덱스와 Welcome Series의 대표 썸네일은 해당 시리즈 최신 글의 이미지이며, 함께 표시한 최신 글 제목과 일치합니다. 썸네일이 없는 글은 기존 텍스트·아이콘 표시를 유지합니다. 모바일에서도 이미지를 축소해 표시하고 시리즈의 읽기 순서·번호는 유지합니다.
 이미지 프록시는 원본 이미지를 최대 16MiB까지 읽으며, 이보다 큰 파일은 기존 placeholder로 반환합니다. 썸네일은 작은 원본을 권장하며, 허용 호스트·다운로드 크기 제한은 유지합니다.
 이미 투명 placeholder가 Next.js 이미지 캐시에 저장된 배포는 원본을 수정해도 캐시 만료 전까지 빈 이미지가 남을 수 있습니다. 배포 시 해당 원본 URL·너비·포맷에 대응하는 캐시만 무효화하고 실제 목록에서 이미지 로딩을 확인하세요.
 
@@ -117,7 +117,7 @@ Auto ads는 소스 코드 밖의 계정 설정입니다. 새 셸을 배포하기
 | `Series` | select | 시리즈 (단일, 선택) |
 | `Tags` | multi_select | 태그 (복수) |
 | `Summary` | rich_text | 요약 (피드 카드에 표시) |
-| `Thumbnail` | files 또는 url | 실제 글 썸네일 (Welcome Recent · 검색 결과 · 카테고리/시리즈 목록 · 본문 상단 히어로) |
+| `Thumbnail` | files 또는 url | 실제 글 썸네일 (Welcome Recent·Series · 검색 결과 · 카테고리/시리즈 상세 · 시리즈 대표 카드 · 본문 상단 히어로) |
 | `접속자수` | number | 서버가 계산해 Notion에 동기화하는 페이지별 고유 방문자 수 |
 
 #### `comments` (댓글)

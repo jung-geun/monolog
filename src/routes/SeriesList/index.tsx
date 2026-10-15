@@ -1,9 +1,11 @@
 import { useMemo } from "react"
 import Link from "next/link"
+import Image from "next/image"
 import styled from "@emotion/styled"
 import usePostsQuery from "src/hooks/usePostsQuery"
 import { useSeriesQuery } from "src/hooks/useSeriesQuery"
 import { useRegisterChrome } from "src/layouts/RootLayout/EditorChrome/RouteChromeContext"
+import type { TPost } from "src/types"
 
 const COLORS = ["signal", "paper", "cs", "research"] as const
 type Color = (typeof COLORS)[number]
@@ -33,13 +35,15 @@ const SeriesList = () => {
   )
   useRegisterChrome("series.md", statusItems, "series")
 
-  const latestBySeriesName: Record<string, string> = {}
-  for (const post of allPosts) {
-    const s = post.series?.[0]
-    if (s && !latestBySeriesName[s]) {
-      latestBySeriesName[s] = post.title
+  const latestBySeriesName = useMemo(() => {
+    const latest = new Map<string, TPost>()
+    for (const post of allPosts) {
+      for (const name of post.series ?? []) {
+        if (!latest.has(name)) latest.set(name, post)
+      }
     }
-  }
+    return latest
+  }, [allPosts])
 
   return (
     <StyledWrapper>
@@ -65,23 +69,30 @@ const SeriesList = () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
               {seriesEntries.map(([name, count]) => {
                 const color = pickColor(name)
+                const latestPost = latestBySeriesName.get(name)
                 return (
                   <Link
                     key={name}
                     href={`/series/${name}`}
-                    className="group flex items-center gap-3 rounded-md border border-hairline bg-card/60 p-3 transition-colors hover:border-signal/45 hover:bg-card/85"
+                    className="series-card group flex items-center gap-3 rounded-md border border-hairline bg-card/60 p-3 transition-colors hover:border-signal/45 hover:bg-card/85"
                   >
-                    <span className={`grid h-10 w-10 shrink-0 place-items-center rounded font-mono text-base font-medium text-zinc-50 ${GRADIENTS[color]}`}>
-                      §
+                    <span className="series-thumbnail" aria-hidden="true">
+                      {latestPost?.thumbnail ? (
+                        <Image src={latestPost.thumbnail} alt="" fill sizes="(max-width: 960px) 88px, 112px" />
+                      ) : (
+                        <span className={`grid h-10 w-10 shrink-0 place-items-center rounded font-mono text-base font-medium text-zinc-50 ${GRADIENTS[color]}`}>
+                          §
+                        </span>
+                      )}
                     </span>
                     <div className="flex-1 min-w-0">
                       <p className="font-medium text-[14px] text-strong truncate mb-0.5">{name}</p>
                       <p className="font-mono text-[10px] text-mute">
                         {count} entries{count >= 10 ? " · ongoing" : ""}
                       </p>
-                      {latestBySeriesName[name] && (
+                      {latestPost && (
                         <p className="font-mono text-[10px] text-soft truncate mt-0.5">
-                          {latestBySeriesName[name]}
+                          {latestPost.title}
                         </p>
                       )}
                     </div>
@@ -119,6 +130,11 @@ const StyledWrapper = styled.div`
       padding: 20px 20px;
     }
   }
+
+  .series-thumbnail { position: relative; display: flex; align-items: center; justify-content: center; width: 112px; aspect-ratio: 8 / 5; flex-shrink: 0; overflow: hidden; background: ${({ theme }) => theme.colors.editor.bg3}; border: 1px solid ${({ theme }) => theme.colors.editor.line}; }
+  .series-thumbnail img { object-fit: cover; }
+  .series-card:focus-visible { outline: 1px solid ${({ theme }) => theme.colors.editor.accent}; outline-offset: 2px; }
+  @media (max-width: ${({ theme }) => theme.variables.breakpoint}px) { .series-thumbnail { width: 88px; } }
 
   .page-title {
     font-family: var(--font-mono, monospace);
