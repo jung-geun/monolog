@@ -52,6 +52,39 @@ describe("authentic named color themes", () => {
     expect(css).toContain(':root[data-color-theme="light-modern"]')
     expect(getColorThemeCSS("system")).toContain("@media(prefers-color-scheme:light)")
   })
+
+  it.each(colorThemes)("keeps all activity intensities distinct from empty cells in $label", (theme) => {
+    const style = document.createElement("style")
+    style.textContent = getColorThemeCSS(theme.id)
+    document.head.appendChild(style)
+    const previous = document.documentElement.getAttribute("data-color-theme")
+    document.documentElement.setAttribute("data-color-theme", theme.id)
+    try {
+      const computed = getComputedStyle(document.documentElement)
+      const colors = ["elevated", "grass-1", "grass-2", "grass-3", "grass-4"].map((role) => {
+        const value = computed.getPropertyValue(`--c-${role}`).trim()
+        expect(value).toMatch(/^\d+ \d+ \d+$/)
+        const channels = value.split(" ").map(Number)
+        expect(channels.every((channel) => channel >= 0 && channel <= 255)).toBe(true)
+        return value
+      })
+      expect(new Set(colors).size).toBe(5)
+      const brightness = colors.map((value) => {
+        const [r, g, b] = value.split(" ").map(Number)
+        return 0.2126 * r + 0.7152 * g + 0.0722 * b
+      })
+      for (let level = 1; level < brightness.length; level++) {
+        const gap = theme.scheme === "dark"
+          ? brightness[level] - brightness[level - 1]
+          : brightness[level - 1] - brightness[level]
+        expect(gap).toBeGreaterThanOrEqual(12)
+      }
+    } finally {
+      style.remove()
+      if (previous === null) document.documentElement.removeAttribute("data-color-theme")
+      else document.documentElement.setAttribute("data-color-theme", previous)
+    }
+  })
 })
 
 describe("theme first-paint bootstrap", () => {

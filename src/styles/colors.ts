@@ -151,6 +151,11 @@ const declarations = (theme: ColorTheme) => {
   const scales: ColorScales = { ...(theme.scheme === "light" ? lightScales : darkScales) }
   const grays = [e.bg2, e.bg, e.bg3, e.line, e.line2, e.line2, e.fg4, e.fg4, e.fg3, e.fg3, e.fg2, e.fg]
   grays.forEach((value, i) => { scales[`gray${i + 1}` as keyof typeof scales] = value })
+  const grass = [0.35, 0.6, 0.8, 1].map((weight) => `#${[1, 3, 5].map((start) => {
+    const empty = parseInt(e.bg3.slice(start, start + 2), 16)
+    const active = parseInt(syntax.inserted.slice(start, start + 2), 16)
+    return Math.round(empty + (active - empty) * weight).toString(16).padStart(2, "0")
+  }).join("")}`)
   const roles = {
     ink: e.fg, chrome: e.bg2, card: e.bg, elevated: e.bg3, sunken: e.gutter,
     hairline: e.line2, mute: e.fg3, soft: e.fg4, strong: e.fg2,
@@ -158,7 +163,7 @@ const declarations = (theme: ColorTheme) => {
     cs: syntax.className, "cs-50": e.bg3, "cs-200": syntax.className, "cs-900": e.fg,
     paper: syntax.function, "paper-50": e.bg3, "paper-200": syntax.function, "paper-900": e.fg,
     research: syntax.keyword, "research-50": e.bg3, "research-200": syntax.keyword, "research-900": e.fg,
-    "grass-1": e.bg3, "grass-2": syntax.inserted, "grass-3": syntax.inserted, "grass-4": e.fg2,
+    "grass-1": grass[0], "grass-2": grass[1], "grass-3": grass[2], "grass-4": grass[3],
   }
   return [
     `color-scheme:${theme.scheme};`, `--fg-color:${e.fg};`, `--bg-color:${e.bg};`,

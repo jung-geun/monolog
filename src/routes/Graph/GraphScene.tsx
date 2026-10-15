@@ -411,8 +411,8 @@ export default function GraphScene(props: GraphSceneProps) {
         }
         for (const [kind, group] of grouped) {
           const segments = RELATION_STYLES[kind].dashed ? 12 : 1
-          const lineMaterial = material(new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.95, depthWrite: false }))
-          const arrowMaterial = material(new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.98, depthWrite: false }))
+          const lineMaterial = material(new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.95 / 3, depthWrite: false }))
+          const arrowMaterial = material(new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.98 / 3, depthWrite: false }))
           const lines = new THREE.InstancedMesh(cylinder, lineMaterial, group.length * segments)
           const arrows = new THREE.InstancedMesh(cone, arrowMaterial, group.length)
           lines.instanceMatrix.setUsage(THREE.DynamicDrawUsage)
