@@ -44,8 +44,10 @@ Welcome의 Recent와 Search Editor·Sidebar는 각 글의 실제 Notion `Thumbna
 ## 문서 Preview · Source · Split
 Post·Page·About가 동일한 문서 작업 공간을 사용합니다. breadcrumbs·제목 다음에 접힌 Frontmatter와 요약·축소된 커버를 표시하며, 기존 Notion SSR 본문·코드 복사·시리즈 이동은 유지합니다. About의 활동·GitHub·기술·연락처 위젯은 접을 수 있는 영역에 유지합니다.
 
-- **Source**는 `/{slug}.md`와 동일한 Markdown과 블록별 줄 범위를 `/api/markdown/{slug}?sourceMap=1`에서 지연 로드하고 읽기 전용 문법 강조·실제 줄 번호를 표시합니다. 기존 `.md` 응답은 변경하지 않으며, 실패 시 Retry·원본 링크를 제공하고 문서 이동 시 요청을 취소합니다.
+- **Source**는 `/{slug}.md`와 동일한 Markdown과 블록별 줄 범위를 `/api/markdown/{slug}?sourceMap=1`에서 지연 로드하고 읽기 전용 문법 강조·실제 줄 번호를 표시합니다. `.md`의 Markdown 응답 형식·공개 범위를 유지하며, 실패 시 Retry·원본 링크를 제공하고 문서 이동 시 요청을 취소합니다.
 - **Split**은 데스크톱에서 독립된 두 pane의 일치하는 제목을 양방향 동기화합니다. 텍스트를 마우스로 드래그하면 실제 Notion 블록 ID·내보낸 줄 범위로 반대 pane의 대응 블록을 강조하고 선택 위치로 이동합니다. 일치하는 글자 범위는 추가 강조하며 문법 차이·블록 내 중복 문구는 블록 단위로 표시합니다. 드래그 추적은 제목 동기화 checkbox와 독립적이고 일반 스크롤을 줄별로 강제 연결하지 않습니다. 모바일에서는 Preview/Source를 전환합니다.
+- **표**는 Notion의 실제 열 순서·셀 속성을 따라 Markdown pipe 표로 내보내며 빈 셀·줄바꿈·인라인 서식을 보존합니다. 표·행별 블록 매핑을 유지해 Split 선택 영역도 연결합니다. Preview 표는 콘텐츠 폭을 채우고 긴 토큰이나 많은 열로 넘치면 표 안에서만 가로 스크롤됩니다. 본문은 최대 880px(Reading mode 900px), 좌우 여백은 데스크톱 최대 32px·Split 20px·모바일 16px로 제한합니다.
+- **브라우저 내장 번역**은 표준 `Translator` API와 언어 쌍 지원을 감지합니다. `Translate`에서 원문 언어(기본 `CONFIG.lang`)·대상 언어(기본 브라우저 언어)를 확인하고 **Translate article**을 눌러야 모델 준비·번역을 시작합니다. 제목·요약·본문·표·캡션을 문장/구문별 순서대로 Preview에 반영하며 코드·수식·멘션·URL·링크 목적지와 원본 Markdown은 유지합니다. 진행률·중단·원문 복원을 제공하고 글/언어 변경 시 이전 작업을 취소합니다. 외부 번역 서버나 API 키를 사용하지 않으며 API/언어 쌍 미지원·권한·모델 다운로드 실패는 원문과 함께 안내합니다. 번역은 방문 중 메모리에만 유지됩니다.
 - **Outline · Series**는 실제 제목 앵커와 시리즈 순서를 보여줍니다. `@` 제목 이동은 모바일의 숨겨진 Source pane에서 Preview로 전환한 뒤 올바른 스크롤 루트로 이동합니다.
 - **References · Comments**는 하단 패널로 분리합니다. 명시적 링크·같은 카테고리·AI 유사 글을 구분하며, 댓글은 처음 열 때 마운트하고 패널 전환 중 유지합니다. Reading mode는 사이드바와 패널을 숨깁니다.
 

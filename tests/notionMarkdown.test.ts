@@ -473,7 +473,7 @@ describe("renderPostMarkdown", () => {
     expect(markdown).toContain("Missing source caption")
   })
 
-  it("renders Notion tables with header and no-header options and escapes pipes/newlines", () => {
+  it("renders canonical Notion tables with header and no-header options and escapes pipes/newlines", () => {
     const recordMap = makeRecordMap({
       "root-post-id": {
         id: "root-post-id",
@@ -483,34 +483,34 @@ describe("renderPostMarkdown", () => {
       "table-header": {
         id: "table-header",
         type: "table",
-        format: { table_block_column_header: true },
+        format: { table_block_column_header: true, table_block_column_order: ["cell_0", "cell_1"] },
         content: ["row-1", "row-2"],
       },
       "row-1": {
         id: "row-1",
         type: "table_row",
         properties: {
-          table_row: [[["Header 1"]], [["Header | 2"]]],
+          cell_0: [["Header 1"]], cell_1: [["Header | 2"]],
         },
       },
       "row-2": {
         id: "row-2",
         type: "table_row",
         properties: {
-          table_row: [[["Val 1"]], [["Val\n2"]]],
+          cell_0: [["Val 1"]], cell_1: [["Val\n2"]],
         },
       },
       "table-no-header": {
         id: "table-no-header",
         type: "table",
-        format: { table_block_column_header: false },
+        format: { table_block_column_header: false, table_block_row_header: true, table_block_column_order: ["cell_0", "cell_1"] },
         content: ["row-no-hdr"],
       },
       "row-no-hdr": {
         id: "row-no-hdr",
         type: "table_row",
         properties: {
-          table_row: [[["Cell A"]], [["Cell B"]]],
+          cell_0: [["Cell A"]], cell_1: [["Cell B"]],
         },
       },
     })
@@ -524,6 +524,103 @@ describe("renderPostMarkdown", () => {
     expect(markdown).toContain("| Val 1 | Val<br>2 |")
     expect(markdown).toContain("|  |  |") // synthesized empty header
     expect(markdown).toContain("| Cell A | Cell B |")
+  })
+
+  it("uses declared RNX column IDs in order, preserves empty cells and maps every table row", () => {
+    const recordMap = makeRecordMap({
+      "root-post-id": { type: "page", content: ["table"] },
+      table: {
+        type: "table",
+        format: {
+          table_block_column_header: true,
+          table_block_column_order: ["name", "detail", "empty", "missing"],
+        },
+        content: ["header", "row", "emptyrow"],
+      },
+      header: {
+        type: "table_row", parent_id: "table",
+        properties: { detail: [["Detail"]], name: [["Name"]], empty: [], unrelated: [["Not a column"]] },
+      },
+      row: {
+        type: "table_row", parent_id: "table",
+        properties: {
+          detail: [["first\r\nsecond\nthird"]],
+          name: [["strong |", [["b"]]], [" ", []], ["x|y", [["c"]]], [" ", []], ["link", [["a", "https://example.com/a|b"]]]],
+          empty: [[""]],
+        },
+      },
+      emptyrow: { type: "table_row", parent_id: "table" },
+    })
+    const options = { siteUrl: "https://example.com", allPosts }
+    const document = renderPostMarkdownDocument(basePost, recordMap, new Map(), options)
+    const tableLines = [
+      "| Name | Detail |  |  |",
+      "| --- | --- | --- | --- |",
+      "| **strong \\|** `x\\|y` [link](https://example.com/a\\|b) | first<br>second<br>third |  |  |",
+      "|  |  |  |  |",
+    ]
+
+    expect(document.markdown).toBe(renderPostMarkdown(basePost, recordMap, new Map(), options))
+    expect(document.markdown.split("\n").slice(24)).toEqual([...tableLines, ""])
+    expect(document.blocks.slice(2)).toEqual([
+      { blockId: "table", startLine: 25, endLine: 28 },
+      { blockId: "header", startLine: 25, endLine: 25 },
+      { blockId: "row", startLine: 27, endLine: 27 },
+      { blockId: "emptyrow", startLine: 28, endLine: 28 },
+    ])
+  })
+
+  it.each([1, 2])("preserves %i literal backslashes before code table pipes without changing other cell escaping", (backslashCount) => {
+    const backslashes = "\\".repeat(backslashCount)
+    const recordMap = makeRecordMap({
+      "root-post-id": { type: "page", content: ["table"] },
+      table: {
+        type: "table",
+        format: { table_block_column_order: ["cell_0", "cell_1", "cell_2"] },
+        content: ["row"],
+      },
+      row: {
+        type: "table_row", parent_id: "table",
+        properties: {
+          cell_0: [[`left${backslashes}|right <x>*`, [["c"]]]],
+          cell_1: [["equation", [["e", "a|b"]]]],
+          cell_2: [["plain \\| text"]],
+        },
+      },
+    })
+    const options = { siteUrl: "https://example.com", allPosts }
+    const document = renderPostMarkdownDocument(basePost, recordMap, new Map(), options)
+
+    expect(document.markdown).toBe(renderPostMarkdown(basePost, recordMap, new Map(), options))
+    const tableLines = document.markdown.split("\n").slice(24)
+    const code = tableLines[2].match(/<code>.*?<\/code>/)?.[0]
+    expect(code).toBeDefined()
+    const decoded = new DOMParser().parseFromString(code!, "text/html").body
+    expect(decoded.querySelector("code")?.textContent).toBe(`left${backslashes}|right <x>*`)
+    expect(decoded.querySelector("x")).toBeNull()
+    expect(tableLines[2]).toContain(" | $a\\|b$ | plain \\\\\\| text |")
+    expect(tableLines[2].match(/(?<!\\)\|/g)).toHaveLength(4)
+  })
+
+  it("retains a canonical header-only table even when every declared cell is absent", () => {
+    const recordMap = makeRecordMap({
+      "root-post-id": { type: "page", content: ["table"] },
+      table: {
+        type: "table",
+        format: { table_block_column_header: true, table_block_column_order: ["cell_0", "cell_1"] },
+        content: ["header"],
+      },
+      header: { type: "table_row", parent_id: "table", properties: {} },
+    })
+    const options = { siteUrl: "https://example.com", allPosts }
+    const document = renderPostMarkdownDocument(basePost, recordMap, new Map(), options)
+
+    expect(document.markdown).toBe(renderPostMarkdown(basePost, recordMap, new Map(), options))
+    expect(document.markdown.split("\n").slice(24)).toEqual(["|  |  |", "| --- | --- |", ""])
+    expect(document.blocks.slice(2)).toEqual([
+      { blockId: "table", startLine: 25, endLine: 26 },
+      { blockId: "header", startLine: 25, endLine: 25 },
+    ])
   })
 
   it("renders embedded database values, dates, arrays, and links", () => {
@@ -694,9 +791,9 @@ describe("renderPostMarkdown", () => {
       list: { type: "bulleted_list", properties: { title: [["Repeat"]] }, content: ["nested"] },
       nested: { type: "bulleted_list", properties: { title: [["Repeat"]] } },
       code: { type: "code", properties: { title: [["alpha\n```\nomega"]], language: [["ts"]], caption: [["Caption"]] } },
-      table: { type: "table", format: { table_block_column_header: true }, content: ["header", "row"] },
-      header: { type: "table_row", properties: { table_row: [[["Name"]]] } },
-      row: { type: "table_row", properties: { table_row: [[["Repeat\ncell"]]] } },
+      table: { type: "table", format: { table_block_column_header: true, table_block_column_order: ["cell_0"] }, content: ["header", "row"] },
+      header: { type: "table_row", properties: { cell_0: [["Name"]] } },
+      row: { type: "table_row", properties: { cell_0: [["Repeat\ncell"]] } },
       empty: { type: "column", content: [] },
       tail: { properties: { title: [["tail  \n\n"]] } },
     })
@@ -772,8 +869,8 @@ describe("renderPostMarkdown", () => {
     const recordMap = makeRecordMap({
       "root-post-id": { type: "page", content: ["column"] },
       column: { type: "column", content: ["table", "equation"] },
-      table: { type: "table", content: ["row"] },
-      row: { type: "table_row", properties: { table_row: [[["Cell"]]] } },
+      table: { type: "table", format: { table_block_column_order: ["cell_0"] }, content: ["row"] },
+      row: { type: "table_row", properties: { cell_0: [["Cell"]] } },
       equation: { type: "equation", properties: { title: [["a\nb"]] } },
     })
     const options = { siteUrl: "https://example.com", allPosts }

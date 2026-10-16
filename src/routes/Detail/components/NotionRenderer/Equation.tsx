@@ -3,9 +3,10 @@ import type { Block } from "notion-types"
 import { getBlockTitle } from "notion-utils"
 import { useNotionContext } from "react-notion-x"
 import katex from "katex"
+import { parseInlineMath } from "src/libs/utils/notion/inlineMath"
 
 type Props = {
-  block: Block
+  block?: Block
   math?: string
   inline?: boolean
   className?: string
@@ -15,17 +16,21 @@ type Props = {
 // Render the same KaTeX HTML/MathML before SSR and hydration instead.
 export function Equation({ block, math, inline = false, className }: Props) {
   const { recordMap } = useNotionContext()
-  const expression = math || getBlockTitle(block, recordMap)
+  const raw = math ? parseInlineMath(math) : undefined
+  const delimited = raw?.length === 1 && raw[0].type === "math" ? raw[0] : undefined
+  const expression = delimited ? delimited.math : math ?? (block ? getBlockTitle(block, recordMap) : "")
+  const isInline = delimited ? !delimited.displayMode : inline
   const html = useMemo(() => expression ? katex.renderToString(expression, {
-    displayMode: !inline,
+    displayMode: !isInline,
     throwOnError: false,
     strict: false,
+    trust: false,
     output: "htmlAndMathml",
-  }) : "", [expression, inline])
+  }) : "", [expression, isInline])
   if (!expression) return null
   return (
     <span
-      className={["notion-equation", inline ? "notion-equation-inline" : `notion-equation-block notion-block-${block.id.replace(/-/g, "").toLowerCase()}`, className].filter(Boolean).join(" ")}
+      className={["notion-equation", isInline ? "notion-equation-inline" : "notion-equation-block", !isInline && block && `notion-block-${block.id.replace(/-/g, "").toLowerCase()}`, className].filter(Boolean).join(" ")}
       dangerouslySetInnerHTML={{ __html: html }}
     />
   )

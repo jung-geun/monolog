@@ -28,6 +28,7 @@ import { getStats } from "src/libs/utils/stats"
 import { publishedDate, modifiedDate, calendarDate, summaryText } from "src/libs/seo"
 import { getArticleDescription } from "src/libs/utils/notion/articleSummary"
 import useSplitSelection from "./useSplitSelection"
+import useArticleTranslation from "./useArticleTranslation"
 
 const MarkdownSource = dynamic(() => import("./MarkdownSource"), { loading: () => <p role="status" className="source-loading">Loading source viewer…</p> })
 const modes: { id: DocumentMode; label: string; icon: "preview" | "code" | "split" }[] = [{ id: "preview", label: "Preview", icon: "preview" }, { id: "source", label: "Source", icon: "code" }, { id: "split", label: "Split", icon: "split" }]
@@ -39,6 +40,12 @@ const PostDetail = () => {
   const [mobilePane, setMobilePane] = useState<"preview" | "source">("preview")
   const [syncScroll, setSyncScroll] = useState(true)
   const panes = useRef<HTMLDivElement>(null)
+  const originalArticle = useMemo(() => ({
+    title: data?.title ?? "",
+    summary: data ? getArticleDescription(summaryText(data.summary), data.recordMap, data.id) : "",
+    recordMap: data?.recordMap ?? null,
+  }), [data])
+  const translation = useArticleTranslation(originalArticle, data?.slug)
   const selectionSync = useSplitSelection(panes, documentMode === "split", data?.slug)
   const headings = useMemo(() => extractToc(data?.recordMap ?? null).map(heading => ({ ...heading, level: heading.level + 1 })), [data?.recordMap])
   const isAbout = Boolean(CONFIG.aboutSlug) && data?.slug === CONFIG.aboutSlug
@@ -92,7 +99,7 @@ const PostDetail = () => {
   const modified = modifiedDate(data)
   const meaningfulModified = modified && published && modified > published && calendarDate(modified) !== calendarDate(published) ? modified : undefined
   const authors = data.author?.map(author => author.name.trim()).filter(Boolean)
-  const summary = getArticleDescription(summaryText(data.summary), data.recordMap, data.id)
+  const summary = translation.article.summary
   const openPanel = (tab: "references" | "comments") => { setPanelTab(tab); setPanelOpen(true); setReadingMode(false); requestAnimationFrame(() => document.getElementById("document-bottom-panel")?.scrollIntoView({ block: "start" })) }
 
   return <Workspace className={`post-detail${readingMode ? " reading-mode" : ""}`}>
@@ -107,17 +114,18 @@ const PostDetail = () => {
         <MarkdownActions slug={data.slug} />
       </div>
     </div>
+    {translation.controls}
     {documentMode === "split" && <div className="split-options"><label><input type="checkbox" checked={syncScroll} onChange={event => setSyncScroll(event.target.checked)} /> Synchronize matched headings</label><span>Drag to highlight matching blocks and reveal the selection in the other pane.</span><div className="mobile-pane-switch"><button type="button" aria-pressed={mobilePane === "preview"} onClick={() => setMobilePane("preview")}>Preview</button><button type="button" aria-pressed={mobilePane === "source"} onClick={() => setMobilePane("source")}>Source</button></div></div>}
     <div className={`document-grid${isSecondaryOpen && !readingMode ? " with-rail" : ""}`}>
       <div className="document-main">
         <div ref={panes} className={`document-panes document-panes--${documentMode} mobile-pane--${mobilePane}`}>
           <div className="document-preview" hidden={documentMode === "source"}>
-            <article className={`body${isAbout ? " about-body" : ""}`}>
-              <header><div className="preview-label">Markdown Preview</div><h1 className="post-title">{data.title}</h1><Frontmatter title={data.title} date={published} modifiedDate={meaningfulModified} authors={authors} category={category} tags={data.tags} /></header>
+            <article className={`body${isAbout ? " about-body" : ""}`} lang={translation.active ? translation.targetLanguage : CONFIG.lang}>
+              <header><div className="preview-label">Markdown Preview</div><h1 className="post-title">{translation.article.title}</h1><Frontmatter title={data.title} date={published} modifiedDate={meaningfulModified} authors={authors} category={category} tags={data.tags} /></header>
               {summary && !isAbout && <p className="post-summary">{summary}</p>}
               {data.thumbnail && !isAbout && <div className="hero-thumb"><Image src={data.thumbnail} alt={data.title} fill sizes="(max-width: 960px) 100vw, 760px" className="object-cover" /></div>}
               {isAbout && <div className="about-sections"><p className="profile-bio">{CONFIG.profile.role}{CONFIG.profile.bio ? ` · ${CONFIG.profile.bio}` : ""}</p><details open><summary>Writing & activity</summary><StatsGrid stats={getStats(allPosts)} /><ActivityHeatmap /><GitHubContributions username={CONFIG.profile.github} /></details><details><summary>Tools & technologies</summary><StackGrid /></details><details open><summary>Contact</summary><ContactBlock /></details></div>}
-              <div className="notion-content"><NotionRenderer recordMap={data.recordMap} /></div>
+              <div className="notion-content"><NotionRenderer recordMap={translation.article.recordMap} /></div>
               {!isPage && !isAbout && <AdSlot slot={CONFIG.googleAdsense.config.slots.postBottom} className="my-8" />}
               <SeriesNav post={data} allPosts={allPosts} />
               <nav className="document-context-links" aria-label="Article context"><button type="button" onClick={() => openPanel("references")}><WorkbenchIcon name="link" />References & similar articles</button><button type="button" onClick={() => openPanel("comments")}><WorkbenchIcon name="comment" />Comments</button></nav>
@@ -162,8 +170,8 @@ const Workspace = styled.div`
   .split-options label { display: inline-flex; align-items: center; gap: 6px; }
   .split-options input[type="checkbox"] { appearance: auto; width: 13px; height: 13px; accent-color: ${({ theme }) => theme.colors.editor.accent}; }
   .mobile-pane-switch { display: none; }
-  .body { width: 100%; max-width: 800px; margin: 0 auto; padding: 30px 44px 40px; overflow-wrap: anywhere; }
-  .document-panes--split .body { padding: 24px; }
+  .body { box-sizing: border-box; min-width: 0; width: 100%; max-width: 880px; margin: 0 auto; padding: 30px clamp(16px, 3vw, 32px) 40px; overflow-wrap: anywhere; }
+  .document-panes--split .body { padding: 24px 20px; }
   .preview-label { font-family: var(--font-mono, monospace); font-size: 10px; color: ${({ theme }) => theme.colors.editor.fg3}; margin-bottom: 12px; }
   .post-title { font-family: var(--font-sans, system-ui, sans-serif); font-size: clamp(26px, 3vw, 36px); font-weight: 650; margin: 0 0 14px; line-height: 1.3; letter-spacing: -0.035em; color: ${({ theme }) => theme.colors.editor.fg}; text-wrap: balance; }
   .post-summary { color: ${({ theme }) => theme.colors.editor.fg2}; line-height: 1.8; white-space: pre-wrap; font-size: 15px; margin: 0 0 24px; }
@@ -182,8 +190,8 @@ const Workspace = styled.div`
   #document-bottom-panel { position: sticky; bottom: 0; z-index: 11; max-height: min(360px, 42dvh); overflow-y: auto; background: ${({ theme }) => theme.colors.editor.bg2}; }
   .panel-footer-label { color: ${({ theme }) => theme.colors.editor.fg3}; font-size: 10px; padding: 6px 24px; background: ${({ theme }) => theme.colors.editor.bg2}; }
   .source-loading { padding: 20px; font-size: 12px; color: ${({ theme }) => theme.colors.editor.fg3}; }
-  &.reading-mode .body { max-width: 820px; padding-top: 40px; }
-  @media (max-width: 1100px) { .mode-switch button span { display: none; } .body { padding: 28px; } }
+  &.reading-mode .body { max-width: 900px; padding-top: 40px; }
+  @media (max-width: 1100px) { .mode-switch button span { display: none; } }
   @media (max-width: 960px) {
     .document-grid.with-rail { grid-template-columns: minmax(0, 1fr); }
     .document-toolbar { position: relative; padding: 6px 10px; }
@@ -191,7 +199,7 @@ const Workspace = styled.div`
     .document-controls { width: 100%; justify-content: flex-end; }
     .mode-switch { margin-right: auto; }
     .mode-switch button span { display: inline; }
-    .body, .document-panes--split .body { padding: 24px 20px 36px; }
+    .body, .document-panes--split .body { padding: 24px 16px 36px; }
     .document-panes--split { display: block; height: auto; min-height: 0; }
     .document-panes--split .document-preview, .document-panes--split .document-source { overflow: visible; }
     .document-panes--split.mobile-pane--preview .document-source, .document-panes--split.mobile-pane--source .document-preview { display: none; }
@@ -201,6 +209,6 @@ const Workspace = styled.div`
     #document-bottom-panel { position: relative; bottom: auto; max-height: none; overflow: visible; }
     .post-title { font-size: 28px; }
     .notion-content { font-size: 15px; }
-    &.reading-mode .body { padding: 28px 20px; }
+    &.reading-mode .body { padding: 28px 16px; }
   }
 `
