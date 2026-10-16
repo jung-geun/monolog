@@ -145,7 +145,7 @@ const PostTreeItem = ({ post, isActive, href }: TreeItemProps) => {
   </>
 }
 
-const SectionHeader = ({ label, sectionKey, isExpanded, onToggle }: { label: string; sectionKey: string; isExpanded: boolean; onToggle: () => void }) => <button type="button" className="section-header" onClick={onToggle} aria-expanded={isExpanded} aria-controls={`tree-section-${sectionKey}`}><WorkbenchIcon name={isExpanded ? "chevron-down" : "chevron-right"} /><span>{label}</span></button>
+const SectionHeader = ({ label, sectionKey, isExpanded, onToggle, folder = false }: { label: string; sectionKey: string; isExpanded: boolean; onToggle: () => void; folder?: boolean }) => <button type="button" className="section-header" onClick={onToggle} aria-expanded={isExpanded} aria-controls={`tree-section-${sectionKey}`}><WorkbenchIcon name={isExpanded ? "chevron-down" : "chevron-right"} />{folder && <FileIcon name={label} folder expanded={isExpanded} />}<span>{label}</span></button>
 
 const FileTree = () => {
   const router = useRouter()
@@ -154,6 +154,16 @@ const FileTree = () => {
   const series = useSeriesQuery()
   const activeSlug = typeof router?.query.slug === "string" ? router.query.slug : undefined
   const { expanded, toggleSection, tabs, activeTabId, closeTab, switchTab, pinTab } = useRouteChrome()
+  const openEditorsRef = useRef<HTMLUListElement>(null)
+  useEffect(() => {
+    const list = openEditorsRef.current
+    const active = list?.querySelector('[aria-current="page"]')?.closest("li")
+    if (!list || !active) return
+    const bounds = list.getBoundingClientRect()
+    const row = active.getBoundingClientRect()
+    if (row.top < bounds.top) list.scrollTop -= bounds.top - row.top
+    else if (row.bottom > bounds.bottom) list.scrollTop += row.bottom - bounds.bottom
+  }, [activeTabId, expanded.openEditors])
   const recentPosts = posts.slice(0, RECENT_POST_LIMIT)
   const openSlugs = new Set<string>()
   for (const tab of tabs) {
@@ -173,20 +183,29 @@ const FileTree = () => {
   const categoryEntries = Object.entries(categories).filter(([name]) => name !== DEFAULT_CATEGORY)
   const renderPost = (post: TPost) => <PostTreeItem key={post.slug} post={post} isActive={post.slug === activeSlug} href={`/${encodeURIComponent(post.slug)}`} />
   return <StyledWrapper aria-label="Explorer">
-    <div className="view-heading">Explorer</div>
-    <SectionHeader label="Open editors" sectionKey="open-editors" isExpanded={expanded.openEditors} onToggle={() => toggleSection("openEditors")} />
-    {expanded.openEditors && <div id="tree-section-open-editors">{tabs.map((tab) => <div key={tab.id} className={`open-editor${tab.id === activeTabId ? " active" : ""}${tab.preview ? " preview" : ""}`}>
-      <Link href={tab.href} prefetch={false} onNavigate={() => switchTab(tab.id)} onDoubleClick={() => pinTab(tab.id)} aria-current={tab.id === activeTabId ? "page" : undefined}><TabIcon tab={tab} /><span>{tab.label}</span></Link>
-      {tab.closeable && <button type="button" title={`Close ${tab.label}`} aria-label={`Close ${tab.label}`} onClick={() => closeTab(tab.id)}><WorkbenchIcon name="close" size={14} /></button>}
-    </div>)}</div>}
-    <div className="workspace-label"><FileIcon name="pieroot.log" folder expanded />pieroot.log</div>
-    <SectionHeader label="posts" sectionKey="posts" isExpanded={expanded.posts} onToggle={() => toggleSection("posts")} />
-    {expanded.posts && <div id="tree-section-posts">{[...recentPosts, ...openPosts].map(renderPost)}</div>}
-    <SectionHeader label="categories" sectionKey="categories" isExpanded={expanded.categories} onToggle={() => toggleSection("categories")} />
-    {expanded.categories && <div id="tree-section-categories">{categoryEntries.map(([name, count]) => <Link key={name} href={`/categories/${encodeURIComponent(name)}`} className="file-item"><FileIcon name={name} folder /><span className="file-name">{name}</span><span className="count">{count}</span></Link>)}</div>}
+    <header className="view-heading"><span className="workspace-name">pieroot.log</span><span className="view-title">Explorer</span></header>
+    <section aria-label="Open editors" className="explorer-pane">
+      <SectionHeader label="Open editors" sectionKey="open-editors" isExpanded={expanded.openEditors} onToggle={() => toggleSection("openEditors")} />
+      {expanded.openEditors && <ul ref={openEditorsRef} id="tree-section-open-editors" className="open-editor-list">{tabs.map((tab) => {
+        const parts = tab.label.split("/")
+        const name = parts.pop() || tab.label
+        const directory = parts.join("/") || (tab.kind === "post" ? "posts" : "")
+        return <li key={tab.id} className={`open-editor${tab.id === activeTabId ? " active" : ""}${tab.preview ? " preview" : ""}`}>
+          {tab.closeable ? <button type="button" title={`Close ${tab.label}`} aria-label={`Close ${tab.label}`} onClick={() => closeTab(tab.id)}><WorkbenchIcon name="close" size={14} /></button> : <span className="editor-action-spacer" aria-hidden="true" />}
+          <Link href={tab.href} prefetch={false} title={directory ? `${directory}/${name}` : tab.label} onNavigate={() => switchTab(tab.id)} onDoubleClick={() => pinTab(tab.id)} aria-current={tab.id === activeTabId ? "page" : undefined}><TabIcon tab={tab} /><span className="editor-name">{name}</span>{directory && <span className="editor-directory">{directory}</span>}</Link>
+        </li>
+      })}</ul>}
+    </section>
+    <section aria-label="Workspace files" className="explorer-pane">
+      <SectionHeader label="Files" sectionKey="workspace" isExpanded={expanded.workspace} onToggle={() => toggleSection("workspace")} />
+      {expanded.workspace && <div id="tree-section-workspace" className="workspace-files">
+    <SectionHeader label="posts" sectionKey="posts" folder isExpanded={expanded.posts} onToggle={() => toggleSection("posts")} />
+    {expanded.posts && <div id="tree-section-posts" className="folder-contents">{[...recentPosts, ...openPosts].map(renderPost)}</div>}
+    <SectionHeader label="categories" sectionKey="categories" folder isExpanded={expanded.categories} onToggle={() => toggleSection("categories")} />
+    {expanded.categories && <div id="tree-section-categories" className="folder-contents">{categoryEntries.map(([name, count]) => <Link key={name} href={`/categories/${encodeURIComponent(name)}`} className="file-item"><FileIcon name={name} folder /><span className="file-name">{name}</span><span className="count">{count}</span></Link>)}</div>}
     {Object.keys(series).length > 0 && <>
-      <SectionHeader label="series" sectionKey="series" isExpanded={expanded.series} onToggle={() => toggleSection("series")} />
-      {expanded.series && <div id="tree-section-series">{Object.entries(series).map(([name, count]) => {
+      <SectionHeader label="series" sectionKey="series" folder isExpanded={expanded.series} onToggle={() => toggleSection("series")} />
+      {expanded.series && <div id="tree-section-series" className="folder-contents">{Object.entries(series).map(([name, count]) => {
         const key = `series:${name}`
         const members = posts.filter((post) => post.series?.includes(name)).sort((a, b) => a.date.start_date.localeCompare(b.date.start_date))
         return <div key={name} className="series-folder">
@@ -195,11 +214,13 @@ const FileTree = () => {
         </div>
       })}</div>}
     </>}
-    {CONFIG.projects.length > 0 && <><SectionHeader label="projects" sectionKey="projects" isExpanded={expanded.projects} onToggle={() => toggleSection("projects")} />{expanded.projects && <div id="tree-section-projects">{CONFIG.projects.map((project) => <a key={project.name} href={project.href} target="_blank" rel="noopener noreferrer" className="file-item"><WorkbenchIcon name="external" /><span className="file-name">{project.name}</span></a>)}</div>}</>}
-    <SectionHeader label="public" sectionKey="public" isExpanded={expanded.public} onToggle={() => toggleSection("public")} />
-    {expanded.public && <div id="tree-section-public">{["sitemap.xml", "rss.xml"].map((name) => <a key={name} href={`/${name}`} target="_blank" rel="noopener noreferrer" className="file-item"><FileIcon name={name} /><span className="file-name">{name}</span></a>)}</div>}
+    {CONFIG.projects.length > 0 && <><SectionHeader label="projects" sectionKey="projects" folder isExpanded={expanded.projects} onToggle={() => toggleSection("projects")} />{expanded.projects && <div id="tree-section-projects" className="folder-contents">{CONFIG.projects.map((project) => <a key={project.name} href={project.href} target="_blank" rel="noopener noreferrer" className="file-item"><WorkbenchIcon name="external" /><span className="file-name">{project.name}</span></a>)}</div>}</>}
+    <SectionHeader label="public" sectionKey="public" folder isExpanded={expanded.public} onToggle={() => toggleSection("public")} />
+    {expanded.public && <div id="tree-section-public" className="folder-contents">{["sitemap.xml", "rss.xml"].map((name) => <a key={name} href={`/${name}`} target="_blank" rel="noopener noreferrer" className="file-item"><FileIcon name={name} /><span className="file-name">{name}</span></a>)}</div>}
     <Link href="/" className="file-item"><WorkbenchIcon name="book" /><span className="file-name">Welcome</span></Link>
     {CONFIG.aboutSlug && <Link href={`/${CONFIG.aboutSlug}`} prefetch={false} className="file-item"><FileIcon name="about.md" /><span className="file-name">about.md</span></Link>}
+      </div>}
+    </section>
   </StyledWrapper>
 }
 export default FileTree
@@ -208,24 +229,35 @@ const StyledWrapper = styled.nav`
   font-family: var(--font-ui, sans-serif);
   font-size: 12px;
   color: ${({ theme }) => theme.colors.editor.fg2};
-  padding: 10px 0;
-  .view-heading { padding: 0 16px 14px; text-transform: uppercase; font-size: 11px; letter-spacing: .6px; }
-  .workspace-label { display: flex; align-items: center; gap: 6px; padding: 12px 12px 4px; font-weight: 600; }
+  padding: 0 0 10px;
+  .view-heading { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 42px; padding: 8px 14px; background: ${({ theme }) => theme.colors.editor.bg2}; border-bottom: 1px solid ${({ theme }) => theme.colors.editor.line}; }
+  .workspace-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 600; color: ${({ theme }) => theme.colors.editor.fg}; }
+  .view-title { flex-shrink: 0; text-transform: uppercase; font-size: 10px; letter-spacing: .6px; color: ${({ theme }) => theme.colors.editor.fg3}; }
+  .explorer-pane { border-bottom: 1px solid ${({ theme }) => theme.colors.editor.line}; }
+  .explorer-pane > .section-header { text-transform: uppercase; font-size: 11px; letter-spacing: .3px; }
+  .workspace-files > .section-header { padding-left: 12px; }
+  .folder-contents > .file-item { padding-left: 48px; }
   button { font: inherit; cursor: pointer; border: 0; background: transparent; color: inherit; }
   button:focus-visible, a:focus-visible { outline: 1px solid ${({ theme }) => theme.colors.editor.accent}; outline-offset: -2px; }
   .section-header { display: flex; align-items: center; gap: 4px; width: 100%; min-height: 28px; padding: 3px 8px; font-weight: 600; text-align: left; }
-  .file-item, .series-toggle { display: flex; align-items: center; gap: 6px; width: 100%; padding: 5px 12px 5px 26px; min-height: 28px; color: inherit; text-decoration: none; white-space: nowrap; overflow: hidden; text-align: left; }
+  .file-item, .series-toggle { display: flex; align-items: center; gap: 6px; width: 100%; padding: 5px 12px 5px 32px; min-height: 28px; color: inherit; text-decoration: none; white-space: nowrap; overflow: hidden; text-align: left; }
   .file-name { overflow: hidden; text-overflow: ellipsis; flex: 1; min-width: 0; }
   svg, img { flex-shrink: 0; }
   .file-item:hover, button:hover, .active { background: ${({ theme }) => theme.colors.editor.bg3}; color: ${({ theme }) => theme.colors.editor.fg}; }
   .active { box-shadow: inset 2px 0 ${({ theme }) => theme.colors.editor.accent}; }
   .count { margin-left: auto; color: ${({ theme }) => theme.colors.editor.fg3}; }
-  .series-members { border-left: 1px solid ${({ theme }) => theme.colors.editor.line}; margin-left: 26px; }
+  .series-members { border-left: 1px solid ${({ theme }) => theme.colors.editor.line}; margin-left: 48px; }
   .series-members .file-item { padding-left: 15px; }
-  .series-toggle { padding-left: 16px; }
-  .open-editor { display: flex; align-items: center; padding-right: 6px; }
-  .open-editor a { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; padding: 5px 8px 5px 20px; color: inherit; text-decoration: none; }
-  .open-editor a span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .open-editor button { display: grid; place-items: center; width: 26px; height: 26px; }
-  .preview a { font-style: italic; }
+  .series-toggle { padding-left: 32px; }
+  .open-editor-list { list-style: none; padding: 0; margin: 0; max-height: min(252px, 32dvh); overflow-y: auto; overscroll-behavior-y: contain; }
+  .open-editor { display: flex; align-items: center; padding: 0 8px; min-height: 28px; }
+  .open-editor:hover { background: ${({ theme }) => theme.colors.editor.bg3}; }
+  .open-editor a { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; padding: 5px 4px; color: inherit; text-decoration: none; }
+  .editor-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+  .editor-directory { flex: 0 0 auto; min-width: 0; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; color: ${({ theme }) => theme.colors.editor.fg3}; }
+  .open-editor button, .editor-action-spacer { flex-shrink: 0; width: 20px; height: 24px; }
+  .open-editor button { display: grid; place-items: center; opacity: 0; pointer-events: none; }
+  .open-editor:hover button, .open-editor:focus-within button, .open-editor.active button { opacity: 1; pointer-events: auto; }
+  .preview .editor-name { font-style: italic; }
+  @media (max-width: 960px), (hover: none), (pointer: coarse) { .open-editor button { opacity: 1; pointer-events: auto; } }
 `

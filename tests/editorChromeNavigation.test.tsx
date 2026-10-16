@@ -276,4 +276,41 @@ describe("editor chrome navigation", () => {
     closeTab("hidden-note.md")
     expect(postEntries()).toEqual(recentEntries)
   })
+
+  it("keeps editor navigation available when files are collapsed without losing folder state", () => {
+    navigate("/p01", "p01.md")
+    navigate("/p02", "p02.md")
+    const editors = container.querySelector<HTMLButtonElement>('[aria-controls="tree-section-open-editors"]')!
+    const files = container.querySelector<HTMLButtonElement>('[aria-controls="tree-section-workspace"]')!
+    act(() => editors.click())
+    act(() => files.click())
+    expect(container.querySelector("#tree-section-workspace")).toBeNull()
+    expect(container.querySelector('#tree-section-open-editors a[href="/p02"]')?.getAttribute("aria-current")).toBe("page")
+    expect(container.querySelector(".tab.active")?.getAttribute("data-tab-id")).toBe("/p02")
+    expect(mockRouter.push).not.toHaveBeenCalled()
+    act(() => files.click())
+    expect(postEntries()).toEqual(recentEntries)
+    expect(currentPostEntries()).toEqual(["/p02"])
+    expect(editors.getAttribute("aria-expanded")).toBe("true")
+    act(() => editors.click())
+    expect(container.querySelector("#tree-section-open-editors")).toBeNull()
+    expect(currentPostEntries()).toEqual(["/p02"])
+  })
+
+  it("closes inactive and active documents from Open editors without activating the closed row", () => {
+    navigate("/p01", "p01.md")
+    navigate("/p02", "p02.md")
+    const editors = container.querySelector<HTMLButtonElement>('[aria-controls="tree-section-open-editors"]')!
+    act(() => editors.click())
+    const inactive = container.querySelector<HTMLButtonElement>('#tree-section-open-editors button[aria-label="Close p01.md"]')!
+    act(() => inactive.click())
+    expect(container.querySelector('#tree-section-open-editors a[href="/p01"]')).toBeNull()
+    expect(container.querySelector(".tab.active")?.getAttribute("data-tab-id")).toBe("/p02")
+    expect(mockRouter.push).not.toHaveBeenCalled()
+    const active = container.querySelector<HTMLButtonElement>('#tree-section-open-editors button[aria-label="Close p02.md"]')!
+    act(() => active.click())
+    expect(container.querySelector('#tree-section-open-editors a[href="/p02"]')).toBeNull()
+    expect(container.querySelector(".tab.active")?.getAttribute("data-tab-id")).toBe("readme")
+    expect(mockRouter.push.mock.calls).toEqual([["/"]])
+  })
 })

@@ -11,7 +11,7 @@ monolog의 주요 기능 상세. 프로젝트 개요와 핵심 차별점은 [`..
 |---|---|
 | **TitleBar** | 실제 뒤로/앞으로 이동, Command Center, 사이드바·패널·설정 버튼. 가짜 창 닫기·최소화·Git 브랜치 표시 제거 |
 | **ActivityBar** | Explorer / Search / Knowledge 사이드바를 현재 문서 이동 없이 전환. 명령·Reading mode·설정 접근 |
-| **FileTree** | Open Editors, 최근/열린 글, 카테고리, 시리즈 안의 실제 글, 프로젝트, public 파일. 180–420px 크기 조절; 한 번 클릭은 미리보기, 두 번 클릭은 고정. Material Icon Theme 파일·폴더 SVG |
+| **FileTree** | 최상단 작업 공간 이름, 서로 독립적으로 접는 Open Editors·Files, 최근/열린 글·카테고리·시리즈·프로젝트·public 파일 계층. Open Editors는 기본 접힘이며 긴 목록은 내부 스크롤·현재 편집기 자동 노출. 왼쪽 닫기 버튼·경로·미리보기 이탤릭 표시. 180–420px 크기 조절; 한 번 클릭은 미리보기, 두 번 클릭은 고정. Material Icon Theme 파일·폴더 SVG |
 | **TabBar** | Welcome, 문서, Search/Graph/Ontology 사용자 정의 편집기. 교체 가능한 이탤릭 미리보기 탭과 **Keep open**, 드래그 정렬·좌우 이동·닫기·다시 열기 |
 | **StatusBar** | 문서 종류·보기 모드·읽기 위치·탭 저장 상태만 표시. 가짜 SSH·IP·브랜치·동기화 상태 없음 |
 | **Quick Pick** | `⌘/Ctrl+K`: 파일·태그·카테고리, `⌘/Ctrl+Shift+P` 또는 `>`: 명령, `@`: 실제 문서 제목. 화살표·Enter·Escape와 포커스 복원 |

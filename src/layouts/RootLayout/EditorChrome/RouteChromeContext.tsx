@@ -69,7 +69,8 @@ export type RouteChromeContextValue = {
 }
 
 const defaultExpanded: Record<string, boolean> = {
-  openEditors: true,
+  openEditors: false,
+  workspace: true,
   posts: true,
   categories: false,
   series: false,
