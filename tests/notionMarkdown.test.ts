@@ -2,6 +2,8 @@ import type { ExtendedRecordMap, Block } from "notion-types"
 import type { TPost, TNotionDatabase } from "src/types"
 import { renderPostMarkdown, renderPostMarkdownDocument } from "src/libs/utils/notion/markdown"
 import { normalizeNotionId } from "src/libs/utils/notion/rewriteInternalLinks"
+import { createTranslationPlan } from "src/routes/Detail/PostDetail/articleTranslation"
+import { renderTranslatedMarkdownDocument } from "src/routes/Detail/PostDetail/translatedMarkdown"
 
 describe("normalizeNotionId", () => {
   it("normalizes UUID dashes and converts to lowercase", () => {
@@ -905,5 +907,74 @@ describe("renderPostMarkdown", () => {
     const empty = renderPostMarkdownDocument(post, emptyMap, new Map(), options)
     expect(empty.markdown).toBe(renderPostMarkdown(post, emptyMap, new Map(), options))
     expect(empty.blocks).toEqual([{ blockId: "title", startLine: 20, endLine: 20 }])
+  })
+  it("renders the same translated snapshot as Preview while preserving protected content and database rows", () => {
+    const recordMap = makeRecordMap({
+      "root-post-id": { type: "page", content: ["heading-id", "prose", "code", "equation", "table", "database"] },
+      "heading-id": { type: "header", properties: { title: [["Overview"]] } },
+      prose: { properties: { title: [
+        ["Read this ", [["a", "/linked-page"]]],
+        ["literal_*", [["c"]]],
+        [" formula ", [["e", "x_1 + y"]]],
+        [" https://example.com/a_(b)"],
+        ["Linked Page", [["p", "linked-page-id"]]],
+      ] } },
+      code: { type: "code", properties: { title: [["const url = 'https://example.com/a_(b)'\nconsole.log(`a|b`)"]], language: [["javascript"]] } },
+      equation: { type: "equation", properties: { title: [["\\frac{x_1}{y}"]] } },
+      table: { type: "table", format: { table_block_column_order: ["name", "code"], table_block_column_header: true }, content: ["table-header", "table-row"] },
+      "table-header": { type: "table_row", properties: { name: [["Name"]], code: [["Value"]] } },
+      "table-row": { type: "table_row", properties: { name: [["A cell"]], code: [["a\\|b", [["c"]]]] } },
+      database: { type: "collection_view_page", properties: { title: [["Data"]] } },
+    })
+    const databases = new Map<string, TNotionDatabase>([["database", {
+      id: "database", title: "Data", view: "table",
+      properties: [{ id: "name", name: "Name", type: "title" }],
+      rows: [{ id: "database-row", url: "", lastEdited: "", values: { Name: "Untranslated database value" } }],
+    }]])
+    const options = { siteUrl: "https://example.com", allPosts }
+    const original = renderPostMarkdownDocument(basePost, recordMap, databases, options)
+    const plan = createTranslationPlan({ title: basePost.title, summary: basePost.summary!, recordMap }, "en")
+    const vocabulary = new Map([
+      [basePost.title, 'Título: "traducido"'], [basePost.summary!, "Resumen\nsegunda línea"],
+      ["Overview", "Descripción"], ["Read this", "Lee esto"], ["Name", "Nombre"],
+      ["Value", "Valor"], ["A cell", "Una celda | otra"],
+    ])
+    const article = plan.apply(new Map(plan.texts.map((text, index) => [index, vocabulary.get(text) ?? text])))
+    const document = renderTranslatedMarkdownDocument({ post: basePost, article, databases, ...options })!
+    const lines = document.markdown.split("\n")
+    const blockText = (id: string) => {
+      const span = document.blocks.find(block => block.blockId === id)!
+      return lines.slice(span.startLine - 1, span.endLine).join("\n")
+    }
+
+    expect(document.markdown).toContain(`title: ${JSON.stringify(article.title)}`)
+    expect(document.markdown).toContain(`description: ${JSON.stringify(article.summary)}`)
+    expect(blockText("title")).toBe(`# ${article.title}`)
+    expect(blockText("summary")).toBe(article.summary)
+    expect(blockText("headingid")).toBe("## Descripción")
+    expect(blockText("prose")).toContain("[Lee esto ](https://example.com/linked-page)")
+    expect(blockText("prose")).toContain("`literal_*`")
+    expect(blockText("prose")).toContain("$x_1 + y$")
+    expect(blockText("prose")).toContain("https://example.com/a\\_(b)")
+    expect(blockText("prose")).toContain("[Linked Page](https://example.com/linked-page)")
+    expect(blockText("tableheader")).toBe("| Nombre | Valor |")
+    expect(blockText("tablerow")).toContain("| Una celda \\| otra |")
+    for (const id of ["code", "equation", "databaserow"]) {
+      const span = original.blocks.find(block => block.blockId === id)!
+      expect(blockText(id)).toBe(original.markdown.split("\n").slice(span.startLine - 1, span.endLine).join("\n"))
+    }
+    expect(blockText("tablerow")).toContain("<code>a&#92;&#124;b</code>")
+    expect(document.blocks.map(block => block.blockId)).toEqual(original.blocks.map(block => block.blockId))
+    expect(document.markdown).toContain('canonical_url: "https://example.com/test-post"')
+    expect(document.markdown).toContain('markdown_url: "https://example.com/test-post.md"')
+    expect(renderPostMarkdownDocument(basePost, recordMap, databases, options)).toEqual(original)
+    expect(renderPostMarkdown(basePost, recordMap, databases, options)).toBe(original.markdown)
+  })
+
+  it("returns no display projection until its actual article root is available", () => {
+    const article = { title: "Translated title", summary: "Translated summary", recordMap: null }
+    expect(renderTranslatedMarkdownDocument({ post: basePost, article, allPosts })).toBeNull()
+    expect(renderTranslatedMarkdownDocument({ post: undefined, article, allPosts })).toBeNull()
+    expect(renderTranslatedMarkdownDocument({ post: basePost, article: { ...article, recordMap: makeRecordMap({}) }, allPosts })).toBeNull()
   })
 })

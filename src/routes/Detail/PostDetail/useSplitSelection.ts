@@ -143,12 +143,12 @@ export default function useSplitSelection(panes: RefObject<HTMLDivElement | null
       const focusRange = exact?.cloneRange()
       focusRange?.collapse(backwards)
       const focusTarget = backwards ? targets[0] : targets[targets.length - 1]
-      if (key !== previousMatch && window.matchMedia("(min-width: 961px)").matches) {
+      if (key !== previousMatch && target.getBoundingClientRect().height > 0) {
         // Code blocks scroll independently inside either pane. Reveal the text
         // there first, then position the containing pane using its new bounds.
         const focusNode = backwards ? exact?.startContainer : exact?.endContainer
         const focusElement = focusNode?.nodeType === Node.ELEMENT_NODE ? focusNode as Element : focusNode?.parentElement
-        const codeScroller = focusElement?.closest("pre")
+        const codeScroller = fromSource ? focusElement?.closest("pre") : source
         if (codeScroller && focusRange) {
           const bounds = codeScroller.getBoundingClientRect()
           const position = focusRange.getBoundingClientRect()

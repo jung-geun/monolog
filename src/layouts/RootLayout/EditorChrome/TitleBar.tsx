@@ -76,5 +76,5 @@ const StyledWrapper = styled.header`
   button:disabled { opacity: .35; cursor: default; }
   .command-center { flex: 1; max-width: 640px; margin: 0 auto; padding: 0 12px; min-width: 0; min-height: 26px; border: 1px solid ${({ theme }) => theme.colors.editor.line}; background: ${({ theme }) => theme.colors.editor.bg3}; }
   .current-file { margin-left: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; opacity: .65; }
-  @media (max-width: 960px) { position: sticky; top: 0; z-index: 60; .workspace-name, .current-file, .layout-controls button:nth-child(2), .layout-controls button:nth-child(3) { display: none; } gap: 4px; padding: 0 5px; }
+  @media (max-width: 960px) { position: relative; z-index: 60; .workspace-name, .current-file, .layout-controls button:nth-child(2), .layout-controls button:nth-child(3) { display: none; } gap: 4px; padding: 0 5px; }
 `

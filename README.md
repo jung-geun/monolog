@@ -24,7 +24,7 @@ Command Center · Activity Bar · 크기 조절 사이드바 · Open Editors · 
 ### Quick Pick · Preview 탭 · Markdown 편집기 뷰
 `⌘/Ctrl+K`는 파일 검색, `⌘/Ctrl+Shift+P`는 명령 검색을 엽니다. `>`는 명령, `@`는 현재 문서의 실제 제목을 찾습니다. Explorer 한 번 클릭은 교체 가능한 미리보기 탭, 두 번 클릭이나 **Keep open**은 고정 탭입니다. 일반 링크 이동은 고정 탭으로 열립니다.
 
-문서는 **Preview · Source · Split**으로 읽습니다. Source는 실제 `.md` 응답을 필요할 때 가져오며, Split은 일치하는 제목 기준으로 스크롤을 맞춥니다. Reading mode는 탐색 패널을 숨깁니다. 검색은 제목·요약·태그·카테고리를 대상으로 하며 `/search?q=...` 주소로 공유할 수 있습니다.
+문서는 **Preview · Source · Split**으로 읽습니다. 고정 작업 공간 안에서 본문·Source·Outline·패널이 독립적으로 스크롤하며, 실제 편집기 폭이 좁으면 Outline을 본문 위에 두고 Split pane을 전환합니다. Split의 제목·드래그 선택 연결과 Reading mode를 제공합니다. 우측 하단 지구본에서 사용자가 요청해야 브라우저 내장 번역이 시작되며 본문·Source·Outline을 함께 갱신합니다. 비한국어 환경의 말풍선은 제안만 하고 자동 번역하지 않습니다. 원본 Markdown 복사·다운로드·공개 `.md`는 유지합니다. 검색은 제목·요약·태그·카테고리를 대상으로 하며 `/search?q=...` 주소로 공유할 수 있습니다.
 
 `Alt/Option+W`로 글 탭을 닫고 `Alt/Option+Shift+T`로 다시 엽니다. 브라우저 고유 닫기 단축키는 가로채지 않습니다. Welcome을 포함한 탭은 드래그나 좌우 버튼으로 정렬하고, 동의한 경우에만 고정 탭·최근 닫은 글을 브라우저에 저장합니다. 미리보기 탭은 저장하지 않습니다.
 
