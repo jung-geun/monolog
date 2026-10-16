@@ -40,5 +40,5 @@ const StyledWrapper = styled.nav`
   button[aria-pressed="true"] { border-left-color: ${({ theme }) => theme.colors.editor.accent}; }
   button:focus-visible { outline: 1px solid ${({ theme }) => theme.colors.editor.accent}; outline-offset: -3px; }
   .spacer { flex: 1; }
-  @media (max-width: 960px) { width: 100%; flex-direction: row; position: sticky; top: ${({ theme }) => theme.variables.titleBarHeight}px; z-index: 55; border-right: 0; border-bottom: 1px solid ${({ theme }) => theme.colors.editor.line}; button { width: 44px; height: 40px; border-left: 0; border-bottom: 2px solid transparent; } button[aria-pressed="true"] { border-bottom-color: ${({ theme }) => theme.colors.editor.accent}; } }
+  @media (max-width: 960px) { width: 100%; flex-direction: row; position: relative; z-index: 55; border-right: 0; border-bottom: 1px solid ${({ theme }) => theme.colors.editor.line}; button { width: 44px; height: 40px; border-left: 0; border-bottom: 2px solid transparent; } button[aria-pressed="true"] { border-bottom-color: ${({ theme }) => theme.colors.editor.accent}; } }
 `

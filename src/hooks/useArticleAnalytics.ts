@@ -1,6 +1,7 @@
 import { useEffect } from "react"
 import type { TPost } from "src/types"
 import { trackAnalyticsEvent } from "src/libs/analytics/ga"
+import { getReadingScrollRoot, observeReadingScroll } from "src/routes/Detail/PostDetail/scrollRoot"
 
 export const ARTICLE_READ_MIN_ACTIVE_MS = 30_000
 export const ARTICLE_READ_MIN_SCROLL_PERCENT = 75
@@ -10,9 +11,12 @@ export const isArticleRead = (activeMs: number, maxScrollPercent: number): boole
   activeMs >= ARTICLE_READ_MIN_ACTIVE_MS && maxScrollPercent >= ARTICLE_READ_MIN_SCROLL_PERCENT
 
 const scrollPercent = (): number => {
-  const scrollableHeight = document.documentElement.scrollHeight - window.innerHeight
+  const root = getReadingScrollRoot()
+  if (root instanceof HTMLElement && root.classList.contains("document-source") && !root.querySelector(".source-line")) return 0
+  const scrollableHeight = root instanceof HTMLElement ? root.scrollHeight - root.clientHeight : document.documentElement.scrollHeight - window.innerHeight
+  const position = root instanceof HTMLElement ? root.scrollTop : window.scrollY
   if (scrollableHeight <= 0) return 100
-  return Math.min(100, Math.max(0, Math.round((window.scrollY / scrollableHeight) * 100)))
+  return Math.min(100, Math.max(0, Math.round((position / scrollableHeight) * 100)))
 }
 
 export default function useArticleAnalytics(post?: Pick<TPost, "slug">): void {
@@ -57,7 +61,7 @@ export default function useArticleAnalytics(post?: Pick<TPost, "slug">): void {
 
     const flushEngagement = () => {
       addActiveTime()
-      trackProgress()
+      trackRead()
       const engagementDeltaMs = activeMs - lastEngagementMs
       if (engagementDeltaMs < 1_000) return
       lastEngagementMs = activeMs
@@ -84,14 +88,14 @@ export default function useArticleAnalytics(post?: Pick<TPost, "slug">): void {
 
     trackAnalyticsEvent("article_view", { article_slug: post.slug })
     trackProgress()
-    window.addEventListener("scroll", trackProgress, { passive: true })
+    const stopObserving = observeReadingScroll(trackProgress)
     window.addEventListener("pagehide", flushEngagement)
     document.addEventListener("visibilitychange", onVisibilityChange)
     const interval = window.setInterval(onInterval, 5_000)
 
     return () => {
       window.clearInterval(interval)
-      window.removeEventListener("scroll", trackProgress)
+      stopObserving()
       window.removeEventListener("pagehide", flushEngagement)
       document.removeEventListener("visibilitychange", onVisibilityChange)
       flushEngagement()

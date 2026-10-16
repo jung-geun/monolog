@@ -41,7 +41,9 @@ export const WorkbenchProvider = ({ children }: { children: ReactNode }) => {
   const [documentContext, setDocumentContext] = useState<DocumentContext | null>(null)
 
   const scrollToHeading = useCallback((id: string) => {
-    setDocumentMode((mode) => mode === "source" || (mode === "split" && window.matchMedia("(max-width: 960px)").matches) ? "preview" : mode)
+    const preview = document.querySelector<HTMLElement>(".document-preview")
+    // Compact split layouts also hide preview when a wide primary sidebar is open.
+    if (!preview?.getClientRects().length) setDocumentMode("preview")
     // A source-only document must render its preview before the target exists.
     requestAnimationFrame(() => requestAnimationFrame(() => {
       const target = document.getElementById(id)

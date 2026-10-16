@@ -54,6 +54,7 @@ export const getStaticProps: GetStaticProps = async (context) => {
   await prefetchFeedPosts(queryClient, posts)
 
   const details = publicDetails(posts)
+  queryClient.setQueryData(queryKey.publicPageLinks(), details.map(({ id, slug }) => ({ id, slug })))
   const postDetail = details.find((post) => post.slug === slug)
   if (!postDetail) {
     const targetSlug = await getSlugRedirect(slug)

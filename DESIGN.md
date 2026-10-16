@@ -54,9 +54,9 @@ The theme catalog in `src/styles/colors.ts` is the source of truth for exact col
 | Bottom panel | References and Comments; no fake Problems, Output, or terminal console |
 | Status bar | Document kind, view/reading position, actual local-tab-storage state; no fake branch, SSH, IP, or sync claims |
 
-Desktop (>960px) fixes the shell to the viewport. `.page-content` is the primary document scroller; split mode uses independent preview/source roots. `getReadingScrollRoot()` coordinates progress, outline, Top, and history restoration. Chrome and sidebars must not scroll with the article. Return navigation restores the stored document position; anchor navigation targets the real Notion block ID.
+The shell is viewport-bounded at every size. Document routes allocate remaining space through the route wrapper into PostWorkspace; Preview, Source, Outline and the bottom panel each own scrolling. Generic routes retain `.page-content` scrolling. `getReadingScrollRoot()` follows the visible pane across mode switches, resizing and asynchronous content for progress, outline, Top and history restoration. No fixed viewport subtraction may size a Split pane; chrome height includes consent controls and wrapping toolbars.
 
-Mobile (≤960px) uses natural window scrolling and a primary drawer closed on initial load. Do not force a desktop-sized canvas or nested article scroll box onto a phone. Split mode uses Preview/Source pane buttons. Heading Quick Pick switches to visible Preview before jumping when source would hide the target. Outline/Series and the bottom panel become natural document sections. Lists use `minmax(0, 1fr)` and shrinkable text to avoid long-title overflow.
+At ≤960px the primary sidebar is a closed-by-default drawer; its state is independent of the desktop preference. Document layout uses the actual editor container width: below1100px, Split shows one pane with Preview/Source buttons and Outline occupies a bounded row above the article. At wider editor widths, Outline is a224px right rail beside the document. Heading navigation reveals Preview if the anchor is hidden. Panels take allocated space rather than overlaying article text. Lists use `minmax(0, 1fr)` and shrinkable text to prevent long-title overflow.
 
 ## Tabs and storage
 
@@ -71,11 +71,13 @@ Mobile (≤960px) uses natural window scrolling and a primary drawer closed on i
 The first response contains the actual SSR article. Do not make preview rendering depend on client editor loading.
 
 - Compact breadcrumbs precede the title. Frontmatter is collapsed by default; the title and summary precede a reduced cover.
-- Preview uses the existing Notion renderer and code-copy behavior. Source lazily fetches the actual `/{slug}.md` export, highlights it read-only, and displays actual line numbers.
+- Preview uses the existing Notion renderer and code-copy behavior. Source normally lazily fetches the canonical Markdown export and its source map. While translated, Source projects the exact Preview snapshot through the same client-safe serializer; Outline and heading Quick Pick derive from that snapshot too. Copy/download/public `.md` always remain canonical original content.
 - Source requests cancel on unmount/route changes. Errors remain visible with Retry and the original export link; never substitute a fabricated source.
-- Split synchronization aligns matching heading text only. Exported Markdown is explicitly not an exact Notion block-to-line map.
+- Split heading synchronization uses stable Notion heading IDs. Drag selection connects exported block/row line spans and highlights exact matching text when possible; it does not continuously lock the two panes by arbitrary source line.
 - Reading mode hides primary/secondary sidebars and the panel without changing the route.
 - References distinguish direct links/mentions, same-category articles, and AI-inferred similarity. Missing data is not an invented relationship.
+- Translation lives in a bottom-right globe popover, outside document flow. A supported non-Korean browser locale may prompt once per visit without creating a model. Only an explicit Translate article click may request browser model download/translation. Never assume a specific model family or silently call a cloud fallback.
+- Recomposition motion changes presentation only for changed visible text, never React-owned text nodes or block IDs. It is skipped during selection and reduced motion; preference changes cancel in-flight effects.
 - Comments mount lazily and remain mounted after first opening while panel tabs are switched. Changing the document resets the panel content.
 - About uses the same document workspace and retains its activity, contribution, technology, and contact widgets in collapsible sections.
 

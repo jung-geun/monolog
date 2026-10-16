@@ -80,6 +80,16 @@ it("maps a preview selection across syntax tokens to the matching source code bl
   expect(host.querySelector<HTMLElement>(".document-preview")!.scrollTop).toBe(0)
 })
 
+it("keeps selection mapping without scrolling a pane hidden by the editor container", () => {
+  const preview = host.querySelector<HTMLElement>(".document-preview")!
+  preview.getBoundingClientRect = () => box(0, 0)
+  const row = host.querySelector(`[data-source-block='${second}'] .source-text`)!.firstChild!
+  drag(row, 0, row, row.textContent!.length)
+  expect(preview.querySelector(`.notion-block-${second}`)?.classList.contains("split-selection-match")).toBe(true)
+  expect(preview.scrollTop).toBe(0)
+  expect(document.getSelection()?.toString()).toBe("Repeated paragraph")
+})
+
 it("mirrors all selected blocks and removes highlights when the native selection collapses", () => {
   const a = host.querySelector(`.notion-block-${first}`)!.firstChild!
   const b = host.querySelector(`.notion-block-${second}`)!.firstChild!

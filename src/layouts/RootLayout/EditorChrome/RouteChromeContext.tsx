@@ -108,7 +108,13 @@ export const useRouteChrome = () => useContext(RouteChromeContext)
 export const RouteChromeProvider = ({ children }: { children: ReactNode }) => {
   const router = useRouter()
   const [chrome, setChrome] = useState<ChromeConfig>(defaultChrome)
-  const [isFileTreeOpen, setFileTreeOpen] = useState(true)
+  const [sidebarOpen, setSidebarOpen] = useState({ desktop: true, mobile: false })
+  const [mobileViewport, setMobileViewport] = useState(false)
+  const isFileTreeOpen = sidebarOpen[mobileViewport ? "mobile" : "desktop"]
+  const setFileTreeOpen = useCallback((open: boolean) => {
+    const viewport = window.matchMedia("(max-width: 960px)").matches ? "mobile" : "desktop"
+    setSidebarOpen(previous => ({ ...previous, [viewport]: open }))
+  }, [])
   const [expanded, setExpanded] = useState<Record<string, boolean>>(defaultExpanded)
   const [session, setSession] = useState<TabSession>({ tabs: [README_TAB], activeTabId: "readme", closedPosts: [] })
   const [tabStorageConsent, setTabStorageConsent] = useState<TabStorageConsent>("loading")
@@ -223,10 +229,17 @@ export const RouteChromeProvider = ({ children }: { children: ReactNode }) => {
   }, [])
 
   useEffect(() => {
-    if (window.matchMedia("(max-width: 960px)").matches) setFileTreeOpen(false)
+    const media = window.matchMedia("(max-width: 960px)")
+    const resize = () => setMobileViewport(media.matches)
+    resize()
+    media.addEventListener("change", resize)
+    return () => media.removeEventListener("change", resize)
   }, [])
 
-  const toggleFileTree = useCallback(() => setFileTreeOpen((value) => !value), [])
+  const toggleFileTree = useCallback(() => {
+    const viewport = window.matchMedia("(max-width: 960px)").matches ? "mobile" : "desktop"
+    setSidebarOpen(previous => ({ ...previous, [viewport]: !previous[viewport] }))
+  }, [])
   const toggleSection = useCallback((key: string) => {
     setExpanded((prev) => ({ ...prev, [key]: !prev[key] }))
   }, [])
@@ -331,7 +344,7 @@ export const RouteChromeProvider = ({ children }: { children: ReactNode }) => {
     }
     router.events.on("routeChangeStart", handleRouteChange)
     return () => router.events.off("routeChangeStart", handleRouteChange)
-  }, [router, pinTab])
+  }, [router, pinTab, setFileTreeOpen])
 
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {

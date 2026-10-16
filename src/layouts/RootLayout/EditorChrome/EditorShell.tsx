@@ -20,7 +20,7 @@ export const EDITOR_SCROLL_ROOT = ".page-content"
 
 const EditorShellInner = ({ children }: { children: ReactNode }) => {
   const { chrome, isFileTreeOpen, setFileTreeOpen } = useRouteChrome()
-  const { sidebarView, readingMode, settingsOpen, setSettingsOpen } = useWorkbench()
+  const { sidebarView, readingMode, settingsOpen, setSettingsOpen, scrollToHeading } = useWorkbench()
   const events = useRouter()?.events
   const contentRef = useRef<HTMLDivElement>(null)
   const sidebarRef = useRef<HTMLElement>(null)
@@ -57,19 +57,32 @@ const EditorShellInner = ({ children }: { children: ReactNode }) => {
     let skipEntry = false
     let entryAnimation: Animation | undefined
     let frame = 0
+    let pendingRestore: MutationObserver | undefined
     const cancelEntry = () => { entryAnimation?.cancel(); entryAnimation = undefined }
     const restore = (url: string) => {
+      pendingRestore?.disconnect()
       cancelAnimationFrame(frame)
       frame = requestAnimationFrame(() => {
         frame = requestAnimationFrame(() => {
+          const root = getReadingScrollRoot()
           const hash = url.split("#")[1]
           if (hash) {
             let id = hash
             try { id = decodeURIComponent(hash) } catch { /* Keep malformed anchors literal. */ }
-            document.getElementById(id)?.scrollIntoView({ block: "start", behavior: "instant" })
+            const target = document.getElementById(id)
+            const preview = target?.closest<HTMLElement>(".document-preview")
+            if (preview && !preview.getClientRects().length) scrollToHeading(id)
+            else target?.scrollIntoView({ block: "start", behavior: "instant" })
           } else {
+            // Source rows arrive asynchronously after a history navigation. Applying
+            // the offset to its loading placeholder would permanently clamp it to zero.
+            if (root instanceof HTMLElement && root.classList.contains("document-source") && !root.querySelector(".source-line")) {
+              pendingRestore = new MutationObserver(() => restore(url))
+              if (contentRef.current) pendingRestore.observe(contentRef.current, { childList: true, subtree: true })
+              return
+            }
             const position = scrollPositions.current.get(url.split("#")[0]) ?? 0
-            getReadingScrollRoot().scrollTo({ top: position, behavior: "instant" })
+            root.scrollTo({ top: position, behavior: "instant" })
           }
         })
       })
@@ -79,6 +92,7 @@ const EditorShellInner = ({ children }: { children: ReactNode }) => {
       const fromHistory = historyTarget === route
       historyTarget = null
       if (shallow || route === currentRoute) return
+      pendingRestore?.disconnect()
       const root = getReadingScrollRoot()
       scrollPositions.current.set(currentRoute, root instanceof HTMLElement ? root.scrollTop : window.scrollY)
       skipEntry = fromHistory || scrollPositions.current.has(route)
@@ -120,9 +134,10 @@ const EditorShellInner = ({ children }: { children: ReactNode }) => {
       events.off("hashChangeComplete", restore)
       reducedMotion.removeEventListener("change", preferenceChanged)
       cancelAnimationFrame(frame)
+      pendingRestore?.disconnect()
       cancelEntry()
     }
-  }, [events])
+  }, [events, scrollToHeading])
 
   return <StyledWrapper data-mobile-ready={mobileDrawerReady || undefined} style={{ "--primary-sidebar-width": `${sidebarWidth}px` } as CSSProperties}>
     <a className="skip-content" href="#workbench-content">Skip to document</a>
@@ -178,19 +193,21 @@ const StyledWrapper = styled.div`
   .editor-body { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
   .page-content { flex: 1; min-width: 0; min-height: 0; overflow-y: auto; overflow-x: hidden; overscroll-behavior-y: contain; display: flex; flex-direction: column; scroll-behavior: auto; }
   .page-content:focus { outline: none; }
+  .page-content { container: editor / inline-size; }
+  .page-content > * { flex-shrink: 0; }
+  .page-content:has(.post-detail) { overflow: hidden; }
+  .page-content:has(.post-detail) > * { flex: 1; min-width: 0; min-height: 0; overflow: hidden; }
   .route-signal { position: relative; height: 2px; margin-bottom: -2px; flex-shrink: 0; z-index: 35; pointer-events: none; overflow: hidden; }
   .route-signal::after { content: ""; position: absolute; inset: 0; height: 2px; background: ${({ theme }) => theme.colors.editor.accent}; transform-origin: left; opacity: 0; }
   .route-signal[data-navigation="loading"]::after { width: 32%; opacity: .8; animation: monolog-route-scan 1100ms ease-in-out infinite; }
   .route-signal[data-navigation="complete"]::after { animation: monolog-route-finish 420ms var(--motion-ease); }
   .filetree-backdrop { display: none; }
   @media (max-width: 960px) {
-    position: relative; inset: auto; height: auto; min-height: 100dvh; overflow: visible;
-    .main-row { display: block; flex: 1; }
-    .editor-body { min-height: 70dvh; }
-    .page-content { overflow: visible; min-height: auto; overscroll-behavior: auto; }
+    .main-row { flex-direction: column; }
+    .editor-body { flex: 1; }
     .primary-sidebar { position: fixed; top: ${({ theme }) => theme.variables.titleBarHeight + 40}px; bottom: ${({ theme }) => theme.variables.statusBarHeight}px; left: 0; width: min(320px, 90vw); z-index: 70; border-right: 1px solid ${({ theme }) => theme.colors.editor.line}; box-shadow: 6px 0 20px #0004; }
     .sidebar-resize { display: none; }
-    .filetree-backdrop { display: block; position: fixed; top: ${({ theme }) => theme.variables.titleBarHeight + 40}px; left: 0; right: 0; bottom: 0; width: 100%; background: #0006; z-index: 65; border: 0; }
+    .filetree-backdrop { display: block; position: fixed; top: ${({ theme }) => theme.variables.titleBarHeight + 40}px; left: 0; right: 0; bottom: ${({ theme }) => theme.variables.statusBarHeight}px; width: 100%; background: #0006; z-index: 65; border: 0; }
     &:not([data-mobile-ready]) .primary-sidebar, &:not([data-mobile-ready]) .filetree-backdrop { display: none; }
   }
   @media (prefers-reduced-motion: reduce) { .route-signal[data-navigation]::after { animation: none; } }

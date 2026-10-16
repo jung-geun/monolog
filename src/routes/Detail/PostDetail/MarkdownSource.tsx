@@ -5,10 +5,16 @@ import type { Token } from "prismjs"
 import "prismjs/components/prism-markdown"
 import { markdownUrl } from "src/libs/seo"
 import type { DocumentContext } from "src/layouts/RootLayout/EditorChrome/WorkbenchContext"
-import type { MarkdownSourceMap } from "src/libs/utils/notion/markdown"
+import type { MarkdownDocument } from "src/libs/utils/notion/markdown"
 
-type Props = { slug: string; headings: DocumentContext["headings"] }
-type SourceState = { status: "loading" | "error"; message?: string } | { status: "ready"; text: string; blocks: MarkdownSourceMap }
+type Props = {
+  slug: string
+  headings: DocumentContext["headings"]
+  /** Display only; downloads/copy and the original Markdown API remain unchanged. */
+  document?: MarkdownDocument
+  language?: string
+}
+type SourceState = { slug: string } & ({ status: "loading" | "error"; message?: string } | ({ status: "ready" } & MarkdownDocument))
 
 // Preview code is highlighted explicitly; automatic DOM highlighting would
 // destroy the React-owned source rows even before the layout observer runs.
@@ -28,53 +34,62 @@ function tokenLines(token: string | Token): string[] {
   return lines.map(line => `<span class="token ${[token.type, ...aliases].join(" ")}">${line}</span>`)
 }
 
-const MarkdownSource = ({ slug, headings }: Props) => {
-  const [state, setState] = useState<SourceState>({ status: "loading" })
+const MarkdownSource = ({ slug, headings, document, language }: Props) => {
+  const [state, setState] = useState<SourceState>({ slug, status: "loading" })
   const [attempt, setAttempt] = useState(0)
   const href = markdownUrl(slug)
+  const hasDocument = document !== undefined
+  // Overrides never enter the original request state. Derive them during render,
+  // not in an effect, so neither an initial nor a late original response can flash.
+  const original = state.slug === slug ? state : undefined
+  const originalReady = original?.status === "ready"
+  const status = hasDocument ? "ready" : original?.status ?? "loading"
+  const display = document ?? (original?.status === "ready" ? original : undefined)
   useEffect(() => {
+    if (hasDocument || originalReady) return
+    setState({ slug, status: "loading" })
     const controller = new AbortController()
     const load = async () => {
       try {
         const response = await fetch(`/api/markdown/${encodeURIComponent(slug)}?sourceMap=1`, { signal: controller.signal, mode: "same-origin" })
         if (!response.ok) throw new Error(`HTTP ${response.status}`)
-        const document: { markdown: string; blocks: MarkdownSourceMap } = await response.json()
-        if (!controller.signal.aborted) setState({ status: "ready", text: document.markdown, blocks: document.blocks })
+        const document: MarkdownDocument = await response.json()
+        if (!controller.signal.aborted) setState({ slug, status: "ready", ...document })
       } catch (error) {
-        if (!controller.signal.aborted) setState({ status: "error", message: error instanceof Error ? error.message : "Request failed" })
+        if (!controller.signal.aborted) setState({ slug, status: "error", message: error instanceof Error ? error.message : "Request failed" })
       }
     }
     void load()
     return () => controller.abort()
-  }, [slug, attempt])
+  }, [slug, attempt, hasDocument, originalReady])
 
   const rendered = useMemo(() => {
-    if (state.status !== "ready") return null
+    if (!display) return null
     const highlighted = [""]
-    for (const token of Prism.tokenize(state.text, Prism.languages.markdown)) {
+    for (const token of Prism.tokenize(display.markdown, Prism.languages.markdown)) {
       const parts = tokenLines(token)
       highlighted[highlighted.length - 1] += parts[0]
       highlighted.push(...parts.slice(1))
     }
     const headingIds = new Map<number, string>()
     const headingByBlock = new Map(headings.map(heading => [heading.id.replace(/-/g, "").toLowerCase(), heading.id]))
-    for (const block of state.blocks) {
+    for (const block of display.blocks) {
       const headingId = headingByBlock.get(block.blockId)
       if (headingId) headingIds.set(block.startLine - 1, headingId)
     }
     const blockIds = new Map<number, string>()
     // Parents cover descendants too: the narrowest exported span owns a row.
-    for (const block of [...state.blocks].sort((a, b) => (b.endLine - b.startLine) - (a.endLine - a.startLine))) {
+    for (const block of [...display.blocks].sort((a, b) => (b.endLine - b.startLine) - (a.endLine - a.startLine))) {
       for (let line = block.startLine; line <= block.endLine; line++) blockIds.set(line, block.blockId)
     }
     return { highlighted, headingIds, blockIds }
-  }, [state, headings])
+  }, [display, headings])
 
   return (
-    <Source aria-label="Read-only Markdown source" aria-busy={state.status === "loading"}>
-      <div className="source-caption">{slug}.md <span>Read-only · exported Markdown</span></div>
-      {state.status === "loading" && <p role="status" className="source-state">Loading Markdown source…</p>}
-      {state.status === "error" && <div role="alert" className="source-state"><p>Unable to load Markdown source ({state.message}). Preview remains available.</p><button type="button" onClick={() => { setState({ status: "loading" }); setAttempt(value => value + 1) }}>Retry</button> <a href={href} target="_blank" rel="noopener noreferrer">Open Markdown</a></div>}
+    <Source aria-label="Read-only Markdown source" aria-busy={status === "loading"} lang={language}>
+      <div className="source-caption">{slug}.md <span>{hasDocument ? "Read-only · display projection · export stays original" : "Read-only · exported Markdown"}</span></div>
+      {status === "loading" && <p role="status" className="source-state">Loading Markdown source…</p>}
+      {status === "error" && <div role="alert" className="source-state"><p>Unable to load Markdown source ({original?.status === "error" ? original.message : ""}). Preview remains available.</p><button type="button" onClick={() => { setState({ slug, status: "loading" }); setAttempt(value => value + 1) }}>Retry</button> <a href={href} target="_blank" rel="noopener noreferrer">Open Markdown</a></div>}
       {rendered && <pre tabIndex={0} aria-label="Markdown source with line numbers"><code className="language-markdown">{rendered.highlighted.map((html, index) => <span className="source-line" data-source-block={rendered.blockIds.get(index + 1)} data-source-heading={rendered.headingIds.get(index)} data-source-line={index + 1} key={index}><span className="source-number" aria-hidden="true">{index + 1}</span><span className="source-text" dangerouslySetInnerHTML={{ __html: html || " " }} /></span>)}</code></pre>}
     </Source>
   )

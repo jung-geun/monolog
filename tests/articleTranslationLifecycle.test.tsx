@@ -23,16 +23,20 @@ function deferred<T>() {
 let host: HTMLDivElement
 let root: Root
 let previousTranslator: PropertyDescriptor | undefined
+let previousLanguage: PropertyDescriptor | undefined
 const create = jest.fn()
 const availability = jest.fn()
-const button = (text: string) => Array.from(host.querySelectorAll("button")).find(element => element.textContent === text)!
+const button = (text: string) => Array.from(document.querySelectorAll("button")).find(element => element.textContent === text)!
 const title = () => host.querySelector("output")!.textContent
-const render = async (article = first, slug = "first") => {
+const render = async (article = first, slug = "first", open = true) => {
   await act(async () => { root.render(<Harness article={article} slug={slug} />) })
+  const trigger = document.querySelector<HTMLButtonElement>('[aria-label="Article language and translation"]')
+  if (open && trigger && trigger.getAttribute("aria-expanded") !== "true") act(() => trigger.click())
 }
 
 beforeEach(() => {
   previousTranslator = Object.getOwnPropertyDescriptor(globalThis, "Translator")
+  previousLanguage = Object.getOwnPropertyDescriptor(navigator, "language")
   availability.mockReset().mockResolvedValue("available")
   create.mockReset()
   Object.defineProperty(globalThis, "Translator", { configurable: true, value: { availability, create } })
@@ -45,11 +49,14 @@ afterEach(() => {
   host.remove()
   if (previousTranslator) Object.defineProperty(globalThis, "Translator", previousTranslator)
   else Reflect.deleteProperty(globalThis, "Translator")
+  if (previousLanguage) Object.defineProperty(navigator, "language", previousLanguage)
+  else Reflect.deleteProperty(navigator, "language")
 })
 
 it("does not create a model on mount or when opening translation controls", async () => {
-  await render()
-  act(() => host.querySelector("summary")!.click())
+  await render(first, "first", false)
+  expect(create).not.toHaveBeenCalled()
+  act(() => document.querySelector<HTMLButtonElement>('[aria-label="Article language and translation"]')!.click())
   expect(create).not.toHaveBeenCalled()
   expect(title()).toBe(first.title)
   expect(button("Translate article").disabled).toBe(false)
@@ -79,7 +86,7 @@ it("ignores an old sentence response after switching articles", async () => {
   await render(second, "second")
   await act(async () => pending.resolve("An old article."))
   expect(title()).toBe(second.title)
-  expect(host.querySelector('[role="status"]')?.textContent).toBe("")
+  expect(document.querySelector('[role="status"]')?.textContent).toBe("")
   expect(translator.destroy).toHaveBeenCalledTimes(1)
 })
 
@@ -90,10 +97,48 @@ it("retains completed sentences on cancel and restores the original without acce
   await render()
   await act(async () => button("Translate article").click())
   expect(title()).toBe("First sentence. 다음 문장.")
+  act(() => host.dispatchEvent(new Event("pointerdown", { bubbles: true })))
+  expect(document.querySelector('[role="dialog"]')).toBeNull()
+  expect(translator.destroy).not.toHaveBeenCalled()
+  act(() => document.querySelector<HTMLButtonElement>('[aria-label="Article language and translation"]')!.click())
   act(() => button("Cancel translation").click())
   expect(title()).toBe("First sentence. 다음 문장.")
   act(() => button("Restore original").click())
   await act(async () => pending.resolve("Second sentence."))
   expect(title()).toBe(first.title)
   expect(translator.translate).toHaveBeenCalledTimes(2)
+})
+
+it("dismisses a non-Korean locale suggestion without requesting translation", async () => {
+  Object.defineProperty(navigator, "language", { configurable: true, value: "en-US" })
+  await render(first, "first", false)
+  const dismiss = document.querySelector<HTMLButtonElement>('[aria-label="Dismiss translation suggestion"]')!
+  expect(dismiss).not.toBeNull()
+  act(() => dismiss.click())
+  expect(document.querySelector(".translation-suggestion")).toBeNull()
+  expect(create).not.toHaveBeenCalled()
+  expect(title()).toBe(first.title)
+})
+
+it("keeps Korean browser sessions original and returns keyboard focus after closing language options", async () => {
+  Object.defineProperty(navigator, "language", { configurable: true, value: "ko-KR" })
+  await render(first, "first", false)
+  expect(document.querySelector(".translation-suggestion")).toBeNull()
+  const trigger = document.querySelector<HTMLButtonElement>('[aria-label="Article language and translation"]')!
+  act(() => trigger.click())
+  expect(document.activeElement).toBe(document.querySelector('input[id$="-target"]'))
+  act(() => document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })))
+  expect(document.querySelector('[role="dialog"]')).toBeNull()
+  expect(document.activeElement).toBe(trigger)
+  expect(create).not.toHaveBeenCalled()
+  expect(title()).toBe(first.title)
+})
+
+it("offers no unsupported automatic translation and retains the article when the native API is absent", async () => {
+  Reflect.deleteProperty(globalThis, "Translator")
+  await render()
+  expect(document.querySelector(".translation-suggestion")).toBeNull()
+  expect(button("Translate article").disabled).toBe(true)
+  expect(create).not.toHaveBeenCalled()
+  expect(title()).toBe(first.title)
 })

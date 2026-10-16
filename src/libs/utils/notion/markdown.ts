@@ -1,6 +1,5 @@
-import { randomUUID } from "crypto"
 import type { ExtendedRecordMap, Block } from "notion-types"
-import type { TPost, TPosts, TNotionDatabase } from "src/types"
+import type { TPost, TNotionDatabase } from "src/types"
 import { getBlockById } from "src/libs/utils/notion/unwrapBlock"
 import { normalizeNotionId, buildIdToSlug } from "src/libs/utils/notion/rewriteInternalLinks"
 import { customMapImageUrl } from "src/libs/utils/notion/customMapImageUrl"
@@ -681,7 +680,7 @@ export function renderPostMarkdown(
   post: TPost,
   recordMap: ExtendedRecordMap,
   databases: ReadonlyMap<string, TNotionDatabase>,
-  options: { siteUrl: string; allPosts: TPosts }
+  options: { siteUrl: string; allPosts: ReadonlyArray<Pick<TPost, "id" | "slug">> }
 ): string {
   return renderPost(post, recordMap, databases, options)
 }
@@ -690,9 +689,12 @@ export function renderPostMarkdownDocument(
   post: TPost,
   recordMap: ExtendedRecordMap,
   databases: ReadonlyMap<string, TNotionDatabase>,
-  options: { siteUrl: string; allPosts: TPosts }
+  options: { siteUrl: string; allPosts: ReadonlyArray<Pick<TPost, "id" | "slug">> }
 ): MarkdownDocument {
-  const mapping: MappingContext = { prefix: `\0${randomUUID()}:`, blocks: [] }
+  // Private sentinels only: Web Crypto also works outside secure browser contexts,
+  // unlike randomUUID. They are stripped before computing exported bytes/spans.
+  const nonce = Array.from(globalThis.crypto.getRandomValues(new Uint32Array(4)), word => word.toString(16).padStart(8, "0")).join("")
+  const mapping: MappingContext = { prefix: `\0${nonce}:`, blocks: [] }
   return resolveSourceMap(renderPost(post, recordMap, databases, options, mapping), mapping)
 }
 
@@ -700,7 +702,7 @@ function renderPost(
   post: TPost,
   recordMap: ExtendedRecordMap,
   databases: ReadonlyMap<string, TNotionDatabase>,
-  options: { siteUrl: string; allPosts: TPosts },
+  options: { siteUrl: string; allPosts: ReadonlyArray<Pick<TPost, "id" | "slug">> },
   mapping?: MappingContext
 ): string {
   const rootBlock = getBlockById(recordMap, post.id)

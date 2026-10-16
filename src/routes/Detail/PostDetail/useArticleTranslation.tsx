@@ -62,7 +62,7 @@ const useArticleTranslation = (article: TranslationArticle, slug: string | undef
   const original = useMemo(() => ({ title: article.title, summary: article.summary, recordMap: article.recordMap }), [article.title, article.summary, article.recordMap])
   const [sourceInput, setSourceInput] = useState(CONFIG.lang || "ko")
   const [targetInput, setTargetInput] = useState("")
-  const [browser, setBrowser] = useState<{ detected: boolean; api: TranslatorAPI | null }>({ detected: false, api: null })
+  const [browser, setBrowser] = useState<{ detected: boolean; api: TranslatorAPI | null; language: string }>({ detected: false, api: null, language: "" })
   const [availability, setAvailability] = useState<{ source: string; target: string; status: Availability | "error"; error: string } | null>(null)
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null)
   const mounted = useRef(false)
@@ -85,7 +85,7 @@ const useArticleTranslation = (article: TranslationArticle, slug: string | undef
     const scope = globalThis as typeof globalThis & { Translator?: TranslatorAPI }
     const candidate = scope.Translator
     const api = candidate && typeof candidate.availability === "function" && typeof candidate.create === "function" ? candidate : null
-    setBrowser({ detected: true, api })
+    setBrowser({ detected: true, api, language: navigator.language })
     setTargetInput(navigator.language)
     return () => {
       mounted.current = false
@@ -182,6 +182,7 @@ const useArticleTranslation = (article: TranslationArticle, slug: string | undef
         return
       }
       pending.translator = translator
+      setAvailability({ source: source.language, target: target.language, status: "available", error: "" })
       publish({ phase: "translating", total: plan.texts.length, downloadProgress: null })
       const translations = new Map<number, string>()
       for (let index = 0; index < plan.texts.length; index += 1) {
@@ -216,11 +217,13 @@ const useArticleTranslation = (article: TranslationArticle, slug: string | undef
   if (visible?.phase === "preparing") status = visible.downloadProgress === null ? "Preparing the browser translation model…" : `Downloading translation model: ${Math.round(visible.downloadProgress * 100)}%.`
   else if (visible?.phase === "translating") status = `Translated ${visible.completed} of ${visible.total} sentences. Unfinished sentences remain original.`
   else if (visible?.phase === "cancelled") status = visible.completed ? `Translation cancelled after ${visible.completed} of ${visible.total} sentences. Partial translation remains; choose Restore original to undo it.` : "Translation cancelled. The original article is unchanged."
-  else if (visible?.phase === "complete") status = visible.total ? `Translation complete: ${visible.completed} sentences. Source stays original.` : "No translatable article text was found."
+  else if (visible?.phase === "complete") status = visible.total ? `Translation complete: ${visible.completed} sentences. Preview, Source and Outline are synchronized.` : "No translatable article text was found."
 
   const controls = <ArticleTranslationControls
     sourceLanguage={sourceInput}
     targetLanguage={targetInput}
+    browserLanguage={browser.language}
+    suggestTranslation={canTranslate && Boolean(browser.language) && !/^ko(?:-|$)/i.test(browser.language)}
     onSourceChange={value => changeLanguage(value, "source")}
     onTargetChange={value => changeLanguage(value, "target")}
     onTranslate={() => { void translate() }}
@@ -239,7 +242,7 @@ const useArticleTranslation = (article: TranslationArticle, slug: string | undef
     downloadProgress={visible?.downloadProgress ?? null}
   />
 
-  return { article: visible?.article ?? original, controls, active: hasTranslation, targetLanguage: target.language || undefined }
+  return { article: visible?.article ?? original, controls, active: hasTranslation, busy, targetLanguage: target.language || undefined }
 }
 
 export default useArticleTranslation
