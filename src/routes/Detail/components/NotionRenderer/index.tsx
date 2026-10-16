@@ -1,7 +1,6 @@
 import dynamic from "next/dynamic"
 import Image from "next/image"
 import Link from "next/link"
-import Script from "next/script"
 import { useRouter } from "next/router"
 import { ExtendedRecordMap, Block } from "notion-types"
 import useScheme from "src/hooks/useScheme"
@@ -14,6 +13,7 @@ import { useEffect, useMemo, useCallback } from "react"
 import { createProxyRequestUrl } from "src/libs/utils/image/proxyUtils"
 import { customMapImageUrl } from "src/libs/utils/notion/customMapImageUrl"
 import { unwrapBlock } from "src/libs/utils/notion/unwrapBlock"
+import { normalizeInlineMath } from "src/libs/utils/notion/inlineMath"
 import {
   buildIdToSlug,
   rewriteRecordMapInternalLinks,
@@ -39,14 +39,6 @@ import "katex/dist/katex.min.css"
 import { FC } from "react"
 import styled from "@emotion/styled"
 
-// Type declarations for KaTeX global functions
-declare global {
-  interface Window {
-    katex: any
-    renderMathInElement: any
-    renderMathManually?: (targetElement?: Element) => void
-  }
-}
 
 // Keep the article core, code text and KaTeX output synchronous on server and
 // client; only browser-dependent media/modal widgets below are client-only.
@@ -146,7 +138,7 @@ const NotionRenderer: FC<Props> = ({ recordMap }) => {
     [standaloneLinks.recordMap, idToSlug]
   )
   const renderedRecordMap = useMemo(
-    () => normalizeArticleHeadings(normalizeForCollection(internalRecordMap)),
+    () => normalizeInlineMath(normalizeArticleHeadings(normalizeForCollection(internalRecordMap))),
     [internalRecordMap]
   )
 
@@ -157,11 +149,6 @@ const NotionRenderer: FC<Props> = ({ recordMap }) => {
   }, [idToSlug, standaloneLinks.targets])
 
   const router = useRouter()
-  const refreshKatex = () => {
-    if (typeof window !== "undefined" && window.renderMathInElement && window.renderMathManually) {
-      window.renderMathManually()
-    }
-  }
 
   // The rewritten recordMap gives every internal link an `/slug` href. Some
   // react-notion-x renderers still emit `target="_blank" rel="noopener"`, which
@@ -282,90 +269,6 @@ const NotionRenderer: FC<Props> = ({ recordMap }) => {
     return () => obs.disconnect()
   }, [recordMap])
 
-  // KaTeX math rendering effect - moved to top level to follow React Hooks rules
-  useEffect(() => {
-    // Only run on client side and when recordMap is available
-    if (!recordMap || typeof window === "undefined") return
-
-    const maxWaitRounds = 6
-    let loadRound = 0
-    let initialMathTimer: ReturnType<typeof setTimeout> | null = null
-    let mathTimer: ReturnType<typeof setTimeout> | null = null
-
-    // Check if KaTeX is available
-    const checkAndRenderMath = () => {
-      if (!window.katex || !window.renderMathInElement) {
-        if (loadRound < maxWaitRounds) {
-          loadRound += 1
-          mathTimer = setTimeout(checkAndRenderMath, 250)
-        } else if (process.env.NODE_ENV !== "production") {
-          console.warn("KaTeX: Not available after retries; skipping math rendering")
-        }
-        return
-      }
-
-      // Look for inline math expressions that weren't rendered by Equation component
-      const notionPage = document.querySelector(".notion-page")
-      if (!notionPage) return
-
-      // Find all text content that might contain math delimiters
-      const allTextElements = notionPage.querySelectorAll("p, span, div")
-      let foundMath = false
-
-      allTextElements.forEach((element) => {
-        const text = element.textContent || ""
-        // Check for unrendered math expressions
-        if (
-          (text.includes("$") || text.includes("\\(") || text.includes("\\[")) &&
-          !element.querySelector(".katex") &&
-          !element.classList.contains("katex")
-        ) {
-          // Try to render math in this element
-          try {
-            window.renderMathInElement(element, {
-              delimiters: [
-                { left: "$$", right: "$$", display: true },
-                { left: "$", right: "$", display: false },
-                { left: "\\[", right: "\\]", display: true },
-                { left: "\\(", right: "\\)", display: false },
-              ],
-              throwOnError: false,
-            })
-            foundMath = true
-          } catch (error) {
-            if (process.env.NODE_ENV !== "production") {
-              console.warn("KaTeX: Failed to render math in element:", error)
-            }
-          }
-        }
-      })
-
-      if (process.env.NODE_ENV !== "production") {
-        console.log(`KaTeX: ${foundMath ? "Found and rendered math" : "No unrendered math found"}`)
-      }
-    }
-
-    const observer = new MutationObserver(() => {
-      if (mathTimer) {
-        clearTimeout(mathTimer)
-      }
-      mathTimer = setTimeout(checkAndRenderMath, 500)
-    })
-
-    initialMathTimer = setTimeout(checkAndRenderMath, 1000)
-    const notionPage = document.querySelector(".notion-page") ?? document.body
-    observer.observe(notionPage, { childList: true, subtree: true })
-
-    // Manual re-render function for debugging
-    window.renderMathManually = checkAndRenderMath
-
-    return () => {
-      if (initialMathTimer) clearTimeout(initialMathTimer)
-      if (mathTimer) clearTimeout(mathTimer)
-      observer.disconnect()
-      delete window.renderMathManually
-    }
-  }, [recordMap]) // Re-run when recordMap changes
 
   // YouTube 라이트 로딩을 iframe으로 교체 및 오디오 블록 렌더링
   useEffect(() => {
@@ -645,16 +548,6 @@ const NotionRenderer: FC<Props> = ({ recordMap }) => {
 
   return (
     <StyledWrapper className={scheme === 'dark' ? 'dark' : 'light'}>
-      <Script
-        src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"
-        strategy="lazyOnload"
-        onLoad={refreshKatex}
-      />
-      <Script
-        src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"
-        strategy="lazyOnload"
-        onLoad={refreshKatex}
-      />
       <ArticleFlow>
         <CoreNotionRenderer
           darkMode={scheme === "dark"}
@@ -683,6 +576,60 @@ const StyledWrapper = styled.div`
   --fg-color: var(--color-ink, rgb(var(--c-ink)));
   font-family: var(--font-sans, "Pretendard Variable", Pretendard, system-ui, sans-serif);
   color: var(--color-ink, rgb(var(--c-ink)));
+  min-width: 0;
+  max-width: 100%;
+
+  .notion, .notion-page, .notion-page-content, .notion-page-content-inner {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  /* Let nested columns shrink around their own table scroll containers. */
+  .notion-row, .notion-column {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  /* RNX emits no wrapper: keep its block IDs on the table scroll shell and
+     use the existing tbody for full-width, intrinsic column layout. */
+  .notion-simple-table {
+    display: block;
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    overflow-x: auto;
+    border: 0;
+    padding: 1px;
+    overflow-wrap: normal;
+    word-break: normal;
+  }
+
+  .notion-simple-table > tbody {
+    display: table;
+    width: 100%;
+    table-layout: auto;
+    border-collapse: collapse;
+    border-spacing: 0;
+  }
+
+  .notion-simple-table td {
+    white-space: pre-wrap;
+    vertical-align: top;
+  }
+
+  /* Keep RNX's inline widths as hints, but never squeeze text into slivers.
+     Unbreakable tokens increase the inner table width and scroll locally. */
+  .notion-simple-table-cell {
+    min-width: 8rem;
+  }
+
+  /* RNX links set break-word directly, so resetting the table alone is not enough. */
+  .notion-simple-table .notion-link {
+    overflow-wrap: normal;
+    word-break: normal;
+  }
 
   /* Base Notion text & link styling */
   .notion-text, .notion-page-content {

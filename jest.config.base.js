@@ -30,10 +30,22 @@ const BASE_JEST_OPTIONS = {
 }
 
 function createConfig(overrides = {}) {
-  return createJestConfig({
+  const resolveConfig = createJestConfig({
     ...BASE_JEST_OPTIONS,
     ...overrides,
   })
+  return async () => {
+    const config = await resolveConfig()
+    // RNX and its utility dependencies ship ESM-only; exercise the actual
+    // renderer rather than mocking away React text ownership regressions.
+    const esmNotionPackages = "react-notion-x|notion-utils|notion-types|is-url-superb|memoize|mimic-function|normalize-url|p-queue|p-timeout"
+    config.transformIgnorePatterns = config.transformIgnorePatterns.map(pattern =>
+      pattern.startsWith("/node_modules/(?!.pnpm)")
+        ? pattern.replace("/node_modules/", `/node_modules/(?!(${esmNotionPackages})/)`)
+        : pattern
+    )
+    return config
+  }
 }
 
 module.exports = {

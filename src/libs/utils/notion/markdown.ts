@@ -74,7 +74,8 @@ function makeBacktickFence(text: string, minLength = 1): string {
 function renderRichText(
   richTextArray: unknown[] | undefined | null,
   idToSlug: Map<string, string>,
-  siteUrl: string
+  siteUrl: string,
+  inTable = false
 ): string {
   if (!richTextArray || !Array.isArray(richTextArray) || richTextArray.length === 0) {
     return ""
@@ -150,8 +151,15 @@ function renderRichText(
       const expr = equationExpr !== null ? equationExpr : rawText
       segmentContent = `$${expr}$`
     } else if (hasCode) {
-      const fence = makeBacktickFence(rawText, 1)
-      segmentContent = `${fence}${rawText}${fence}`
+      // GFM consumes a backslash before a table pipe even inside backticks.
+      // Entity-safe inline HTML preserves literal backslash/pipe sequences.
+      if (inTable && rawText.includes("\\|")) {
+        const literal = rawText.replace(/[^\p{L}\p{N} \t\r\n]/gu, char => `&#${char.codePointAt(0)};`)
+        segmentContent = `<code>${literal}</code>`
+      } else {
+        const fence = makeBacktickFence(rawText, 1)
+        segmentContent = `${fence}${rawText}${fence}`
+      }
     } else {
       segmentContent = escapeMarkdownText(rawText)
     }
@@ -571,26 +579,23 @@ function renderBlockContent(block: Block, ctx: RenderContext): string {
 
       if (childRows.length === 0) return ""
 
-      const hasHeader = Boolean(format?.table_block_column_header)
-
-      // Determine column count from the max number of cells in any row
-      let colCount = 0
-      for (const row of childRows) {
-        const cellArray = row.properties?.table_row || []
-        if (cellArray.length > colCount) {
-          colCount = cellArray.length
-        }
-      }
+      const hasHeader = format?.table_block_column_header === true
+      // RNX stores each cell under its column ID, not in a row-level array.
+      // The declared order also preserves columns whose cells are all empty.
+      const columnOrder: string[] = format?.table_block_column_order || []
+      const colCount = columnOrder.length
 
       if (colCount === 0) return ""
 
       const renderRowCells = (rowBlock: Block): string[] => {
-        const cellArray = rowBlock.properties?.table_row || []
         const cells: string[] = []
-        for (let i = 0; i < colCount; i++) {
-          const cellRichText = cellArray[i]
-          const renderedCell = renderRichText(cellRichText, ctx.idToSlug, ctx.siteUrl)
-          const escaped = renderedCell.replace(/(?<!\\)\|/g, "\\|").replace(/\n/g, "<br>")
+        for (const column of columnOrder) {
+          const cellRichText = rowBlock.properties?.[column]
+          const renderedCell = renderRichText(cellRichText, ctx.idToSlug, ctx.siteUrl, true)
+          // A pipe is escaped only after an odd number of backslashes in GFM.
+          const escaped = renderedCell
+            .replace(/\\*\|/g, (match) => match.length % 2 === 1 ? `\\${match}` : match)
+            .replace(/\r\n?|\n/g, "<br>")
           cells.push(escaped)
         }
         return cells
