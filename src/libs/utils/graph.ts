@@ -26,19 +26,6 @@ export type GraphNode = {
   index?: number
 }
 
-export type GraphNodeShape = "circle" | "filled-diamond" | "outline-diamond"
-
-export function nodeShapeForKind(kind: GraphNode["kind"]): GraphNodeShape {
-  switch (kind) {
-    case "post":
-      return "circle"
-    case "tag":
-      return "filled-diamond"
-    case "series":
-      return "outline-diamond"
-  }
-}
-
 export type GraphEdge = {
   a: number
   b: number
@@ -61,9 +48,6 @@ export type PostEgoGraph = {
 
 const isGraphNodeKind = (kind: unknown): kind is GraphNode["kind"] =>
   kind === "post" || kind === "tag" || kind === "series"
-
-export const diamondPath = (x: number, y: number, radius: number): string =>
-  `M ${x} ${y - radius} L ${x + radius} ${y} L ${x} ${y + radius} L ${x - radius} ${y} Z`
 
 export const getPostEgoGraph = (
   nodes: GraphNode[],
@@ -126,20 +110,9 @@ export const getPostEgoGraph = (
   return { center, neighbors: [...neighbors.values()] }
 }
 
-// Limited palette tuned to the editor theme (warm earth + muted accents).
-const PALETTE = [
-  "#ee5a1c", // accent (orange)
-  "#5a9aaf", // teal
-  "#8da874", // moss
-  "#b56fa3", // mauve
-  "#c4a45a", // mustard
-  "#7a6dba", // periwinkle
-  "#d77c6f", // coral
-  "#6fa8c4", // sky
-]
-
-export const TAG_COLOR = "#2e8b57"    // Sea green — post 팔레트(moss #8da874)와 충돌 없는 짙은 녹색
-export const SERIES_COLOR = "#8e44ad" // Wisteria — 짙은 보라, post 팔레트(mauve/periwinkle)와 명확히 구분
+// Stored colors are independent of category; renderers may brighten posts in dark themes.
+export const POST_COLOR = "#5c5c5c"
+const GROUP_COLOR = "#18b94f"
 
 const MIN_NODE_RADIUS = 5
 const MAX_NODE_RADIUS = 44
@@ -161,13 +134,14 @@ export const nodeCollisionRadiusForDegree = (degree: number): number =>
 
 const seed = (n: number) => ((n * 9301 + 49297) % 233280) / 233280
 
-export const colorForNode = (node: { kind: string; category?: string }, allCats: string[]): string => {
-  if (node.kind === "tag") return TAG_COLOR
-  if (node.kind === "series") return SERIES_COLOR
-  const idx = allCats.indexOf(node.category ?? "")
-  if (idx < 0) return PALETTE[0]
-  return PALETTE[idx % PALETTE.length]
-}
+export const colorForNode = (node: Pick<GraphNode, "kind">): string =>
+  node.kind === "post" ? POST_COLOR : GROUP_COLOR
+
+/** Render-only contrast adjustment; persisted graph colors stay theme-independent. */
+export const graphDisplayColor = (
+  node: Pick<GraphNode, "kind" | "color">,
+  dark: boolean
+): string => dark && node.kind === "post" ? "#b8b8b8" : node.color
 
 export const buildGraph = (
   graph: NotionGraph,
@@ -206,7 +180,7 @@ export const buildGraph = (
       degree: 0,
       x: width / 2 + (seed(i * 2) - 0.5) * 200,
       y: height / 2 + (seed(i * 2 + 1) - 0.5) * 200,
-      color: colorForNode(n, cats),
+      color: colorForNode(n),
     }
     if (n.kind === "post") {
       return {

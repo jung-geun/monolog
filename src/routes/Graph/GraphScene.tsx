@@ -7,6 +7,8 @@ import type { Graph3DLayout } from "./layout3d"
 import { graphNodeRadius, RELATION_STYLES } from "./types"
 import type { GraphSceneProps, GraphLayoutOptions, RelationKind, SceneLink } from "./types"
 import type { EditorColors } from "src/styles/colors"
+import { graphDisplayColor } from "src/libs/utils/graph"
+import type { GraphNode } from "src/libs/utils/graph"
 
 type Runtime = {
   invalidate: () => void
@@ -97,8 +99,6 @@ export default function GraphScene(props: GraphSceneProps) {
       host.prepend(gl.domElement)
 
       const scene = new THREE.Scene()
-      const fog = new THREE.Fog(palette.current.bg, 1000, 4000)
-      scene.fog = fog
       const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 20000)
       const orbit = new OrbitControls(camera, gl.domElement)
       controls = orbit
@@ -118,11 +118,10 @@ export default function GraphScene(props: GraphSceneProps) {
       const nodes = simulation.nodes
       const count = nodes.length
       const sphere = geometry(new THREE.SphereGeometry(1, 16, 12))
-      const octahedron = geometry(new THREE.OctahedronGeometry(1))
       const cylinder = geometry(new THREE.CylinderGeometry(1, 1, 1, 5, 1))
       const cone = geometry(new THREE.ConeGeometry(1, 1, 8))
       const particleGeometry = geometry(new THREE.SphereGeometry(1, 6, 4))
-      const nodeMaterials = new Map<string, THREE.MeshStandardMaterial>()
+      const nodeMaterials = new Map<string, THREE.MeshBasicMaterial>()
       const meshes: THREE.Mesh[] = []
       const buttons: HTMLButtonElement[] = []
       const visible = new Uint8Array(count)
@@ -165,24 +164,6 @@ export default function GraphScene(props: GraphSceneProps) {
       const targetFrom = new THREE.Vector3()
       const targetTo = new THREE.Vector3()
       const viewDirection = new THREE.Vector3(0.85, 0.65, 1).normalize()
-      const light = new THREE.HemisphereLight(0xffffff, 0x666666, 1.6)
-      scene.add(light)
-      const keyLight = new THREE.DirectionalLight(0xffffff, 0.85)
-      keyLight.position.set(200, 400, 300)
-      scene.add(keyLight)
-      const rim = new THREE.DirectionalLight(0xffffff, 0.3)
-      rim.position.set(-300, 120, -250)
-      scene.add(rim)
-      const grid = new THREE.GridHelper(1, 20, 0x666666, 0x666666)
-      geometries.add(grid.geometry)
-      const gridMaterials = Array.isArray(grid.material) ? grid.material : [grid.material]
-      for (const value of gridMaterials) {
-        materials.add(value)
-        value.transparent = true
-        value.opacity = 0.09
-        value.depthWrite = false
-      }
-      scene.add(grid)
       const particleMaterial = material(new THREE.MeshBasicMaterial({ color: 0xffffff, depthWrite: false }))
       let particles = new THREE.InstancedMesh(particleGeometry, particleMaterial, 1)
       particles.count = 0
@@ -236,18 +217,17 @@ export default function GraphScene(props: GraphSceneProps) {
         if (disposed) return
         if (!disposed && !contextLost && !raf && !inFrame && drawable && inViewport && !document.hidden) raf = requestAnimationFrame(frame)
       }
-      const getNodeMaterial = (color: string, degree: number, wireframe: boolean, dim: boolean, focus: boolean) => {
-        const key = `${color}:${degree}:${wireframe}:${dim}:${focus}`
+      const getNodeMaterial = (node: GraphNode, dim: boolean) => {
+        const color = graphDisplayColor(node, background.getHex() < 0x808080)
+        const key = `${color}:${dim}`
         let value = nodeMaterials.get(key)
         if (!value) {
-          // Keep hubs translucent, but let near-opaque highlighted nodes occlude rear arrows.
-          const baselineAlpha = 0.22 + 0.42 / (1 + Math.max(0, degree) / 12)
-          value = material(new THREE.MeshStandardMaterial({ color, wireframe, roughness: 0.95, metalness: 0, transparent: true, opacity: focus ? 0.94 : dim ? baselineAlpha * 0.25 : baselineAlpha, depthWrite: focus }))
+          // Unlit, opaque spheres keep their ink color at every viewing angle.
+          value = material(new THREE.MeshBasicMaterial({ fog: false }))
           nodeMaterials.set(key, value)
         }
-        value.color.set(color).lerp(tint.set(palette.current.bg2), 0.22)
-        value.emissive.copy(value.color)
-        value.emissiveIntensity = focus ? (background.getHex() < 0x808080 ? 0.14 : 0.06) : 0
+        value.color.set(color)
+        if (dim) value.color.lerp(background, 0.78)
         return value
       }
       const focusNode = (index: number, smooth = true) => {
@@ -360,7 +340,7 @@ export default function GraphScene(props: GraphSceneProps) {
       for (let index = 0; index < count; index++) {
         const node = nodes[index]
         radii[index] = graphNodeRadius(node.degree)
-        const mesh = new THREE.Mesh(node.kind === "post" ? sphere : octahedron, getNodeMaterial(node.color, node.degree, node.kind === "series", false, false))
+        const mesh = new THREE.Mesh(sphere, getNodeMaterial(node, false))
         mesh.userData.nodeIndex = index
         meshes.push(mesh)
         scene.add(mesh)
@@ -411,8 +391,8 @@ export default function GraphScene(props: GraphSceneProps) {
         }
         for (const [kind, group] of grouped) {
           const segments = RELATION_STYLES[kind].dashed ? 12 : 1
-          const lineMaterial = material(new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.95 / 3, depthWrite: false }))
-          const arrowMaterial = material(new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.98 / 3, depthWrite: false }))
+          const lineMaterial = material(new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.28, depthWrite: false }))
+          const arrowMaterial = material(new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.32, depthWrite: false }))
           const lines = new THREE.InstancedMesh(cylinder, lineMaterial, group.length * segments)
           const arrows = new THREE.InstancedMesh(cone, arrowMaterial, group.length)
           lines.instanceMatrix.setUsage(THREE.DynamicDrawUsage)
@@ -454,7 +434,7 @@ export default function GraphScene(props: GraphSceneProps) {
           dimmed[index] = !inNeighborhood || !categoryMatch ? 1 : 0
           meshes[index].visible = visible[index] === 1
           const emphasized = index === state.selectedIndex || index === state.hoveredIndex || index === keyboardIndex
-          meshes[index].material = getNodeMaterial(node.color, node.degree, node.kind === "series", dimmed[index] === 1 && !emphasized, emphasized)
+          meshes[index].material = getNodeMaterial(node, dimmed[index] === 1 && !emphasized)
           buttons[index].tabIndex = visible[index] ? 0 : -1
           buttons[index].hidden = !visible[index]
           buttons[index].setAttribute("aria-pressed", index === state.selectedIndex ? "true" : "false")
@@ -464,8 +444,6 @@ export default function GraphScene(props: GraphSceneProps) {
           buttons[index].style.color = emphasized ? "var(--graph-label-active-fg)" : "var(--graph-label-fg)"
           buttons[index].style.borderColor = emphasized ? "var(--graph-label-accent)" : "var(--graph-label-border)"
           buttons[index].style.outline = index === keyboardIndex ? "2px solid var(--graph-label-accent)" : ""
-          buttons[index].style.backdropFilter = emphasized ? "blur(3px)" : "none"
-          buttons[index].style.setProperty("-webkit-backdrop-filter", emphasized ? "blur(3px)" : "none")
         }
         if (pointerHover >= 0 && !visible[pointerHover]) hover(-1)
         if (statusRef.current) {
@@ -478,26 +456,15 @@ export default function GraphScene(props: GraphSceneProps) {
         const colors = palette.current
         background.set(colors.bg)
         scene.background = background
-        if (scene.fog instanceof THREE.Fog) scene.fog.color.copy(background)
-        for (const value of gridMaterials) value.color.set(colors.fg3).lerp(background, 0.35)
         particleMaterial.color.set(colors.fg)
-        const dark = background.getHex() < 0x808080
-        light.color.set(dark ? colors.fg : colors.bg2)
-        light.groundColor.set(colors.bg3)
-        light.intensity = dark ? 1.75 : 1.55
-        keyLight.color.copy(light.color)
-        rim.color.copy(light.color)
-        // Generate alpha colors only on theme changes, not during frame projection.
-        // High surface alpha and near-solid active ink protect contrast without blur support.
-        const alphaColor = (color: string, alpha: string) => `#${tint.set(color).getHexString()}${alpha}`
-        labelLayer.style.setProperty("--graph-label-bg", alphaColor(colors.bg2, "db"))
-        labelLayer.style.setProperty("--graph-label-active-bg", alphaColor(colors.bg2, "f0"))
-        labelLayer.style.setProperty("--graph-label-fg", alphaColor(colors.fg, "e0"))
-        labelLayer.style.setProperty("--graph-label-active-fg", alphaColor(colors.fg, "fa"))
-        labelLayer.style.setProperty("--graph-label-border", alphaColor(colors.line2, "b3"))
+        // Quiet labels leave node silhouettes unobstructed; focus gets a solid surface.
+        labelLayer.style.setProperty("--graph-label-bg", "transparent")
+        labelLayer.style.setProperty("--graph-label-active-bg", colors.bg2)
+        labelLayer.style.setProperty("--graph-label-fg", colors.fg2)
+        labelLayer.style.setProperty("--graph-label-active-fg", colors.fg)
+        labelLayer.style.setProperty("--graph-label-border", "transparent")
         labelLayer.style.setProperty("--graph-label-accent", colors.accent3)
-        const shadow = `0 1px 3px ${alphaColor(colors.fg3, "1f")}`
-        for (const button of buttons) button.style.boxShadow = shadow
+        for (const button of buttons) button.style.textShadow = `0 1px 2px ${colors.bg}, 0 -1px 2px ${colors.bg}`
         lastPalette = colors
       }
       const endpoints = (link: SceneLink) => {
@@ -516,8 +483,6 @@ export default function GraphScene(props: GraphSceneProps) {
       const updateGeometry = () => {
         const state = latest.current
         const focus = state.neighborhoodOnly && state.selectedIndex >= 0 ? state.selectedIndex : state.hoveredIndex >= 0 ? state.hoveredIndex : state.selectedIndex
-        let minY = Infinity
-        let extent = 80
         let radiusSquared = 0
         let maxNodeRadius = 0
         for (let index = 0; index < count; index++) {
@@ -528,14 +493,8 @@ export default function GraphScene(props: GraphSceneProps) {
           mesh.scale.setScalar(radii[index] * (emphasized ? 1.12 : 1))
           radiusSquared = Math.max(radiusSquared, mesh.position.lengthSq())
           maxNodeRadius = Math.max(maxNodeRadius, mesh.scale.x)
-          if (visible[index]) {
-            minY = Math.min(minY, node.y - radii[index])
-            extent = Math.max(extent, Math.abs(node.x), Math.abs(node.z))
-          }
         }
         sceneRadius = Math.max(30, Math.sqrt(radiusSquared) + maxNodeRadius)
-        grid.position.y = (Number.isFinite(minY) ? minY : -30) - 28
-        grid.scale.setScalar(extent * 2.7)
         particleLinks.length = 0
         for (const batch of batches) {
           let lineCount = 0
@@ -545,15 +504,15 @@ export default function GraphScene(props: GraphSceneProps) {
             const incident = focus >= 0 && (link.a === focus || link.b === focus)
             const unrelated = focus >= 0 && !incident
             const categoryDim = dimmed[link.a] && dimmed[link.b]
-            const strength = incident ? 0.96 : unrelated || categoryDim ? 0.12 : 0.78
-            edgeColor.set(RELATION_STYLES[batch.kind].color).lerp(tint.set(palette.current.fg3), 0.2)
+            const strength = incident ? 1 : unrelated || categoryDim ? 0.1 : 0.8
+            edgeColor.set(palette.current.fg3)
             tint.copy(background).lerp(edgeColor, strength)
-            const weight = Math.min(3, Math.max(0.5, Math.sqrt(Math.max(0, link.weight))))
-            const thickness = (incident ? 1.15 : 0.5) * weight
+            const weight = Math.min(2, Math.max(0.5, Math.sqrt(Math.max(0, link.weight))))
+            const thickness = (incident ? 0.85 : 0.45) * weight
             quaternion.setFromUnitVectors(up, direction)
             const length = start.distanceTo(end)
-            const arrowLength = Math.min(length * 0.2, incident ? 8 : 5)
-            const usableLength = Math.max(0.1, length - (isDirected(link) ? arrowLength * 0.75 : 0))
+            const arrowLength = Math.min(length * 0.2, 6)
+            const usableLength = Math.max(0.1, length - (incident && isDirected(link) ? arrowLength * 0.75 : 0))
             for (let segment = 0; segment < batch.segments; segment++) {
               const segmentLength = usableLength / batch.segments
               const dashLength = segmentLength * (batch.segments > 1 ? 0.55 : 1)
@@ -563,9 +522,9 @@ export default function GraphScene(props: GraphSceneProps) {
               batch.lines.setMatrixAt(lineCount, matrix)
               batch.lines.setColorAt(lineCount++, tint)
             }
-            if (isDirected(link)) {
+            if (incident && isDirected(link)) {
               position.copy(end).addScaledVector(direction, -arrowLength / 2)
-              scale.set(incident ? 3.4 : 2, arrowLength, incident ? 3.4 : 2)
+              scale.set(2, arrowLength, 2)
               matrix.compose(position, quaternion, scale)
               batch.arrows.setMatrixAt(arrowCount, matrix)
               batch.arrows.setColorAt(arrowCount++, tint)
@@ -592,7 +551,7 @@ export default function GraphScene(props: GraphSceneProps) {
           scale.setScalar(1.7)
           matrix.compose(position, quaternion, scale)
           particles.setMatrixAt(index, matrix)
-          tint.set(RELATION_STYLES[link.kind].color).lerp(particleMaterial.color, 0.25)
+          tint.copy(particleMaterial.color)
           particles.setColorAt(index, tint)
         }
         if (particles.count) {
@@ -700,8 +659,6 @@ export default function GraphScene(props: GraphSceneProps) {
             camera.far = far
             camera.updateProjectionMatrix()
           }
-          fog.near = Math.max(30, distance - sceneRadius * 0.2)
-          fog.far = distance + sceneRadius * 3
         }
         camera.updateMatrixWorld()
         updateParticles(time)

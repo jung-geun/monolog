@@ -2,10 +2,9 @@ import { useMemo, useState } from "react"
 import styled from "@emotion/styled"
 import useNotionGraphQuery from "src/hooks/useNotionGraphQuery"
 import {
-  diamondPath,
   getPostEgoGraph,
-  SERIES_COLOR,
-  TAG_COLOR,
+  graphDisplayColor,
+  POST_COLOR,
   type PostEgoNeighbor,
 } from "src/libs/utils/graph"
 import type { TPost } from "src/types"
@@ -100,24 +99,11 @@ const PostEgoGraph = ({ post }: { post: TPost }) => {
     const radius = node.kind === "post"
       ? Math.min(6, 4 + Math.floor(Math.sqrt(Math.max(node.degree, 0)) / 3))
       : 4
-    const shape = node.kind === "post" ? (
-      <circle className="graph-node" cx={x} cy={y} r={radius} fill={node.color} />
-    ) : node.kind === "tag" ? (
-      <path className="graph-node" d={diamondPath(x, y, radius + 1)} fill={TAG_COLOR} />
-    ) : (
-      <path
-        className="graph-node"
-        d={diamondPath(x, y, radius + 1)}
-        fill="none"
-        stroke={SERIES_COLOR}
-        strokeWidth={1.5}
-      />
-    )
     const content = (
       <>
         <title>{node.title}</title>
         <circle className="graph-hit-target" cx={x} cy={y} r={10} />
-        {shape}
+        <circle className="graph-node" cx={x} cy={y} r={radius} fill={node.color} />
       </>
     )
 
@@ -168,7 +154,7 @@ const PostEgoGraph = ({ post }: { post: TPost }) => {
         >
           <title>{post.title}</title>
           {neighbors.map(renderNeighbor)}
-          <circle className="graph-center" cx={center} cy={center} r={6} />
+          <circle className="graph-center" cx={center} cy={center} r={6} fill={egoGraph.center.color} />
         </svg>
         {activeNode && (
           <div className="graph-tooltip" role="tooltip">
@@ -190,6 +176,7 @@ const StyledSection = styled.section`
     overflow: hidden;
 
     --graph-line: ${({ theme }) => theme.colors.editor.line2};
+    --graph-post: ${({ theme }) => graphDisplayColor({ kind: "post", color: POST_COLOR }, theme.colorTheme.scheme === "dark")};
     --graph-accent: ${({ theme }) => theme.colors.editor.accent};
   }
 
@@ -204,8 +191,13 @@ const StyledSection = styled.section`
     opacity: 0.72;
   }
 
+  /* Small post dots need brighter ink on dark backgrounds, without translucent fills. */
+  .graph-neighbor[data-kind="post"] .graph-node,
   .graph-center {
-    fill: var(--graph-accent);
+    fill: var(--graph-post);
+  }
+
+  .graph-center {
     stroke: ${({ theme }) => theme.colors.editor.bg};
     stroke-width: 2px;
   }

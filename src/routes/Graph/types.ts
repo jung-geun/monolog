@@ -30,19 +30,19 @@ export type GraphLayoutOptions = {
 }
 
 export const DEFAULT_LAYOUT: GraphLayoutOptions = {
-  postRepulsion: 220,
-  hubRepulsion: 30,
-  hubRingRadius: 0.42,
-  hubLinkStrength: 0.04,
-  linkDistance: 44,
+  postRepulsion: 160,
+  hubRepulsion: 60,
+  hubRingRadius: 0.35,
+  hubLinkStrength: 0.08,
+  linkDistance: 56,
 }
 
 export const RELATION_STYLES: Record<RelationKind, { label: string; color: string; dashed?: boolean }> = {
   mention: { label: "Mentions", color: "#cc784c" },
   link: { label: "References", color: "#557f9f" },
   link_to_page: { label: "Page link", color: "#557f9f" },
-  "has-tag": { label: "Tagged with", color: "#2e8b57" },
-  "in-series": { label: "In series", color: "#8e44ad" },
+  "has-tag": { label: "Tagged with", color: "#18b94f" },
+  "in-series": { label: "In series", color: "#18b94f" },
   elaborates: { label: "Elaborates", color: "#6ea8fe", dashed: true },
   supports: { label: "Supports", color: "#57b98d", dashed: true },
   applies: { label: "Applies", color: "#c89747", dashed: true },

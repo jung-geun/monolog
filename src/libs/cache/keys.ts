@@ -10,8 +10,8 @@ const RM_VERSION = "v9"
 // so cached graphs are discarded and rebuilt with the new shape.
 const NG_VERSION = "v4"
 // Bump BG_VERSION when built layout semantics change as well as its serialized shape.
-// v4 expands degree-derived collision spacing for the larger hub-node radius scale.
-const BG_VERSION = "v4"
+// v5 replaces category-colored posts with neutral gray and vivid green tag/series nodes.
+const BG_VERSION = "v5"
 // Bump ONT_VERSION when PostOntology/Entity/SemanticEdge schema changes.
 const ONT_VERSION = "v2"
 const OG_VERSION = "v2"

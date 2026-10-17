@@ -280,7 +280,7 @@ const Graph = () => {
             <div className="heading-line"><WorkbenchIcon name="graph" size={18} /><h1>Knowledge graph</h1><span className="dimension">3D</span></div>
             <p>{shownCounts.nodes} nodes <span>·</span> {shownCounts.links} relations</p>
             {graph.embedding && <p className="embedding-status">
-              {graph.embedding.embedded > 0 ? `EmbeddingGemma · PCA 3D · ${graph.embedding.embedded}/${graph.embedding.total} posts` : "Relationship layout · post embeddings pending"}
+              {graph.embedding.embedded > 0 ? `EmbeddingGemma · semantic anchors · ${graph.embedding.embedded}/${graph.embedding.total} posts` : "Relationship layout · post embeddings pending"}
             </p>}
             <form className="graph-search" onSubmit={event => {
               event.preventDefault()
@@ -374,7 +374,7 @@ const Graph = () => {
                   ))}
                 </div>
                 <div className="panel-label section-label">3D layout</div>
-                <p className="control-note">Indexed posts keep their PCA positions; force controls adjust hubs and posts awaiting embeddings. Nearby points approximate content similarity, not an explicit relation.</p>
+                <p className="control-note">Embeddings gently guide semantic neighborhoods. Repulsion, collision and real connections position every node in 3D; proximity is not an explicit relation.</p>
                 {LAYOUT_CONTROLS.map((control) => (
                   <div className="control-row" key={control.key}>
                     <label htmlFor={`graph-${control.key}`}>
@@ -552,15 +552,13 @@ const StyledWrapper = styled.div`
   .timeline-progress { display: grid; gap: 6px; margin-bottom: 14px; color: ${({ theme }) => theme.colors.editor.fg3}; font-size: 10px; font-variant-numeric: tabular-nums; }
   .timeline-progress progress { width: 100%; height: 4px; accent-color: ${({ theme }) => theme.colors.editor.accent}; }
 
-  .node-symbol { display: inline-block; width: 7px; height: 7px; margin-top: 3px; flex-shrink: 0; background: currentColor; }
-  .node-symbol.post { border-radius: 50%; }
-  .node-symbol.tag { transform: rotate(45deg); color: ${RELATION_STYLES["has-tag"].color}; }
-  .node-symbol.series { transform: rotate(45deg); border: 1px solid currentColor; background: transparent; color: ${RELATION_STYLES["in-series"].color}; }
+  .node-symbol { display: inline-block; width: 7px; height: 7px; margin-top: 3px; flex-shrink: 0; border-radius: 50%; background: currentColor; }
+  .node-symbol.tag, .node-symbol.series { color: ${RELATION_STYLES["has-tag"].color}; }
   .graph-legend { position: absolute; bottom: 45px; left: 24px; display: flex; gap: 14px; align-items: center; color: ${({ theme }) => theme.colors.editor.fg2}; font-size: 9px; pointer-events: none; }
   .graph-legend > span { display: inline-flex; align-items: center; gap: 6px; }
   .graph-legend .node-symbol { margin: 0; }
   .legend-divider { height: 12px; border-left: 1px solid ${({ theme }) => theme.colors.editor.line}; }
-  .edge-key { width: 17px; border-top: 1px solid ${RELATION_STYLES.link.color}; }
+  .edge-key { width: 17px; border-top: 1px solid ${({ theme }) => theme.colors.editor.fg3}; }
   .edge-key.inferred { border-top-style: dashed; border-top-color: ${({ theme }) => theme.colors.editor.fg3}; }
   .interaction-hint { position: absolute; bottom: 19px; left: 24px; color: ${({ theme }) => theme.colors.editor.fg3}; font-size: 9px; pointer-events: none; b { margin: 0 6px; font-weight: 400; color: ${({ theme }) => theme.colors.editor.fg4}; } }
   .mobile-hint { display: none; }

@@ -2,6 +2,7 @@
  * @jest-environment node
  */
 import { MemoryBackend } from "src/libs/cache/MemoryBackend"
+import { keys } from "src/libs/cache/keys"
 
 describe("MemoryBackend", () => {
   it("stores and retrieves a value", async () => {
@@ -41,6 +42,15 @@ describe("MemoryBackend", () => {
     // key-0 should be evicted
     expect(await backend.get("key-0")).toBeNull()
     expect(await backend.get("key-200")).toBe(200)
+  })
+})
+
+describe("built graph cache keys", () => {
+  it("does not reuse layouts serialized with category-colored nodes", async () => {
+    const backend = new MemoryBackend()
+    await backend.set("builtGraph:v4:graph-hash", { nodes: [{ color: "#ee5a1c" }] }, 60_000)
+
+    expect(await backend.get(keys.builtGraph("graph-hash"))).toBeNull()
   })
 })
 

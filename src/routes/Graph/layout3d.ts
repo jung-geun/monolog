@@ -33,13 +33,13 @@ export type Graph3DLayout = {
 
 const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5))
 const SPHERE_OFFSET = (3 - Math.sqrt(5)) / 2
-const COLLISION_PADDING = 2.5
+const COLLISION_PADDING = 4
 const REST_SPEED_SQUARED = 0.0025
 
 /**
- * Current document embeddings supply exact 3D PCA post coordinates. Tags and
- * series settle around their real neighbours; unindexed posts retain the
- * topology layout until content maintenance commits their first vector.
+ * Document embeddings are weak semantic anchors, not immutable coordinates.
+ * Every node participates in the same 3D topology, repulsion and collision
+ * forces; only an active drag fixes its position.
  */
 export function createGraph3DLayout(
   sourceNodes: GraphNode[],
@@ -162,28 +162,25 @@ export function createGraph3DLayout(
     delete node.fx
     delete node.fy
     delete node.fz
-    if (source.embeddingPosition) {
-      node.x = node.fx = anchors[i * 3]
-      node.y = node.fy = anchors[i * 3 + 1]
-      node.z = node.fz = anchors[i * 3 + 2]
-    }
     return node
   })
 
   const charge = forceManyBody<GraphNode3D>()
     .distanceMin(averageRadius * 2)
-    .distanceMax(extent * 3)
-  const movableLinks = links.filter(link => !sourceNodes[link.a].embeddingPosition || !sourceNodes[link.b].embeddingPosition)
-  const linkForce = forceLink<GraphNode3D, LayoutLink>(movableLinks).id((_, index) => index)
+    // Keep repulsion local as the corpus grows, rather than inflating every
+    // cluster through long-range all-to-all pressure.
+    .distanceMax(extent)
+  const linkForce = forceLink<GraphNode3D, LayoutLink>(links).id((_, index) => index)
   const shell = forceRadial<GraphNode3D>(extent * options.hubRingRadius * 2, 0, 0, 0)
-    .strength((node) => node.kind === "post" ? 0 : 0.045)
+    .strength((node) => node.kind === "post" ? 0 : 0.012)
   const collision = forceCollide<GraphNode3D>((_, index) => radii[index])
     .strength(1)
     .iterations(3)
-  const categoryStrength = (node: GraphNode3D) => node.kind === "post" ? 0.006 : 0.002
-  const x = forceX<GraphNode3D>((_, index) => anchors[index * 3]).strength(categoryStrength)
-  const y = forceY<GraphNode3D>((_, index) => anchors[index * 3 + 1]).strength(categoryStrength)
-  const z = forceZ<GraphNode3D>((_, index) => anchors[index * 3 + 2]).strength(categoryStrength)
+  const anchorStrength = (node: GraphNode3D) =>
+    node.embeddingPosition ? 0.012 : node.kind === "post" ? 0.006 : 0.002
+  const x = forceX<GraphNode3D>((_, index) => anchors[index * 3]).strength(anchorStrength)
+  const y = forceY<GraphNode3D>((_, index) => anchors[index * 3 + 1]).strength(anchorStrength)
+  const z = forceZ<GraphNode3D>((_, index) => anchors[index * 3 + 2]).strength(anchorStrength)
 
   // d3 starts its timer in the constructor. Stop synchronously and NEVER restart:
   // the scene owns the only clock, including option changes and pin release.
@@ -206,12 +203,13 @@ export function createGraph3DLayout(
   let settling = count > 0
 
   const configure = (next: GraphLayoutOptions): void => {
-    charge.strength(node => node.embeddingPosition ? 0 : -(node.kind === "post" ? next.postRepulsion : next.hubRepulsion))
+    charge.strength(node => -(node.kind === "post" ? next.postRepulsion : next.hubRepulsion))
     shell.radius(extent * next.hubRingRadius * 2)
     linkForce
       .distance((link) => {
         const clearance = radii[link.a] + radii[link.b] + 6
-        return Math.max(clearance, link.hub ? 100 : next.linkDistance / Math.max(1, Math.log2(1 + link.weight)))
+        const distance = next.linkDistance * (link.hub ? 1.6 : 1 / Math.log2(1 + link.weight))
+        return Math.max(clearance, distance)
       })
       .strength((link) => link.hub ? next.hubLinkStrength : Math.min(0.6, 0.15 + 0.1 * link.weight))
   }
@@ -253,11 +251,7 @@ export function createGraph3DLayout(
         node.y = node.fy = position.y
         node.z = node.fz = position.z
       } else {
-        if (node.embeddingPosition) {
-          node.x = node.fx = anchors[index * 3]
-          node.y = node.fy = anchors[index * 3 + 1]
-          node.z = node.fz = anchors[index * 3 + 2]
-        } else node.fx = node.fy = node.fz = null
+        node.fx = node.fy = node.fz = null
       }
       node.vx = node.vy = node.vz = 0
       reheat(0.45)

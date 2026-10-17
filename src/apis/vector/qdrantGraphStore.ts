@@ -5,8 +5,8 @@ import { getQdrantClient } from "./qdrantClient"
 
 export const GRAPH_SNAPSHOT_COLLECTION = "post_graph_snapshots"
 export const GRAPH_SNAPSHOT_POINT_ID = "00000000-0000-4000-8000-000000000001"
-// v3 invalidates snapshots positioned with the previous, smaller degree-radius scale.
-export const GRAPH_SNAPSHOT_SCHEMA_VERSION = "v3"
+// v4 invalidates snapshots carrying the previous category/tag/series palette.
+export const GRAPH_SNAPSHOT_SCHEMA_VERSION = "v4"
 
 export type GraphSnapshotPayload = {
   kind: "notion-graph-snapshot"
