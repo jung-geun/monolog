@@ -1,5 +1,5 @@
 import {
-  diamondPath,
+  colorForNode,
   getPostEgoGraph,
   type GraphEdge,
   type GraphNode,
@@ -13,7 +13,7 @@ const node = (overrides: Partial<GraphNode> = {}): GraphNode => ({
   degree: 0,
   x: 0,
   y: 0,
-  color: "#c2410c",
+  color: colorForNode({ kind: overrides.kind ?? "post" }),
   ...overrides,
 })
 
@@ -29,10 +29,10 @@ const edge = (overrides: Partial<GraphEdge> = {}): GraphEdge => ({
 describe("getPostEgoGraph", () => {
   const nodes: GraphNode[] = [
     node(),
-    node({ kind: "tag", id: "tag-a", title: "tag-a", degree: 2, color: "#2e8b57" }),
-    node({ kind: "series", id: "series-a", title: "Series A", degree: 1, color: "#8e44ad" }),
+    node({ kind: "tag", id: "tag-a", title: "tag-a", degree: 2 }),
+    node({ kind: "series", id: "series-a", title: "Series A", degree: 1 }),
     node({ id: "incoming-post", title: "Incoming post", slug: "incoming-post", degree: 1 }),
-    node({ kind: "tag", id: "shared-tag", title: "shared-tag", degree: 2, color: "#2e8b57" }),
+    node({ kind: "tag", id: "shared-tag", title: "shared-tag", degree: 2 }),
     node({ id: "two-hop-post", title: "Two hop post", slug: "two-hop-post", degree: 1 }),
     { ...node({ id: "unknown-kind", title: "Unknown kind" }), kind: "category" as GraphNode["kind"] },
   ]
@@ -99,11 +99,5 @@ describe("getPostEgoGraph", () => {
       center: nodes[0],
       neighbors: [],
     })
-  })
-})
-
-describe("diamondPath", () => {
-  it("preserves the full graph diamond geometry", () => {
-    expect(diamondPath(10, 20, 5)).toBe("M 10 15 L 15 20 L 10 25 L 5 20 Z")
   })
 })

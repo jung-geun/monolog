@@ -71,7 +71,7 @@ const builtGraph = {
       degree: 1,
       x: 120,
       y: 200,
-      color: "#8da874",
+      color: "#5c5c5c",
     },
     {
       kind: "tag",
@@ -80,7 +80,7 @@ const builtGraph = {
       degree: 1,
       x: 220,
       y: 240,
-      color: "#2e8b57",
+      color: "#18b94f",
     },
   ],
   edges: [
@@ -191,12 +191,12 @@ describe("qdrantGraphStore", () => {
     })
   })
 
-  it("treats a snapshot with the previous radius scale as a cache miss", async () => {
+  it.each(["v2", "v3"])("treats a snapshot with the previous radius scale or palette (%s) as a cache miss", async (schemaVersion) => {
     mockClient.retrieve.mockResolvedValue([
       {
         payload: {
           kind: "notion-graph-snapshot",
-          schemaVersion: "v2",
+          schemaVersion,
           graphHash: "hash-a",
           generatedAt: builtGraph.generatedAt,
           postCount: 1,
@@ -210,7 +210,7 @@ describe("qdrantGraphStore", () => {
     await expect(getGraphSnapshot()).resolves.toBeNull()
     expect(warnLog).toHaveBeenCalledWith(
       "[qdrantGraphStore] graph snapshot schema mismatch",
-      "v2"
+      schemaVersion
     )
   })
 
