@@ -19,9 +19,11 @@ type Command = {
   kind: CommandKind
   label: string
   sub?: string
+  keywords?: string
   icon: ReactNode
   href?: string
   action?: () => void
+  afterClose?: boolean
 }
 const groups: Record<CommandKind, string> = {
   action: "Commands", post: "Files", tag: "Tags", category: "Categories", heading: "Document symbols",
@@ -29,10 +31,22 @@ const groups: Record<CommandKind, string> = {
 
 export default function CommandPalette() {
   const { open, initialQuery, closePalette } = useCommandPalette()
-  return open ? <QuickPick key={initialQuery} initialQuery={initialQuery} closePalette={closePalette} /> : null
+  const pendingAction = useRef<(() => void) | null>(null)
+  useEffect(() => {
+    if (open) return
+    // Quick Pick's unmount cleanup restores its previous focus before this handoff.
+    const action = pendingAction.current
+    pendingAction.current = null
+    action?.()
+  }, [open])
+  const executeAfterClose = (action: () => void) => {
+    pendingAction.current = action
+    closePalette()
+  }
+  return open ? <QuickPick key={initialQuery} initialQuery={initialQuery} closePalette={closePalette} executeAfterClose={executeAfterClose} /> : null
 }
 
-function QuickPick({ initialQuery, closePalette }: { initialQuery: string; closePalette: () => void }) {
+function QuickPick({ initialQuery, closePalette, executeAfterClose }: { initialQuery: string; closePalette: () => void; executeAfterClose: (action: () => void) => void }) {
   const router = useRouter()
   const posts = usePostsQuery()
   const categories = useCategoriesQuery()
@@ -83,6 +97,9 @@ function QuickPick({ initialQuery, closePalette }: { initialQuery: string; close
         { id: "comments", kind: "action", label: "View: Open Comments Panel", icon: <WorkbenchIcon name="comment" />, action: () => { workspace.setPanelTab("comments"); workspace.setPanelOpen(true); workspace.setReadingMode(false) } },
       )
     }
+    if (workspace.articleTranslation && workspace.articleTranslation.slug === workspace.documentContext?.slug) {
+      actions.push({ id: "translate:article", kind: "action", label: "Translate: Article language…", keywords: "translation language 번역 언어 글 문서", icon: <WorkbenchIcon name="book" />, action: () => { workspace.setSettingsOpen(false); workspace.articleTranslation?.open() }, afterClose: true })
+    }
     const headings = (workspace.documentContext?.headings ?? []).map((heading): Command => ({
       id: `heading:${heading.id}`, kind: "heading", label: heading.text,
       sub: `Heading ${heading.level} · ${workspace.documentContext?.title}`,
@@ -104,7 +121,7 @@ function QuickPick({ initialQuery, closePalette }: { initialQuery: string; close
       if (mode === "commands" && command.kind !== "action") return false
       if (mode === "headings" && command.kind !== "heading") return false
       if (mode === "files" && command.kind === "heading") return false
-      const text = `${command.label} ${command.sub ?? ""}`.toLocaleLowerCase()
+      const text = `${command.label} ${command.sub ?? ""} ${command.keywords ?? ""}`.toLocaleLowerCase()
       return terms.every((term) => text.includes(term))
     }).slice(0, 80)
   }, [commands, mode, query])
@@ -114,6 +131,10 @@ function QuickPick({ initialQuery, closePalette }: { initialQuery: string; close
   }, [active, query])
 
   const execute = (command: Command) => {
+    if (command.afterClose && command.action) {
+      executeAfterClose(command.action)
+      return
+    }
     closePalette()
     if (command.action) command.action()
     else if (command.href) void router?.push(command.href)

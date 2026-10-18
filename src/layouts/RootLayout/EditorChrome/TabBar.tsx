@@ -1,22 +1,14 @@
-import { forwardRef, useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import styled from "@emotion/styled"
 import { useRouteChrome } from "./RouteChromeContext"
 import WorkbenchIcon from "src/components/WorkbenchIcon"
 import TabIcon from "./TabIcon"
 
-type Props = {
-  preferencesOpen: boolean
-  onTogglePreferences: () => void
-}
-
-const TabBar = forwardRef<HTMLButtonElement, Props>(function TabBar(
-  { preferencesOpen, onTogglePreferences },
-  preferencesButtonRef
-) {
+const TabBar = () => {
   const {
     tabs, activeTabId, closeTab, switchTab, moveTab, pinTab,
-    reopenLastPost, canReopenPost, tabStorageConsent,
+    reopenLastPost, canReopenPost,
   } = useRouteChrome()
   const draggedTabId = useRef<string | null>(null)
   const canDrag = useRef(true)
@@ -175,19 +167,6 @@ const TabBar = forwardRef<HTMLButtonElement, Props>(function TabBar(
           const bounds = event.currentTarget.getBoundingClientRect()
           setMenu({ id: activeTabId, x: Math.min(bounds.left, window.innerWidth - 224), y: Math.min(bounds.bottom, window.innerHeight - 250) })
         }}><WorkbenchIcon name="more" /></button>
-        <button
-          ref={preferencesButtonRef}
-          type="button"
-          className={tabStorageConsent === "unavailable" ? "storage-unavailable" : undefined}
-          onClick={onTogglePreferences}
-          aria-label="탭 저장 설정"
-          aria-expanded={preferencesOpen}
-          aria-controls="editor-tab-session-controls"
-          title={`탭 저장 설정 · ${tabStorageConsent === "enabled" ? "이 브라우저에 저장 중" : tabStorageConsent === "unavailable" ? "저장소 접근 불가 · 이번 방문만 유지" : "이번 방문만 유지"}`}
-        >
-          <WorkbenchIcon name="settings" />
-          {tabStorageConsent === "unavailable" && <span className="storage-warning" aria-hidden="true">저장 불가</span>}
-        </button>
       </div>
       <span className="move-status" role="status" aria-live="polite">{moveAnnouncement}</span>
       {menu && menuTab && <div id="editor-tab-actions" ref={menuRef} role="menu" aria-label={`${menuTab.label} tab actions`} className="context-menu" style={{ left: Math.max(4, menu.x), top: Math.max(4, menu.y) }} onClick={() => { setMenu(null); actionsButtonRef.current?.focus() }} onKeyDown={(event) => {
@@ -217,7 +196,7 @@ const TabBar = forwardRef<HTMLButtonElement, Props>(function TabBar(
       </div>}
     </StyledWrapper>
   )
-})
+}
 
 export default TabBar
 
@@ -285,13 +264,6 @@ const StyledWrapper = styled.div`
       }
       &:disabled, &[aria-disabled="true"] { opacity: 0.4; cursor: default; }
     }
-    .storage-unavailable {
-      width: auto;
-      padding: 0 8px;
-      display: flex;
-      gap: 5px;
-    }
-    .storage-warning { font-size: 10px; white-space: nowrap; }
   }
 
   .tab {

@@ -1,7 +1,8 @@
 import styled from "@emotion/styled"
-import { useEffect, useId, useRef, useState } from "react"
-import { createPortal } from "react-dom"
+import { forwardRef, useCallback, useEffect, useId, useImperativeHandle, useLayoutEffect, useRef, useState } from "react"
 import { VscClose, VscGlobe } from "react-icons/vsc"
+
+export type ArticleTranslationHandle = { open: () => void }
 
 type Props = {
   sourceLanguage: string
@@ -28,27 +29,51 @@ type Props = {
 
 const languageOptions = ["ko", "en", "ja", "zh", "zh-Hant", "es", "fr", "de", "pt", "ru", "ar", "hi", "vi", "id", "th", "it"]
 
-const ArticleTranslationControls = (props: Props) => {
+const ArticleTranslationControls = forwardRef<ArticleTranslationHandle, Props>((props, ref) => {
   const id = useId()
-  const [mounted, setMounted] = useState(false)
   const [open, setOpen] = useState(false)
   const [dismissed, setDismissed] = useState(false)
+  const [focusRequest, setFocusRequest] = useState(0)
   const root = useRef<HTMLElement>(null)
   const trigger = useRef<HTMLButtonElement>(null)
   const target = useRef<HTMLInputElement>(null)
-  useEffect(() => { setMounted(true) }, [])
+  const restoreTriggerFocus = useRef(false)
+  const closePanel = useCallback(() => { restoreTriggerFocus.current = true; setOpen(false) }, [])
+  useLayoutEffect(() => {
+    if (!open && restoreTriggerFocus.current) {
+      restoreTriggerFocus.current = false
+      trigger.current?.focus({ preventScroll: true })
+    }
+  }, [open])
+  useImperativeHandle(ref, () => ({
+    open: () => {
+      setDismissed(true)
+      setOpen(true)
+      setFocusRequest(request => request + 1)
+    },
+  }), [])
   useEffect(() => {
     if (!open) return
     target.current?.focus({ preventScroll: true })
+    const input = target.current
+    const panel = input?.closest<HTMLElement>(".translation-panel")
+    if (input && panel) {
+      const inputBounds = input.getBoundingClientRect()
+      const panelBounds = panel.getBoundingClientRect()
+      if (inputBounds.bottom > panelBounds.bottom) panel.scrollTop += inputBounds.bottom - panelBounds.bottom + 4
+      else if (inputBounds.top < panelBounds.top) panel.scrollTop -= panelBounds.top - inputBounds.top + 4
+    }
+  }, [open, focusRequest])
+  useEffect(() => {
+    if (!open) return
     const outside = (event: PointerEvent) => {
       if (event.target instanceof Node && !root.current?.contains(event.target)) setOpen(false)
     }
     const escape = (event: KeyboardEvent) => {
-      if (event.key !== "Escape" || event.defaultPrevented) return
+      if (event.key !== "Escape" || event.defaultPrevented || !(event.target instanceof Node) || !root.current?.contains(event.target)) return
       event.preventDefault()
       event.stopPropagation()
-      setOpen(false)
-      trigger.current?.focus({ preventScroll: true })
+      closePanel()
     }
     document.addEventListener("pointerdown", outside)
     document.addEventListener("keydown", escape)
@@ -56,20 +81,19 @@ const ArticleTranslationControls = (props: Props) => {
       document.removeEventListener("pointerdown", outside)
       document.removeEventListener("keydown", escape)
     }
-  }, [open])
+  }, [open, closePanel])
 
   let targetName = props.targetLanguage || props.browserLanguage
   try {
     targetName = new Intl.DisplayNames([props.browserLanguage || "en"], { type: "language" }).of(targetName) || targetName
   } catch { /* Keep an incomplete language input literal until validation succeeds. */ }
-  if (!mounted) return null
-  return createPortal(<Controls ref={root} aria-label="Article translation">
+  return <Controls ref={root} className="translation-overlay" data-open={open || undefined} aria-label="Article translation">
     {!open && !dismissed && props.suggestTranslation && !props.busy && !props.hasTranslation && <div className="translation-suggestion">
       <button type="button" className="suggestion-action" onClick={() => { setDismissed(true); setOpen(true) }}>Read this article in {targetName}?</button>
       <button type="button" className="icon-button" aria-label="Dismiss translation suggestion" onClick={() => setDismissed(true)}><VscClose aria-hidden="true" /></button>
     </div>}
     {open && <section id={`${id}-panel`} role="dialog" aria-labelledby={`${id}-title`} aria-describedby={`${id}-description`} className="translation-panel">
-      <header><div><h2 id={`${id}-title`}>Article language</h2><span>Preview · Source · Outline</span></div><button type="button" className="icon-button" aria-label="Close language options" onClick={() => { setOpen(false); trigger.current?.focus({ preventScroll: true }) }}><VscClose aria-hidden="true" /></button></header>
+      <header><div><h2 id={`${id}-title`}>Article language</h2><span>Preview · Source · Outline</span></div><button type="button" className="icon-button" aria-label="Close language options" onClick={closePanel}><VscClose aria-hidden="true" /></button></header>
       <p id={`${id}-description`}>Translate on your device with your browser’s built-in AI Translator. A language model may download after you request translation. No cloud translation service is used.</p>
       <div className="translation-languages">
         <label htmlFor={`${id}-source`}>Source language
@@ -102,21 +126,26 @@ const ArticleTranslationControls = (props: Props) => {
     </button>
     <span className="translation-live" role="status" aria-live="polite" aria-atomic="true">{props.status}</span>
     <span className="translation-live" role="alert">{props.error}</span>
-  </Controls>, document.body)
-}
+  </Controls>
+})
+
+ArticleTranslationControls.displayName = "ArticleTranslationControls"
 
 export default ArticleTranslationControls
 
 const Controls = styled.section`
-  position: fixed;
-  right: max(16px, env(safe-area-inset-right));
-  bottom: calc(${({ theme }) => theme.variables.statusBarHeight}px + 12px + env(safe-area-inset-bottom));
-  z-index: 80;
+  position: absolute;
+  inset: 8px;
+  z-index: 2;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 10px;
-  max-width: calc(100vw - 24px);
+  justify-content: flex-end;
+  gap: 8px;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  pointer-events: none;
   color: ${({ theme }) => theme.colors.editor.fg};
   font-family: var(--font-ui, sans-serif);
   font-size: 12px;
@@ -125,15 +154,14 @@ const Controls = styled.section`
   button:hover:not(:disabled) { background: ${({ theme }) => theme.colors.editor.bg3}; }
   button:disabled { opacity: .55; cursor: not-allowed; }
   button:focus-visible, input:focus-visible { outline: 2px solid ${({ theme }) => theme.colors.editor.accent}; outline-offset: 2px; }
-  .translation-trigger { min-width: 42px; min-height: 42px; padding: 8px 10px; display: flex; align-items: center; gap: 7px; border-radius: 6px; box-shadow: 0 3px 12px #0002; }
+  .translation-trigger { flex: 0 0 auto; pointer-events: auto; max-width: 100%; min-width: 42px; min-height: 42px; padding: 8px 10px; display: flex; align-items: center; gap: 7px; border-radius: 6px; box-shadow: 0 3px 12px #0002; }
   .translation-trigger[aria-expanded="true"] { border-color: ${({ theme }) => theme.colors.editor.accent}; }
   .language-badge { max-width: 90px; overflow: hidden; font-size: 11px; font-variant-numeric: tabular-nums; }
-  .translation-panel, .translation-suggestion { background: ${({ theme }) => theme.colors.editor.bg2}; border: 1px solid ${({ theme }) => theme.colors.editor.line}; box-shadow: 0 8px 28px #0003; border-radius: 6px; }
-  .translation-suggestion { display: flex; align-items: center; max-width: 320px; padding: 4px; position: relative; }
-  .translation-suggestion::after { content: ""; position: absolute; right: 17px; bottom: -6px; width: 10px; height: 10px; transform: rotate(45deg); background: ${({ theme }) => theme.colors.editor.bg2}; border-bottom: 1px solid ${({ theme }) => theme.colors.editor.line}; border-right: 1px solid ${({ theme }) => theme.colors.editor.line}; }
-  .suggestion-action { padding: 8px; text-align: left; border: 0; }
+  .translation-panel, .translation-suggestion { box-sizing: border-box; flex: 0 1 auto; min-height: 0; max-width: 100%; overflow-y: auto; overscroll-behavior: contain; pointer-events: auto; background: ${({ theme }) => theme.colors.editor.bg2}; border: 1px solid ${({ theme }) => theme.colors.editor.line}; box-shadow: 0 8px 28px #0003; border-radius: 6px; }
+  .translation-suggestion { display: flex; align-items: center; width: 320px; padding: 4px; }
+  .suggestion-action { min-width: 0; padding: 8px; text-align: left; border: 0; overflow-wrap: anywhere; }
   .icon-button { display: inline-grid; place-items: center; flex-shrink: 0; width: 32px; height: 32px; padding: 0; border: 0; }
-  .translation-panel { box-sizing: border-box; width: min(390px, calc(100vw - 24px)); max-height: calc(100dvh - 140px); overflow-y: auto; overscroll-behavior: contain; padding: 16px; animation: language-panel-in 160ms ease-out; }
+  .translation-panel { width: 390px; padding: 16px; animation: language-panel-in 160ms ease-out; }
   header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
   h2 { font-size: 15px; font-weight: 600; margin: 0; }
   header span { color: ${({ theme }) => theme.colors.editor.fg3}; font-size: 11px; }
@@ -152,5 +180,10 @@ const Controls = styled.section`
   .translation-live { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   @keyframes language-panel-in { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: none; } }
   @media (prefers-reduced-motion: reduce) { .translation-panel { animation: none; } }
-  @media (max-width: 480px) { right: 12px; .translation-trigger { min-height: 44px; min-width: 44px; } input { font-size: 16px; } }
+  @container article-document (max-width: 320px) { .translation-languages { grid-template-columns: minmax(0, 1fr); } .translation-panel { padding: 12px; } }
+  @container article-document (max-height: 180px) {
+    &[data-open] .translation-trigger { display: none; }
+    .translation-panel { max-height: 100%; padding: 8px; }
+  }
+  @media (max-width: 480px) { .translation-trigger { min-height: 44px; min-width: 44px; } input { font-size: 16px; } }
 `

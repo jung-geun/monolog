@@ -8,7 +8,7 @@ import { useWorkbench } from "./WorkbenchContext"
 const TitleBar = ({ filename }: { filename: string }) => {
   const events = useRouter()?.events
   const { isFileTreeOpen, setFileTreeOpen } = useRouteChrome()
-  const { isSecondaryOpen, setSecondaryOpen, isPanelOpen, setPanelOpen, readingMode, setReadingMode, settingsOpen, setSettingsOpen, documentContext } = useWorkbench()
+  const { isSecondaryOpen, setSecondaryOpen, isPanelOpen, setPanelOpen, readingMode, setReadingMode, documentContext } = useWorkbench()
   const historyEntries = useRef<string[]>([])
   const historyIndex = useRef(0)
   const [historyPosition, setHistoryPosition] = useState({ index: 0, length: 1 })
@@ -51,7 +51,6 @@ const TitleBar = ({ filename }: { filename: string }) => {
       <button type="button" aria-label="Toggle primary sidebar" title="Toggle primary sidebar" aria-pressed={isFileTreeOpen && !readingMode} onClick={() => { setReadingMode(false); setFileTreeOpen(readingMode || !isFileTreeOpen) }}><WorkbenchIcon name="layout-sidebar" /></button>
       <button type="button" aria-label="Toggle bottom panel" title={documentContext ? "Toggle bottom panel" : "Open a post to show references and comments"} disabled={!documentContext} aria-pressed={!!documentContext && isPanelOpen && !readingMode} onClick={() => { setReadingMode(false); setPanelOpen(readingMode || !isPanelOpen) }}><WorkbenchIcon name="layout-panel" /></button>
       <button type="button" aria-label="Toggle secondary sidebar" title={documentContext ? "Toggle secondary sidebar" : "Open a post to show its outline and series"} disabled={!documentContext} aria-pressed={!!documentContext && isSecondaryOpen && !readingMode} onClick={() => { setReadingMode(false); setSecondaryOpen(readingMode || !isSecondaryOpen) }}><WorkbenchIcon name="layout-right" /></button>
-      <button type="button" aria-label="Open settings" title="Settings" aria-pressed={settingsOpen} onClick={() => setSettingsOpen(!settingsOpen)}><WorkbenchIcon name="settings" /></button>
     </div>
   </StyledWrapper>
 }

@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react"
+import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from "react"
 
 export type SidebarView = "explorer" | "search" | "knowledge"
 export type DocumentMode = "preview" | "source" | "split"
@@ -8,7 +8,9 @@ export type DocumentContext = {
   headings: { id: string; text: string; level: number }[]
 }
 
-type WorkbenchState = {
+type ArticleTranslationCommand = { slug: string; open: () => void }
+
+export type WorkbenchState = {
   sidebarView: SidebarView
   setSidebarView: (view: SidebarView) => void
   isSecondaryOpen: boolean
@@ -26,6 +28,8 @@ type WorkbenchState = {
   documentContext: DocumentContext | null
   setDocumentContext: (document: DocumentContext | null) => void
   scrollToHeading: (id: string) => void
+  articleTranslation: ArticleTranslationCommand | null
+  registerArticleTranslation: (slug: string, open: () => void) => () => void
 }
 
 const WorkbenchContext = createContext<WorkbenchState | null>(null)
@@ -39,6 +43,22 @@ export const WorkbenchProvider = ({ children }: { children: ReactNode }) => {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [documentMode, setDocumentMode] = useState<DocumentMode>("preview")
   const [documentContext, setDocumentContext] = useState<DocumentContext | null>(null)
+  const [articleTranslation, setArticleTranslation] = useState<ArticleTranslationCommand | null>(null)
+  const activeTranslation = useRef<ArticleTranslationCommand | null>(null)
+  const registerArticleTranslation = useCallback((slug: string, open: () => void) => {
+    const command: ArticleTranslationCommand = {
+      slug,
+      // A queued Quick Pick action must not call a handler from an exited route.
+      open: () => { if (activeTranslation.current === command) open() },
+    }
+    activeTranslation.current = command
+    setArticleTranslation(command)
+    return () => {
+      if (activeTranslation.current !== command) return
+      activeTranslation.current = null
+      setArticleTranslation(current => current === command ? null : current)
+    }
+  }, [])
 
   const scrollToHeading = useCallback((id: string) => {
     const preview = document.querySelector<HTMLElement>(".document-preview")
@@ -65,7 +85,8 @@ export const WorkbenchProvider = ({ children }: { children: ReactNode }) => {
     isPanelOpen, setPanelOpen, panelTab, setPanelTab, readingMode, setReadingMode,
     settingsOpen, setSettingsOpen, documentMode, setDocumentMode,
     documentContext, setDocumentContext, scrollToHeading,
-  }), [sidebarView, isSecondaryOpen, isPanelOpen, panelTab, readingMode, settingsOpen, documentMode, documentContext, scrollToHeading])
+    articleTranslation, registerArticleTranslation,
+  }), [sidebarView, isSecondaryOpen, isPanelOpen, panelTab, readingMode, settingsOpen, documentMode, documentContext, scrollToHeading, articleTranslation, registerArticleTranslation])
 
   return <WorkbenchContext.Provider value={value}>{children}</WorkbenchContext.Provider>
 }
