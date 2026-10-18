@@ -139,7 +139,7 @@ const PostTreeItem = ({ post, isActive, href }: TreeItemProps) => {
         previewPost({ id: href, kind: "post", label: `${post.slug}.md`, href, closeable: true })
         if (event.detail > 1) pinTab(href)
       }} onDoubleClick={() => pinTab(href)}>
-      <FileIcon name={`${post.slug}.md`} /><span className="file-name">{post.slug}.md</span>
+      <FileIcon name={`${post.slug}.md`} /><span className="file-name">{post.title}</span>
     </Link>
     {showPreview && !isActive && <HoverPreview post={post} anchorRef={ref} />}
   </>
@@ -233,7 +233,7 @@ const StyledWrapper = styled.nav`
   .view-heading { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 42px; padding: 8px 14px; background: ${({ theme }) => theme.colors.editor.bg2}; border-bottom: 1px solid ${({ theme }) => theme.colors.editor.line}; }
   .workspace-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 600; color: ${({ theme }) => theme.colors.editor.fg}; }
   .view-title { flex-shrink: 0; text-transform: uppercase; font-size: 10px; letter-spacing: .6px; color: ${({ theme }) => theme.colors.editor.fg3}; }
-  .explorer-pane { border-bottom: 1px solid ${({ theme }) => theme.colors.editor.line}; }
+  .explorer-pane + .explorer-pane { border-top: 1px solid ${({ theme }) => theme.colors.editor.line}; }
   .explorer-pane > .section-header { text-transform: uppercase; font-size: 11px; letter-spacing: .3px; }
   .workspace-files > .section-header { padding-left: 12px; }
   .folder-contents > .file-item { padding-left: 48px; }
