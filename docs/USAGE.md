@@ -41,7 +41,7 @@ blog: {
 ```
 
 - 기본값은 **One Dark Pro Mix**입니다. System은 기기에 따라 Dark Modern/Light Modern으로 바뀝니다.
-- 방문자는 Settings의 **Color Theme** 또는 Quick Pick의 `> Color Theme`로 선택합니다. 유효한 `localStorage["monolog.colorTheme"]`가 운영자 기본값보다 우선합니다. 이 키를 삭제하고 새로고침하면 운영자 기본값으로 돌아갑니다.
+- 방문자는 **Activity Bar 하단의 Settings** 또는 Quick Pick의 `> Color Theme`로 테마를 선택합니다. 상단 두 곳의 중복 설정 버튼은 제거했으며, Quick Pick의 `> Preferences: Open Settings`도 같은 설정 패널을 엽니다. 유효한 `localStorage["monolog.colorTheme"]`가 운영자 기본값보다 우선합니다. 이 키를 삭제하고 새로고침하면 운영자 기본값으로 돌아갑니다.
 - 테마 선택과 탭 저장 동의는 별개입니다. 탭 저장을 거부하면 방문 기록을 영속 저장하지 않으며 테마 선택은 유지됩니다. 저장소가 차단돼도 현재 방문에서 선택할 수 있습니다.
 - 파일·폴더 아이콘은 Material Icon Theme 5.39.0의 실제 SVG입니다. `public/icons/material/LICENSE`와 원본 출처를 유지하세요.
 
@@ -50,7 +50,7 @@ blog: {
 | 조작 | 동작 |
 |---|---|
 | `Cmd/Ctrl+K` | Quick Pick: 파일·태그·카테고리 검색 |
-| `Cmd/Ctrl+Shift+P`, 또는 검색 앞 `>` | 실제 보기·테마·설정 명령 |
+| `Cmd/Ctrl+Shift+P`, 또는 검색 앞 `>` | 실제 보기·테마·설정·현재 글의 언어 선택 명령 |
 | 검색 앞 `@` | 현재 문서의 실제 제목으로 이동 |
 | Explorer 한 번/두 번 클릭 | 임시 미리보기 / 고정 탭 |
 | Keep open | 현재 미리보기 고정 |
@@ -62,9 +62,13 @@ Explorer의 `pieroot.log`는 사이드바 최상단의 작업 공간 이름이�
 
 브라우저 자체 닫기·다시 열기 단축키는 가로채지 않습니다. 탭 저장에 동의한 경우 고정 탭·최근 닫은 글의 제목·주소·순서만 저장하며 임시 미리보기나 본문은 저장하지 않습니다. 해제·삭제는 Settings에서 가능합니다. 모든 화면에서 작업 공간 높이를 유지하며 본문·Source·Outline·패널은 각각 스크롤합니다. 에디터의 남은 폭이 1100px 미만이면 Outline은 본문 위에 놓이고 Split은 Preview/Source 버튼으로 전환합니다. Split은 두 pane이 동시에 보일 때 일치하는 제목 기준 양방향 스크롤 동기화를 유지합니다. 어느 pane에서든 텍스트를 마우스로 드래그하면 반대 pane의 대응 블록을 하이라이트하고 선택 위치가 보이도록 이동합니다. 같은 텍스트가 정확히 대응하면 글자 범위도 강조하며, Markdown 문법·수식 등 표현이 다르거나 블록 안의 문구가 중복되면 블록 단위로 표시합니다. 일반 스크롤을 줄별로 강제 연결하지 않으며 제목 동기화 checkbox를 꺼도 드래그 선택 추적은 동작합니다. 한 pane만 보이는 좁은 화면에서는 선택 때문에 숨겨진 pane으로 화면을 전환하지 않습니다.
 
+상태 표시줄 왼쪽의 파란 **`SSH: IP주소`** 배지는 현재 방문자의 주소를 보여주는 SSH 스타일 표시이며 실제 SSH 접속을 만들지 않습니다. 주소는 같은 사이트의 `/api/ip`에서 조회하고 `private, no-store`로 응답하므로 다른 방문자의 주소를 공유 캐시에 저장하지 않습니다. 프록시 뒤에서는 기존 `TRUSTED_PROXY_HOPS`와 `TRUSTED_PROXY_SECRET` 검증을 통과한 전달 주소만 사용합니다. 조회 실패 시 임의 주소 대신 `SSH: unavailable`을 표시합니다.
+
 Notion 표는 Source·Markdown 복사·`.md` 보기에서도 헤더 구분선이 있는 Markdown 표로 표시됩니다. Preview에서는 사용 가능한 본문 폭을 채우며, 열이 많거나 긴 코드·주소가 있으면 표 안에서 좌우로 스크롤해 나머지 열을 볼 수 있습니다. 페이지 전체의 가로 폭은 늘어나지 않습니다.
 
 글의 **우측 하단 지구본**을 누르면 언어 선택을 엽니다. 한국어가 아닌 브라우저 언어에서는 지원되는 번역을 말풍선으로 제안하지만, 제안을 열거나 닫는 것만으로는 모델을 생성하거나 번역하지 않습니다. 원문 언어는 `CONFIG.lang`, 대상 언어는 `navigator.language`가 기본값이며 `ko`, `en`, `zh-Hant` 같은 언어 태그로 바꿀 수 있습니다. **Translate article**을 눌러야 모델 다운로드(필요한 경우)와 문장·구문별 순차 번역이 시작됩니다. 자동 번역이나 외부 AI 전송은 없습니다. 완료한 번역부터 본문·Source·Outline에 함께 표시하고, **Cancel translation**은 진행 중 작업만 중단해 완료 부분을 남기며 **Restore original**은 원문 전체를 복원합니다. 언어·글 변경은 이전 작업을 취소하고 원문으로 돌아갑니다. Markdown 복사·다운로드·공개 `.md`는 항상 원문이며 코드·수식·URL·링크 주소도 보존합니다. 번역 시 바뀐 텍스트에만 짧은 재조합 효과를 적용하며 OS/브라우저의 동작 줄이기를 켜면 생략합니다.
+
+지구본과 언어 팝오버는 브라우저 전체가 아닌 **본문 콘텐츠 영역** 우측 하단에 고정됩니다. Preview·Source·Split과 하단 패널 열기, 사이드바 크기 조절에 맞춰 경계를 유지하며 공간이 작으면 팝오버 안에서 스크롤합니다. 번역을 지원하는 글에서는 상단 Command Center에 `>번역` 또는 `translation`을 입력해 **Translate: Article language…** 명령으로 같은 패널을 열 수 있습니다. 이 명령은 대상 언어 입력에 포커스를 옮길 뿐 번역을 시작하지 않으며, 페이지 이동 후 이전 글의 명령은 실행되지 않습니다.
 
 이 기능은 HTTPS 또는 localhost의 지원 브라우저에서만 동작합니다. [Chrome 공식 문서](https://developer.chrome.com/docs/ai/translator-api) 기준 Chrome 138 이상 데스크톱에 제공되며 모바일·다른 브라우저·언어 쌍 지원은 실제 API 검사 결과에 따릅니다. 지원하지 않으면 번역 불가 사유를 표시하며 원문 읽기는 계속 가능합니다. 모델 다운로드는 브라우저가 관리하고 번역 결과는 서버나 브라우저 저장소에 저장하지 않습니다. 기계 번역은 부정확할 수 있으므로 기술 내용은 원문·코드를 함께 확인하세요.
 
@@ -76,15 +80,23 @@ Welcome의 Recent, Search Editor·Search Sidebar와 시리즈 상세에서 실�
 
 ### 광고와 작업 공간 경계
 
-수동 광고를 사용하려면 실제 AdSense **디스플레이 광고 단위**의 ID를 `googleAdsense.config.slots.postBottom`에 넣고 빌드합니다. 빈 문자열은 광고 영역 자체를 만들지 않습니다. `NEXT_PUBLIC_GOOGLE_ADSENSE_CLIENT`를 빌드에 전달해야 하며 `NEXT_PUBLIC_GOOGLE_ADSENSE_DISABLE=true`이면 로더·수동 슬롯이 비활성화됩니다. 이전 feed/rail 슬롯은 제거됐습니다.
+광고는 **수동 디스플레이 광고 단위**만 사용합니다. 클라이언트 ID만 있는 기존 설정은 광고 SDK를 로드하지 않으며 빈 슬롯·빈 박스를 만들지 않습니다. 이미 게재된 광고를 CSS로 숨기거나 DOM에서 제거·이동하지 않습니다.
 
-Auto ads는 소스 코드 밖의 계정 설정입니다. 새 셸을 배포하기 전에 **AdSense → 광고 → 사이트 수정**에서 다음을 적용하세요.
+1. **AdSense → 광고 → 사이트 수정**에서 이 사이트의 **Auto ads를 OFF**로 바꾸고 **사이트에 적용**합니다. 수동 단위도 같은 SDK를 쓰므로 계정 설정이 ON이면 SDK가 여전히 자동광고를 삽입할 수 있습니다. 반영 후 실제 데스크톱·모바일에서 확인합니다.
+2. **광고 → 광고 단위 기준 → 디스플레이**에서 실제 수동 단위를 만들거나 기존 단위의 `data-ad-slot` ID를 확인합니다. 게시자 클라이언트 ID나 자동광고가 생성한 ID를 수동 단위 ID로 대신 사용하지 마세요.
+3. 아래 공개 빌드 값을 설정합니다. 운영 `.env`와 GHCR 빌드용 GitHub repository variables를 맞춘 뒤 이미지를 다시 빌드합니다. 계정 OFF를 확인하기 전에는 확인 플래그를 `true`로 설정하지 마세요.
 
-1. **인페이지 형식 → 제외된 영역(Excluded areas)**에서 title/activity bar, Explorer, 탭, Outline, panel, StatusBar 아래 영역을 검토하고 광고 후보에서 제외합니다. 제외 규칙은 DOM selector에 의존하므로 이번 구조 변경 후 재검토가 필요합니다.
-2. **오버레이 형식(Overlay formats)**에서 앵커·사이드 레일·전면 광고를 별도로 확인합니다. 작업 공간 UI를 가리는 오버레이를 허용하지 않으려면 해당 형식을 끕니다. 인페이지 제외만으로 오버레이가 꺼지지 않습니다.
-3. **사이트에 적용** 후 반영을 기다리고 실제 데스크톱·모바일에서 게재 위치를 확인합니다. 코드의 `data-overlays="bottom"`은 기존 앵커 방향 설정일 뿐 인페이지 제외나 광고 비활성화가 아닙니다.
+```dotenv
+NEXT_PUBLIC_GOOGLE_ADSENSE_CLIENT=ca-pub-본인게시자ID
+NEXT_PUBLIC_GOOGLE_ADSENSE_ARTICLE_SLOT=
+NEXT_PUBLIC_GOOGLE_ADSENSE_POST_BOTTOM_SLOT=
+NEXT_PUBLIC_GOOGLE_ADSENSE_AUTO_ADS_DISABLED_CONFIRMED=false
+NEXT_PUBLIC_GOOGLE_ADSENSE_DISABLE=false
+```
 
-계정 제외가 적용되지 않은 상태에서 이 코드만으로 Auto ads가 작업 공간을 침범하지 않는다고 보장할 수 없습니다. 이미 게재된 광고를 CSS로 숨기거나 제거하지 않습니다. [공식 제외 영역 안내](https://support.google.com/adsense/answer/12626543?hl=ko) · [공식 Auto ads 설정](https://support.google.com/adsense/answer/9261805?hl=ko).
+`ARTICLE_SLOT`은 일반 글의 완결된 최상위 코드·블록 수식 뒤, `POST_BOTTOM_SLOT`은 일반 글 본문 끝에 사용합니다. 사용할 위치에만 실제 디스플레이 단위 ID를 넣습니다. callout·인용·목록·표·toggle·column 안으로 내려가지 않으며 블록의 본문·캡션 사이에도 광고를 넣지 않습니다. 짧은 글과 글 시작/끝 근처의 본문 슬롯은 생략합니다. Source-only 등 너비가 0인 pane에서는 요청하지 않고 실제로 보이게 될 때 한 번 요청합니다. `NEXT_PUBLIC_GOOGLE_ADSENSE_DISABLE=true`는 모든 광고 로더·수동 슬롯을 끕니다.
+
+`AUTO_ADS_DISABLED_CONFIRMED`는 **운영자 확인 기록이지 AdSense 계정 설정을 바꾸거나 검증하는 API가 아닙니다**. 현재 저장소에는 실제 수동 단위 ID가 없으므로 이 값들을 구성하기 전에는 광고를 게재하지 않습니다. `google-anno-skip`은 Ad intents의 본문 텍스트 스캔을 제외할 뿐 디스플레이 자동광고를 끄지 않습니다. [공식 Auto ads 설정](https://support.google.com/adsense/answer/9261805?hl=ko) · [공식 Ad intents 제외](https://support.google.com/adsense/answer/15111968?hl=ko).
 
 ---
 
@@ -322,7 +334,7 @@ docker compose logs -f blog embedding
 - 아키텍처: `linux/amd64`
 - SLSA build provenance attestation 자동 첨부
 
-GHCR CI 빌드에는 GitHub repository variables로 `NEXT_PUBLIC_SITE_URL`과 사용 중인 선택 기능의 공개 값을 설정합니다: `NEXT_PUBLIC_GOOGLE_ADSENSE_CLIENT`·`NEXT_PUBLIC_GOOGLE_ADSENSE_DISABLE`·`NEXT_PUBLIC_UTTERANCES_REPO`·`NEXT_PUBLIC_NOTION_COMMENTS_ENABLE`·`REVALIDATE_HOURS`. 이 값은 이미지 빌드 때 고정됩니다. `.env`만 바꿔서는 이미 게시된 이미지의 canonical·광고·댓글 UI가 바뀌지 않습니다. Notion 토큰·DB ID·salt·관리 키는 repository variables나 Docker build args에 넣지 말고 운영 `.env`에만 보관하세요.
+GHCR CI 빌드에는 GitHub repository variables로 `NEXT_PUBLIC_SITE_URL`과 사용 중인 선택 기능의 공개 값을 설정합니다: `NEXT_PUBLIC_GOOGLE_ADSENSE_CLIENT`·`NEXT_PUBLIC_GOOGLE_ADSENSE_DISABLE`·`NEXT_PUBLIC_GOOGLE_ADSENSE_ARTICLE_SLOT`·`NEXT_PUBLIC_GOOGLE_ADSENSE_POST_BOTTOM_SLOT`·`NEXT_PUBLIC_GOOGLE_ADSENSE_AUTO_ADS_DISABLED_CONFIRMED`·`NEXT_PUBLIC_UTTERANCES_REPO`·`NEXT_PUBLIC_NOTION_COMMENTS_ENABLE`·`REVALIDATE_HOURS`. 이 값은 이미지 빌드 때 고정됩니다. `.env`만 바꿔서는 이미 게시된 이미지의 canonical·광고·댓글 UI가 바뀌지 않습니다. Notion 토큰·DB ID·salt·관리 키는 repository variables나 Docker build args에 넣지 말고 운영 `.env`에만 보관하세요.
 
 이 프로젝트의 운영 기본 도메인은 `https://pieroot.xyz`입니다. 도메인을 변경할 때는 **이미지를 다시 빌드하기 전에** GitHub repository variable `NEXT_PUBLIC_SITE_URL=https://pieroot.xyz`를 설정하고, 원격 배포 서버의 프로젝트 `.env`에도 동일한 값을 설정합니다. CI 빌드 값은 canonical·sitemap·RSS 등의 공개 URL에 사용되고, 운영 `.env`는 런타임 origin 설정과 일치해야 합니다. `.env` 수정이나 컨테이너 재시작만으로 이전 이미지에 포함된 공개 URL을 변경할 수 없으므로 새 이미지를 빌드·배포해야 합니다. HAProxy는 `https://blog.pieroot.xyz`와 `https://www.pieroot.xyz` 요청을 기본 도메인 `https://pieroot.xyz`로 리다이렉트합니다. 다른 설치는 자신의 공개 도메인을 사용하고, 로컬 개발의 `http://localhost:3000` 기본값은 그대로 둡니다.
 
@@ -349,7 +361,7 @@ curl -X POST "https://your-site.com/api/cron/ontology" \
   -H "Authorization: Bearer $REVALIDATE_SECRET"
 ```
 
-Compose의 `build.args`는 사이트 주소·Utterances 저장소·AdSense client/disable·재검증 주기를 웹 이미지에 전달합니다. 이 값과 `site.config.js`를 변경하면 `docker compose up -d --build --wait --wait-timeout 2400`으로 다시 빌드합니다. Analytics 및 Google/Naver/Bing 인증 값만 컨테이너 시작 시 runtime-config로 주입되므로 이미지 재빌드 없이 재생성할 수 있습니다. 모든 `NEXT_PUBLIC_*`가 런타임 값인 것은 아닙니다.
+Compose의 `build.args`는 사이트 주소·Utterances 저장소·AdSense client/disable·수동 단위 ID·Auto ads OFF 확인·재검증 주기를 웹 이미지에 전달합니다. 이 값과 `site.config.js`를 변경하면 `docker compose up -d --build --wait --wait-timeout 2400`으로 다시 빌드합니다. Analytics 및 Google/Naver/Bing 인증 값만 컨테이너 시작 시 runtime-config로 주입되므로 이미지 재빌드 없이 재생성할 수 있습니다. 모든 `NEXT_PUBLIC_*`가 런타임 값인 것은 아닙니다.
 
 단독 `docker run`은 내구성 콘텐츠 Redis와 그래프 서비스 연결을 자동 구성하지 않습니다. 기본 설치·운영에는 위 Compose 경로를 사용합니다.
 
