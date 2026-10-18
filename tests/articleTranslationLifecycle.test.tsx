@@ -13,7 +13,7 @@ const second: TranslationArticle = { title: "다른 글입니다.", summary: "",
 const theme = createTheme({ colorTheme: resolveColorTheme("one-dark-pro-mix") })
 function Harness({ article, slug }: { article: TranslationArticle; slug: string }) {
   const translation = useArticleTranslation(article, slug)
-  return <ThemeProvider theme={theme}>{translation.controls}<output>{translation.article.title}</output></ThemeProvider>
+  return <ThemeProvider theme={theme}><div className="document-main"><div className="document-panes"><output>{translation.article.title}</output></div>{translation.controls}</div></ThemeProvider>
 }
 function deferred<T>() {
   let resolve!: (value: T) => void
@@ -60,6 +60,16 @@ it("does not create a model on mount or when opening translation controls", asyn
   expect(create).not.toHaveBeenCalled()
   expect(title()).toBe(first.title)
   expect(button("Translate article").disabled).toBe(false)
+})
+
+
+it("resets the language panel and suggestion dismissal when navigating to another article", async () => {
+  Object.defineProperty(navigator, "language", { configurable: true, value: "en-US" })
+  await render()
+  await render(second, "second", false)
+  expect(document.querySelector(".translation-panel")).toBeNull()
+  expect(document.querySelector(".translation-suggestion")).not.toBeNull()
+  expect(create).not.toHaveBeenCalled()
 })
 
 it("disposes a model that finishes creating after cancellation without translating", async () => {
@@ -127,7 +137,7 @@ it("keeps Korean browser sessions original and returns keyboard focus after clos
   const trigger = document.querySelector<HTMLButtonElement>('[aria-label="Article language and translation"]')!
   act(() => trigger.click())
   expect(document.activeElement).toBe(document.querySelector('input[id$="-target"]'))
-  act(() => document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })))
+  act(() => document.activeElement!.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })))
   expect(document.querySelector('[role="dialog"]')).toBeNull()
   expect(document.activeElement).toBe(trigger)
   expect(create).not.toHaveBeenCalled()

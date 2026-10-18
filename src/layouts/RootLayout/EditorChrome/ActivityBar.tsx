@@ -22,7 +22,7 @@ const ActivityBar = () => {
     <button type="button" title="Command palette · Cmd/Ctrl+Shift+P" aria-label="Command palette" onClick={() => window.dispatchEvent(new CustomEvent("open-command-palette", { detail: { query: ">" } }))}><WorkbenchIcon name="command" size={24} /></button>
     <div className="spacer" />
     <button type="button" title="Reading mode" aria-label="Toggle reading mode" aria-pressed={readingMode} onClick={() => setReadingMode(!readingMode)}><WorkbenchIcon name="book" size={24} /></button>
-    <button type="button" title="Settings" aria-label="Settings" aria-pressed={settingsOpen} onClick={() => setSettingsOpen(!settingsOpen)}><WorkbenchIcon name="settings" size={24} /></button>
+    <button type="button" title="Settings" aria-label="Settings" aria-pressed={settingsOpen} aria-haspopup="dialog" aria-controls={settingsOpen ? "workbench-settings" : undefined} onClick={() => setSettingsOpen(!settingsOpen)}><WorkbenchIcon name="settings" size={24} /></button>
   </StyledWrapper>
 }
 export default ActivityBar

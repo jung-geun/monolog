@@ -34,7 +34,7 @@ A Next.js-based static blog using Notion as a Content Management System (CMS). T
 - **Keyboard navigation**: `Cmd/Ctrl+K` opens Quick Pick; `>` searches commands and `@` searches the current document's headings. Explorer single click previews, double click pins. `Alt/Option+W` closes a post and `Alt/Option+Shift+T` reopens it; browser close shortcuts are left alone.
 - **Search and storage**: `/search?q=...` searches titles, summaries, tags, and categories, including `tag:"kolla ansible"`. Pinned tabs and recently closed posts are saved only after consent; preview tabs are never persisted.
 - **On-device translation**: Open the bottom-right globe to choose languages and explicitly request the browser's built-in Translator API. Supported non-Korean browser locales receive a suggestion, never automatic translation. Preview, Source and Outline share the result, with reduced-motion-aware text recomposition. Copy/download and public `.md` exports remain original.
-- **Advertising boundary**: The only manual slot is `googleAdsense.config.slots.postBottom`, after article content. Auto ads exclusions and overlay settings must be reviewed separately in AdSense; code cannot guarantee those account-controlled placements. See [operator instructions](docs/USAGE.md#광고와-작업-공간-경계).
+- **Advertising boundary**: Manual display slots appear only after eligible complete top-level code/equation blocks and optionally after article content, never inside content blocks. The SDK and slots stay inactive until a publisher client, real manual unit ID, and explicit account Auto ads OFF confirmation are configured. See [operator instructions](docs/USAGE.md#광고와-작업-공간-경계).
 
 ### 📒 Writing with Notion
 - No need to commit to GitHub for blog posts
@@ -118,7 +118,7 @@ openssl rand -hex 32 # use this for TRUSTED_PROXY_SECRET and independent comment
 | `NOTION_VISIT_STATS_DATASOURCE_ID`, `VISITOR_HASH_SALT` | When visitor stats enabled | Visit data source and independent visitor salt |
 | `ANTHROPIC_API_KEY`, `OPENAI_API_KEY` | When ontology/vector build enabled | Optional ontology extraction and embedding credentials |
 
-`TRUSTED_PROXY_HOPS` is fixed to `1` inside Compose. Redis, content Redis, and Qdrant are private Compose services; do not set their public URLs in `.env`. `content-redis` starts with AOF enabled and holds the published content registry; it is intentionally separate from the cache Redis, whose existing RDB data would be ignored if AOF were enabled by restart.
+`TRUSTED_PROXY_HOPS` defaults to `0`, so forwarded IP headers are ignored. With the single HAProxy hop described below, explicitly set `TRUSTED_PROXY_HOPS=1` and configure the matching `TRUSTED_PROXY_SECRET`; otherwise the visitor-IP badge shows the socket peer rather than the visitor. Redis, content Redis, and Qdrant are private Compose services; do not set their public URLs in `.env`. `content-redis` starts with AOF enabled and holds the published content registry; it is intentionally separate from the cache Redis, whose existing RDB data would be ignored if AOF were enabled by restart.
 
 ### Mac mini and HAProxy setup
 

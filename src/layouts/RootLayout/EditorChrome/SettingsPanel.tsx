@@ -19,7 +19,7 @@ const SettingsPanel = () => {
   if (!settingsOpen) return null
   return <StyledOverlay>
     <button type="button" className="backdrop" aria-label="Close settings" onClick={() => setSettingsOpen(false)} />
-    <div ref={panelRef} role="dialog" aria-modal="true" aria-labelledby="workbench-settings-title" className="settings" onKeyDown={(event) => {
+    <div id="workbench-settings" ref={panelRef} role="dialog" aria-modal="true" aria-labelledby="workbench-settings-title" className="settings" onKeyDown={(event) => {
       if (event.key === "Escape") { event.preventDefault(); setSettingsOpen(false) }
       if (event.key !== "Tab") return
       const controls = Array.from(event.currentTarget.querySelectorAll<HTMLElement>('button:not(:disabled), a[href], input:not(:disabled), select:not(:disabled), [tabindex="0"]'))

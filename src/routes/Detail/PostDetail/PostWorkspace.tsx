@@ -22,7 +22,7 @@ const PostWorkspace = styled.div`
   .document-grid { flex: 1; min-height: 0; min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); overflow: hidden; }
   .document-grid.with-rail { grid-template-columns: minmax(0, 1fr) 224px; }
   .document-main, .document-panes, .document-preview, .document-source { min-width: 0; min-height: 0; }
-  .document-main { display: flex; flex-direction: column; overflow: hidden; }
+  .document-main { position: relative; isolation: isolate; container: article-document / size; display: flex; flex-direction: column; overflow: hidden; }
   .document-panes { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); overflow: hidden; }
   .document-preview, .document-source { overflow: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
   .document-preview[hidden] { display: none; }
@@ -64,7 +64,7 @@ const PostWorkspace = styled.div`
     .mode-switch button span { display: none; }
     .document-grid.with-rail { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) minmax(0, 3fr); }
     .document-grid.with-rail .document-main { grid-row: 2; }
-    .document-grid.with-rail .document-rail { grid-row: 1; border-left: 0; border-bottom: 1px solid ${({ theme }) => theme.colors.editor.line}; }
+    .document-grid.with-rail .document-rail { grid-row: 1; padding-block: 0; border-left: 0; border-bottom: 1px solid ${({ theme }) => theme.colors.editor.line}; }
     .document-panes--split { grid-template-columns: minmax(0, 1fr); }
     .document-panes--split.mobile-pane--preview .document-source, .document-panes--split.mobile-pane--source .document-preview { display: none; }
     .mobile-pane-switch { display: flex; }

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { useQueryClient } from "@tanstack/react-query"
 import dynamic from "next/dynamic"
 import Image from "next/image"
@@ -42,7 +42,7 @@ const PostDetail = () => {
   const data = usePostQuery()
   const queryClient = useQueryClient()
   const allPosts = usePostsQuery()
-  const { documentMode, setDocumentMode, setDocumentContext, isSecondaryOpen, setSecondaryOpen, isPanelOpen, setPanelOpen, panelTab, setPanelTab, readingMode, setReadingMode } = useWorkbench()
+  const { documentMode, setDocumentMode, setDocumentContext, registerArticleTranslation, isSecondaryOpen, setSecondaryOpen, isPanelOpen, setPanelOpen, panelTab, setPanelTab, readingMode, setReadingMode } = useWorkbench()
   const [mobilePane, setMobilePane] = useState<"preview" | "source">("preview")
   const [syncScroll, setSyncScroll] = useState(true)
   const panes = useRef<HTMLDivElement>(null)
@@ -75,6 +75,11 @@ const PostDetail = () => {
     setDocumentContext(data ? { slug: data.slug, title: translation.article.title, headings } : null)
     return () => setDocumentContext(null)
   }, [data, headings, translation.article.title, setDocumentContext])
+
+  useLayoutEffect(() => {
+    if (!data?.slug || !translation.supported) return
+    return registerArticleTranslation(data.slug, translation.openLanguagePanel)
+  }, [data?.slug, translation.supported, translation.openLanguagePanel, registerArticleTranslation])
 
   useEffect(() => {
     if (documentMode !== "split" || !syncScroll) return
@@ -141,7 +146,7 @@ const PostDetail = () => {
               {summary && !isAbout && <p className="post-summary">{summary}</p>}
               {data.thumbnail && !isAbout && <div className="hero-thumb"><Image src={data.thumbnail} alt={data.title} fill sizes="(max-width: 960px) 100vw, 760px" className="object-cover" /></div>}
               {isAbout && <div className="about-sections"><p className="profile-bio">{CONFIG.profile.role}{CONFIG.profile.bio ? ` · ${CONFIG.profile.bio}` : ""}</p><details open><summary>Writing & activity</summary><StatsGrid stats={getStats(allPosts)} /><ActivityHeatmap /><GitHubContributions username={CONFIG.profile.github} /></details><details><summary>Tools & technologies</summary><StackGrid /></details><details open><summary>Contact</summary><ContactBlock /></details></div>}
-              <div className="notion-content"><NotionRenderer recordMap={translation.article.recordMap} /></div>
+              <div className="notion-content"><NotionRenderer recordMap={translation.article.recordMap} manualAds={!isPage && !isAbout} /></div>
               {!isPage && !isAbout && <AdSlot slot={CONFIG.googleAdsense.config.slots.postBottom} className="my-8" />}
               <SeriesNav post={data} allPosts={allPosts} />
               <nav className="document-context-links" aria-label="Article context"><button type="button" onClick={() => openPanel("references")}><WorkbenchIcon name="link" />References & similar articles</button><button type="button" onClick={() => openPanel("comments")}><WorkbenchIcon name="comment" />Comments</button></nav>
@@ -150,12 +155,12 @@ const PostDetail = () => {
           </div>
           {documentMode !== "preview" && <div className="document-source"><MarkdownSource key={data.slug} slug={data.slug} headings={headings} document={translatedDocument ?? undefined} language={translation.active ? translation.targetLanguage : undefined} /></div>}
         </div>
+        {translation.controls}
       </div>
       <RightRail recordMap={translation.article.recordMap} post={data} />
     </div>
     <div id="document-bottom-panel"><DocumentPanel key={data.slug} post={data} /></div>
     {isPanelOpen && !readingMode && <div className="panel-footer-label">{panelTab === "references" ? "References" : "Comments"} · {filename}</div>}
-    {translation.controls}
   </Workspace>
 }
 

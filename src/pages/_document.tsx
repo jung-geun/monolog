@@ -1,6 +1,7 @@
 import Document, { Html, Head, Main, NextScript } from "next/document"
 import Script from "next/script"
 import { CONFIG } from "site.config"
+import { canLoadManualAds } from "src/components/AdSlot/manualAds"
 import { getRuntimePublicConfigFromEnvironment } from "src/libs/runtimeConfigServer"
 import { getColorThemeBootstrap, getColorThemeCSS, getColorThemePreference, resolveColorTheme } from "src/styles/colors"
 
@@ -23,12 +24,11 @@ class MyDocument extends Document {
             href="/apple-touch-icon.png"
           ></link>
           <Script src="/runtime-config.js" strategy="beforeInteractive" />
-          {CONFIG.googleAdsense?.enable && CONFIG.googleAdsense.config.client && (
+          {canLoadManualAds(CONFIG.googleAdsense) && (
             <script
               async
               src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${CONFIG.googleAdsense.config.client}`}
               crossOrigin="anonymous"
-              data-overlays="bottom"
             />
           )}
           {googleSiteVerification && (

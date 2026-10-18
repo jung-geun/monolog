@@ -5,7 +5,7 @@ import {
   VscLayoutSidebarLeft, VscLayoutPanel, VscLayoutSidebarRight, VscSplitHorizontal,
   VscPreview, VscCode, VscBook, VscLink, VscComment, VscPinned, VscHistory,
   VscEllipsis, VscCollapseAll, VscCheck, VscLinkExternal, VscColorMode,
-  VscFolder, VscInfo,
+  VscFolder, VscInfo, VscRemote,
 } from "react-icons/vsc"
 
 const icons = {
@@ -17,7 +17,7 @@ const icons = {
   code: VscCode, book: VscBook, link: VscLink, comment: VscComment, pin: VscPinned,
   history: VscHistory, more: VscEllipsis, "collapse-all": VscCollapseAll,
   check: VscCheck, external: VscLinkExternal, sun: VscColorMode, moon: VscColorMode,
-  folder: VscFolder, info: VscInfo,
+  folder: VscFolder, info: VscInfo, remote: VscRemote,
 } as const
 
 export type WorkbenchIconName = keyof typeof icons

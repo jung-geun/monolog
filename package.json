@@ -1,6 +1,6 @@
 {
   "name": "monolog",
-  "version": "1.21.10",
+  "version": "1.21.11",
   "packageManager": "yarn@1.22.22",
   "license": "MIT",
   "repository": {

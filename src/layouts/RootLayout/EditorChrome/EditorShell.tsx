@@ -20,7 +20,7 @@ export const EDITOR_SCROLL_ROOT = ".page-content"
 
 const EditorShellInner = ({ children }: { children: ReactNode }) => {
   const { chrome, isFileTreeOpen, setFileTreeOpen } = useRouteChrome()
-  const { sidebarView, readingMode, settingsOpen, setSettingsOpen, scrollToHeading } = useWorkbench()
+  const { sidebarView, readingMode, settingsOpen, scrollToHeading } = useWorkbench()
   const events = useRouter()?.events
   const contentRef = useRef<HTMLDivElement>(null)
   const sidebarRef = useRef<HTMLElement>(null)
@@ -28,7 +28,6 @@ const EditorShellInner = ({ children }: { children: ReactNode }) => {
   const [sidebarWidth, setSidebarWidth] = useState(248)
   const [mobileDrawerReady, setMobileDrawerReady] = useState(false)
   const resizeStart = useRef({ x: 0, width: 248 })
-  const preferencesButtonRef = useRef<HTMLButtonElement>(null)
   const scrollPositions = useRef(new Map<string, number>())
   const sidebarVisible = isFileTreeOpen && !readingMode
 
@@ -158,8 +157,8 @@ const EditorShellInner = ({ children }: { children: ReactNode }) => {
         }} />}
       {sidebarVisible && <button type="button" className="filetree-backdrop" aria-label="Close sidebar" onClick={() => setFileTreeOpen(false)} />}
       <div className="editor-body">
-        <TabBar ref={preferencesButtonRef} preferencesOpen={settingsOpen} onTogglePreferences={() => setSettingsOpen(!settingsOpen)} />
-        {!settingsOpen && <TabSessionControls preferencesOpen={false} onClosePreferences={() => preferencesButtonRef.current?.focus()} />}
+        <TabBar />
+        {!settingsOpen && <TabSessionControls preferencesOpen={false} onClosePreferences={() => contentRef.current?.focus({ preventScroll: true })} />}
         <div className="route-signal" data-navigation={navigation} aria-hidden="true" />
         <div id="workbench-content" tabIndex={-1} className="page-content" ref={contentRef} aria-busy={navigation === "loading"}>{children}</div>
       </div>

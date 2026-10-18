@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { CONFIG } from "site.config"
 import { createTranslationPlan, type TranslationArticle } from "./articleTranslation"
-import ArticleTranslationControls from "./ArticleTranslationControls"
+import ArticleTranslationControls, { type ArticleTranslationHandle } from "./ArticleTranslationControls"
 
 type LanguagePair = { sourceLanguage: string; targetLanguage: string }
 type Availability = "available" | "downloadable" | "downloading" | "unavailable"
@@ -67,6 +67,8 @@ const useArticleTranslation = (article: TranslationArticle, slug: string | undef
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null)
   const mounted = useRef(false)
   const job = useRef<Job | null>(null)
+  const controlsRef = useRef<ArticleTranslationHandle>(null)
+  const openLanguagePanel = useCallback(() => controlsRef.current?.open(), [])
   const source = validateLanguage(sourceInput)
   const target = validateLanguage(targetInput)
   const context = useMemo(() => ({ original, slug, source: sourceInput, target: targetInput }), [original, slug, sourceInput, targetInput])
@@ -220,6 +222,8 @@ const useArticleTranslation = (article: TranslationArticle, slug: string | undef
   else if (visible?.phase === "complete") status = visible.total ? `Translation complete: ${visible.completed} sentences. Preview, Source and Outline are synchronized.` : "No translatable article text was found."
 
   const controls = <ArticleTranslationControls
+    key={slug}
+    ref={controlsRef}
     sourceLanguage={sourceInput}
     targetLanguage={targetInput}
     browserLanguage={browser.language}
@@ -242,7 +246,7 @@ const useArticleTranslation = (article: TranslationArticle, slug: string | undef
     downloadProgress={visible?.downloadProgress ?? null}
   />
 
-  return { article: visible?.article ?? original, controls, active: hasTranslation, busy, targetLanguage: target.language || undefined }
+  return { article: visible?.article ?? original, controls, active: hasTranslation, busy, targetLanguage: target.language || undefined, supported: Boolean(browser.api), openLanguagePanel }
 }
 
 export default useArticleTranslation

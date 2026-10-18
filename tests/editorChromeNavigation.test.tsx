@@ -71,7 +71,7 @@ describe("editor chrome navigation", () => {
               <WorkbenchProvider>
               <ActivityBar />
               <FileTree />
-              <TabBar preferencesOpen={false} onTogglePreferences={() => {}} />
+              <TabBar />
               <Document key={mockRouter.asPath} filename={filename} kind={kind} />
               </WorkbenchProvider>
             </RouteChromeProvider>
