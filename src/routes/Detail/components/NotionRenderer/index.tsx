@@ -20,8 +20,7 @@ import {
 } from "src/libs/utils/notion/rewriteInternalLinks"
 import usePostsQuery from "src/hooks/usePostsQuery"
 import { NotionRenderer as CoreNotionRenderer } from "react-notion-x"
-import { Code } from "./Code"
-import { Equation } from "./Equation"
+import { ArticleCode, ArticleEquation, ManualArticleAds } from "./ManualArticleAds"
 import ArticleFlow from "src/components/ArticleFlow"
 import { normalizeArticleHeadings } from "./headings"
 import { createPreviewPageLink } from "./PageLink"
@@ -78,6 +77,7 @@ const mapImageUrlWrapper = (url: string | undefined, block: Block) => {
 
 type Props = {
   recordMap: ExtendedRecordMap | null
+  manualAds?: boolean
 }
 
 // collection_view_page 블록(non-root)을 collection_view 로 변환한다.
@@ -115,7 +115,7 @@ const DatabaseBlockRenderer: FC<{ databaseId: string; title: string }> = ({ data
   return <DatabasePlaceholder databaseId={databaseId} title={title} />
 }
 
-const NotionRenderer: FC<Props> = ({ recordMap }) => {
+const NotionRenderer: FC<Props> = ({ recordMap, manualAds = false }) => {
   const [scheme] = useScheme()
   const allPosts = usePostsQuery()
 
@@ -548,14 +548,16 @@ const NotionRenderer: FC<Props> = ({ recordMap }) => {
 
   return (
     <StyledWrapper className={scheme === 'dark' ? 'dark' : 'light'}>
-      <ArticleFlow>
+      {/* Defense for text-scanning Ad intents; manual mode still requires Auto ads OFF account-side. */}
+      <ManualArticleAds recordMap={recordMap} enabled={manualAds}>
+      <ArticleFlow className="google-anno-skip">
         <CoreNotionRenderer
           darkMode={scheme === "dark"}
           recordMap={renderedRecordMap ?? recordMap}
           components={{
-            Code,
+            Code: ArticleCode,
             Collection,
-            Equation,
+            Equation: ArticleEquation,
             Modal,
             Pdf,
             PageLink,
@@ -566,6 +568,7 @@ const NotionRenderer: FC<Props> = ({ recordMap }) => {
           mapImageUrl={mapImageUrlWrapper}
         />
       </ArticleFlow>
+      </ManualArticleAds>
     </StyledWrapper>
   )
 }

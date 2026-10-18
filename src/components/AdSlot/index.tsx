@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react"
 import { useRouter } from "next/router"
 import { CONFIG } from "site.config"
+import { canLoadManualAds } from "./manualAds"
 
 type Props = {
   slot: string
@@ -16,8 +17,10 @@ const AdSlot = ({
   className,
 }: Props) => {
   const { asPath } = useRouter()
+  const documentPath = asPath.split(/[?#]/, 1)[0]
   const ref = useRef<HTMLModElement>(null)
-  const client = CONFIG.googleAdsense?.enable
+  const requested = useRef<HTMLModElement | null>(null)
+  const client = canLoadManualAds(CONFIG.googleAdsense)
     ? CONFIG.googleAdsense.config.client
     : ""
   const active = Boolean(client && slot)
@@ -25,22 +28,40 @@ const AdSlot = ({
   useEffect(() => {
     const ins = ref.current
     if (!active || !ins) return
-    if (ins.getAttribute("data-adsbygoogle-status")) return
-    if (ins.offsetWidth === 0) return
+    let observer: ResizeObserver | undefined
+    const request = () => {
+      if (ref.current !== ins) return
+      if (requested.current === ins || ins.getAttribute("data-adsbygoogle-status")) {
+        observer?.disconnect()
+        return
+      }
+      if (ins.offsetWidth === 0) return
 
-    try {
-      ;(window.adsbygoogle = window.adsbygoogle || []).push({})
-    } catch (error) {
-      console.error("[adsense] push failed", error)
+      // Mark before queuing: Google may not set its status until the SDK loads.
+      requested.current = ins
+      observer?.disconnect()
+      try {
+        ;(window.adsbygoogle = window.adsbygoogle || []).push({})
+      } catch (error) {
+        console.error("[adsense] push failed", error)
+      }
     }
-  }, [active, asPath, slot])
+
+    request()
+    if (requested.current === ins || ins.getAttribute("data-adsbygoogle-status")) return
+    // Source-only/compact panes can mount at zero width, then become visible.
+    if (typeof ResizeObserver === "undefined") return
+    observer = new ResizeObserver(request)
+    observer.observe(ins)
+    return () => observer?.disconnect()
+  }, [active, documentPath, slot])
 
   if (!active) return null
 
   return (
     <div className={className}>
       <ins
-        key={asPath}
+        key={`${documentPath}:${slot}`}
         ref={ref}
         className="adsbygoogle"
         style={{ display: "block" }}

@@ -58,9 +58,14 @@ const CONFIG = {
     config: {
       client:
         process.env.NEXT_PUBLIC_GOOGLE_ADSENSE_CLIENT || "",
+      // Operator confirmation only: turn Auto ads OFF in AdSense before enabling manual units.
+      // The SDK can still inject Auto ads if the account setting remains on.
+      autoAdsDisabledConfirmed:
+        process.env.NEXT_PUBLIC_GOOGLE_ADSENSE_AUTO_ADS_DISABLED_CONFIRMED === "true",
       // Display ad unit slot IDs (AdSense > Ads > By ad unit > Display). "" = slot not rendered.
       slots: {
-        postBottom: "",
+        article: (process.env.NEXT_PUBLIC_GOOGLE_ADSENSE_ARTICLE_SLOT || "").trim(),
+        postBottom: (process.env.NEXT_PUBLIC_GOOGLE_ADSENSE_POST_BOTTOM_SLOT || "").trim(),
       },
     },
   },
