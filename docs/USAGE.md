@@ -82,23 +82,50 @@ Welcome의 Recent, Search Editor·Search Sidebar와 시리즈 상세에서 실�
 
 ### 광고와 작업 공간 경계
 
-광고는 **수동 디스플레이 광고 단위**만 사용합니다. 클라이언트 ID만 있는 기존 설정은 광고 SDK를 로드하지 않으며 빈 슬롯·빈 박스를 만들지 않습니다. 이미 게재된 광고를 CSS로 숨기거나 DOM에서 제거·이동하지 않습니다.
+광고는 `NEXT_PUBLIC_GOOGLE_ADSENSE_MODE`로 **자동 광고(`auto`, 기본값)**와 **수동 배치(`manual`)**를 구분합니다. 게시자 ID만 설정한 상태에서는 SDK를 로드하지 않습니다. 모드별 계정 작업을 마친 뒤에만 확인값을 설정하세요. 이미 게재된 광고를 CSS로 숨기거나 DOM에서 제거·이동하지 않습니다.
 
-1. **AdSense → 광고 → 사이트 수정**에서 이 사이트의 **Auto ads를 OFF**로 바꾸고 **사이트에 적용**합니다. 수동 단위도 같은 SDK를 쓰므로 계정 설정이 ON이면 SDK가 여전히 자동광고를 삽입할 수 있습니다. 반영 후 실제 데스크톱·모바일에서 확인합니다.
-2. **광고 → 광고 단위 기준 → 디스플레이**에서 실제 수동 단위를 만들거나 기존 단위의 `data-ad-slot` ID를 확인합니다. 게시자 클라이언트 ID나 자동광고가 생성한 ID를 수동 단위 ID로 대신 사용하지 마세요.
-3. 아래 공개 빌드 값을 설정합니다. 운영 `.env`와 GHCR 빌드용 GitHub repository variables를 맞춘 뒤 이미지를 다시 빌드합니다. 계정 OFF를 확인하기 전에는 확인 플래그를 `true`로 설정하지 마세요.
+#### 자동 광고: 오버레이 전용
+
+자동 모드는 **인페이지 자동 광고를 허용하지 않습니다**. 완결된 본문 블록 사이라도 자동 배너를 남기지 않으며, 수동 단위 ID 없이 SDK만 로드하고 수동 슬롯은 함께 만들지 않습니다.
+
+1. **AdSense → 광고 → 사이트 수정**에서 이 사이트의 **Auto ads는 ON**으로 유지합니다. **인페이지 형식의 Banner(배너)와 Multiplex(멀티플렉스)는 모두 OFF**로 바꿉니다.
+2. **광고 의도(Ad intents)의 텍스트 링크·칩도 모두 OFF**로 설정합니다. 본문 스캔 제외 클래스만으로 이 계정 설정을 대신하지 않습니다.
+3. 의도한 **오버레이 형식은 유지**합니다. 기존 **하단 전용 앵커 ON·사이드 레일 ON·전면 광고(Vignette) OFF**와 각 형식의 기존 세부 선택은 계정에서 그대로 유지합니다. 인페이지 형식을 끄려고 Auto ads 전체를 끄지 마세요.
+4. **이 사이트의 자동 최적화(Auto optimize)는 OFF**로 설정합니다. 자동 최적화 실험은 Auto ads 형식을 켤 수 있으므로, 우수 실적 설정 자동 적용을 포함한 실험이 금지한 인페이지·텍스트 형식을 다시 활성화하지 않게 해야 합니다. **Auto ads 자체의 ON 설정과 자동 최적화 OFF는 별개**입니다. [공식 자동 최적화 설정](https://support.google.com/adsense/answer/9141298?hl=ko).
+5. **사이트에 적용**한 뒤 계정 설정을 다시 열어 Auto ads ON, Banner·Multiplex OFF, 텍스트 광고 의도 링크·칩 OFF, 자동 최적화 OFF와 오버레이 선택을 확인합니다. 반영에는 최대 1시간이 걸릴 수 있습니다. 확인 전에는 아래 값을 기본값 `false`로 둡니다.
+6. 계정을 확인한 운영자만 `NEXT_PUBLIC_GOOGLE_ADSENSE_AUTO_ADS_IN_PAGE_DISABLED_CONFIRMED=true`로 바꾸고 **이미지를 다시 빌드·배포**합니다. 이 값은 위 계정 작업의 확인 기록이며 Google 설정을 변경하거나 실제 광고 위치를 검증하지 않습니다.
 
 ```dotenv
 NEXT_PUBLIC_GOOGLE_ADSENSE_CLIENT=ca-pub-본인게시자ID
+NEXT_PUBLIC_GOOGLE_ADSENSE_MODE=auto
+NEXT_PUBLIC_GOOGLE_ADSENSE_AUTO_ADS_IN_PAGE_DISABLED_CONFIRMED=false
+NEXT_PUBLIC_GOOGLE_ADSENSE_DISABLE=false
+```
+
+**제외된 영역은 이 정책의 대체 수단이 아닙니다.** 이 UI는 인페이지 자동 광고의 후보 위치를 제외하며 앵커·사이드 레일 등 오버레이를 끄지 않습니다. 미리보기가 동적 작업 공간의 원하는 영역을 선택하지 못할 수 있고, 특정 글의 블록 ID·순서에 의존하는 제외는 다른 글에 적용되지 않을 수 있습니다. 공통 CSS 클래스나 DOM 경계를 유지하는 것만으로 광고가 차단되지 않으며, 이 프로젝트는 임의 선택자를 Google 설정에 등록하는 API를 제공하지 않습니다. 인페이지 형식을 모두 끄므로 별도의 작업 공간 후보 제외 목록으로 자동 배너를 허용하지 않습니다. [공식 제외 영역](https://support.google.com/adsense/answer/12626543?hl=ko).
+
+**배포 후 실제 런타임 게재·배치 증거가 필요합니다.** 배포한 이미지의 실제 사이트에서 SDK 로드와 광고 요청을 확인하고, 실제로 채워진 광고가 선택한 오버레이 위치에만 표시되는지 브라우저 화면·네트워크 기록으로 남깁니다. 데스크톱·모바일의 여러 글, Preview/Source/Split, Explorer·메뉴·상태바를 확인해 본문 블록 안팎과 작업 공간에 인페이지 배너·Multiplex·텍스트 광고 의도 링크·칩이 생기지 않는지도 확인합니다. 계정 미리보기, 빌드 성공, SDK 로드만으로 실제 게재·위치가 증명되지는 않습니다. Google의 게재 결정·동의·광고 차단·미충전 등으로 광고가 보이지 않으면 게재 증거는 미확보 상태이며 검증 완료로 기록하지 않습니다. 원치 않는 형식이 나타나면 계정 설정을 수정하고, 필요하면 `NEXT_PUBLIC_GOOGLE_ADSENSE_DISABLE=true`로 재빌드·배포해 이후 SDK 로드를 중단합니다. 이미 게재된 광고를 CSS로 숨기거나 DOM에서 제거·이동해 해결하지 않습니다.
+
+#### 수동 광고 단위
+
+1. 계정에서 이 사이트의 **Auto ads를 OFF**로 바꾸고 **사이트에 적용**합니다. 수동 단위도 같은 SDK를 쓰므로 계정 설정이 ON이면 SDK가 여전히 자동광고를 삽입할 수 있습니다.
+2. **광고 → 광고 단위 기준 → 디스플레이**에서 실제 단위를 만들거나 기존 단위의 `data-ad-slot`을 확인합니다. 게시자 ID나 자동광고가 생성한 ID를 수동 단위 ID로 대신 사용하지 마세요.
+3. 아래 `AUTO_ADS_DISABLED_CONFIRMED`는 계정 OFF를 확인한 뒤에만 `true`로 설정합니다. 기존 수동 배치 설정도 `MODE=manual`을 명시해야 합니다.
+
+```dotenv
+NEXT_PUBLIC_GOOGLE_ADSENSE_CLIENT=ca-pub-본인게시자ID
+NEXT_PUBLIC_GOOGLE_ADSENSE_MODE=manual
 NEXT_PUBLIC_GOOGLE_ADSENSE_ARTICLE_SLOT=
 NEXT_PUBLIC_GOOGLE_ADSENSE_POST_BOTTOM_SLOT=
 NEXT_PUBLIC_GOOGLE_ADSENSE_AUTO_ADS_DISABLED_CONFIRMED=false
 NEXT_PUBLIC_GOOGLE_ADSENSE_DISABLE=false
 ```
 
-`ARTICLE_SLOT`은 일반 글의 완결된 최상위 코드·블록 수식 뒤, `POST_BOTTOM_SLOT`은 일반 글 본문 끝에 사용합니다. 사용할 위치에만 실제 디스플레이 단위 ID를 넣습니다. callout·인용·목록·표·toggle·column 안으로 내려가지 않으며 블록의 본문·캡션 사이에도 광고를 넣지 않습니다. 짧은 글과 글 시작/끝 근처의 본문 슬롯은 생략합니다. Source-only 등 너비가 0인 pane에서는 요청하지 않고 실제로 보이게 될 때 한 번 요청합니다. `NEXT_PUBLIC_GOOGLE_ADSENSE_DISABLE=true`는 모든 광고 로더·수동 슬롯을 끕니다.
+`ARTICLE_SLOT`은 일반 글의 완결된 최상위 코드·블록 수식 뒤, `POST_BOTTOM_SLOT`은 본문 끝에 사용합니다. 사용할 위치에만 실제 단위 ID를 넣습니다. callout·인용·목록·표·toggle·column 내부와 블록 본문·캡션 사이에는 삽입하지 않습니다. 짧은 글과 시작/끝 근처의 본문 슬롯은 생략합니다. 너비가 0인 Source-only/compact pane에서는 요청하지 않고 실제 보이게 될 때 한 번 요청합니다.
 
-`AUTO_ADS_DISABLED_CONFIRMED`는 **운영자 확인 기록이지 AdSense 계정 설정을 바꾸거나 검증하는 API가 아닙니다**. 현재 저장소에는 실제 수동 단위 ID가 없으므로 이 값들을 구성하기 전에는 광고를 게재하지 않습니다. `google-anno-skip`은 Ad intents의 본문 텍스트 스캔을 제외할 뿐 디스플레이 자동광고를 끄지 않습니다. [공식 Auto ads 설정](https://support.google.com/adsense/answer/9261805?hl=ko) · [공식 Ad intents 제외](https://support.google.com/adsense/answer/15111968?hl=ko).
+두 확인값은 **운영자 확인 기록이지 AdSense 계정 설정을 바꾸거나 검증하는 API가 아닙니다**. 선택한 모드의 확인만 사용하며, 잘못된 모드는 비활성화합니다. `NEXT_PUBLIC_GOOGLE_ADSENSE_DISABLE=true`는 두 모드의 SDK·수동 슬롯을 모두 끕니다. 모드·클라이언트·확인값·단위 ID는 운영 `.env`와 GHCR 빌드용 GitHub repository variables에 맞춰 설정하고 이미지를 다시 빌드해야 합니다. `.env` 변경이나 재시작만으로 이미 빌드된 값은 바뀌지 않습니다.
+
+기존 본문의 `google-anno-skip`은 공식 Ad intents 텍스트 스캔 제외일 뿐 일반 배너 차단 수단이 아니며, 자동 모드에서 텍스트 링크·칩을 계정에서 OFF로 설정하는 절차를 대신하지 않습니다. 별도의 미지원 skip 속성은 사용하지 않습니다. [공식 Auto ads 설정](https://support.google.com/adsense/answer/9305577?hl=ko) · [공식 Ad intents 제외](https://support.google.com/adsense/answer/15111968?hl=ko).
 
 ---
 
@@ -336,7 +363,7 @@ docker compose logs -f blog embedding
 - 아키텍처: `linux/amd64`
 - SLSA build provenance attestation 자동 첨부
 
-GHCR CI 빌드에는 GitHub repository variables로 `NEXT_PUBLIC_SITE_URL`과 사용 중인 선택 기능의 공개 값을 설정합니다: `NEXT_PUBLIC_GOOGLE_ADSENSE_CLIENT`·`NEXT_PUBLIC_GOOGLE_ADSENSE_DISABLE`·`NEXT_PUBLIC_GOOGLE_ADSENSE_ARTICLE_SLOT`·`NEXT_PUBLIC_GOOGLE_ADSENSE_POST_BOTTOM_SLOT`·`NEXT_PUBLIC_GOOGLE_ADSENSE_AUTO_ADS_DISABLED_CONFIRMED`·`NEXT_PUBLIC_UTTERANCES_REPO`·`NEXT_PUBLIC_NOTION_COMMENTS_ENABLE`·`REVALIDATE_HOURS`. 이 값은 이미지 빌드 때 고정됩니다. `.env`만 바꿔서는 이미 게시된 이미지의 canonical·광고·댓글 UI가 바뀌지 않습니다. Notion 토큰·DB ID·salt·관리 키는 repository variables나 Docker build args에 넣지 말고 운영 `.env`에만 보관하세요.
+GHCR CI 빌드에는 GitHub repository variables로 `NEXT_PUBLIC_SITE_URL`과 사용 중인 선택 기능의 공개 값을 설정합니다: `NEXT_PUBLIC_GOOGLE_ADSENSE_CLIENT`·`NEXT_PUBLIC_GOOGLE_ADSENSE_DISABLE`·`NEXT_PUBLIC_GOOGLE_ADSENSE_MODE`·`NEXT_PUBLIC_GOOGLE_ADSENSE_AUTO_ADS_IN_PAGE_DISABLED_CONFIRMED`·`NEXT_PUBLIC_GOOGLE_ADSENSE_ARTICLE_SLOT`·`NEXT_PUBLIC_GOOGLE_ADSENSE_POST_BOTTOM_SLOT`·`NEXT_PUBLIC_GOOGLE_ADSENSE_AUTO_ADS_DISABLED_CONFIRMED`·`NEXT_PUBLIC_UTTERANCES_REPO`·`NEXT_PUBLIC_NOTION_COMMENTS_ENABLE`·`REVALIDATE_HOURS`. 자동 모드의 인페이지·텍스트 광고 의도 OFF 확인값은 미설정 시 `false`이며, 계정 확인 후 운영 `.env`와 CI variable을 함께 맞춘 뒤 다시 빌드합니다. 이 값은 이미지 빌드 때 고정됩니다. `.env`만 바꿔서는 이미 게시된 이미지의 canonical·광고·댓글 UI가 바뀌지 않습니다. Notion 토큰·DB ID·salt·관리 키는 repository variables나 Docker build args에 넣지 말고 운영 `.env`에만 보관하세요.
 
 이 프로젝트의 운영 기본 도메인은 `https://pieroot.xyz`입니다. 도메인을 변경할 때는 **이미지를 다시 빌드하기 전에** GitHub repository variable `NEXT_PUBLIC_SITE_URL=https://pieroot.xyz`를 설정하고, 원격 배포 서버의 프로젝트 `.env`에도 동일한 값을 설정합니다. CI 빌드 값은 canonical·sitemap·RSS 등의 공개 URL에 사용되고, 운영 `.env`는 런타임 origin 설정과 일치해야 합니다. `.env` 수정이나 컨테이너 재시작만으로 이전 이미지에 포함된 공개 URL을 변경할 수 없으므로 새 이미지를 빌드·배포해야 합니다. HAProxy는 `https://blog.pieroot.xyz`와 `https://www.pieroot.xyz` 요청을 기본 도메인 `https://pieroot.xyz`로 리다이렉트합니다. 다른 설치는 자신의 공개 도메인을 사용하고, 로컬 개발의 `http://localhost:3000` 기본값은 그대로 둡니다.
 
@@ -363,7 +390,7 @@ curl -X POST "https://your-site.com/api/cron/ontology" \
   -H "Authorization: Bearer $REVALIDATE_SECRET"
 ```
 
-Compose의 `build.args`는 사이트 주소·Utterances 저장소·AdSense client/disable·수동 단위 ID·Auto ads OFF 확인·재검증 주기를 웹 이미지에 전달합니다. 이 값과 `site.config.js`를 변경하면 `docker compose up -d --build --wait --wait-timeout 2400`으로 다시 빌드합니다. Analytics 및 Google/Naver/Bing 인증 값만 컨테이너 시작 시 runtime-config로 주입되므로 이미지 재빌드 없이 재생성할 수 있습니다. 모든 `NEXT_PUBLIC_*`가 런타임 값인 것은 아닙니다.
+Compose의 `build.args`는 사이트 주소·Utterances 저장소·AdSense client/disable·자동/수동 모드·인페이지 및 텍스트 광고 의도 OFF 확인·수동 단위 ID·Auto ads OFF 확인·재검증 주기를 웹 이미지에 전달합니다. 자동 모드 확인값 `NEXT_PUBLIC_GOOGLE_ADSENSE_AUTO_ADS_IN_PAGE_DISABLED_CONFIRMED`는 Compose·Dockerfile·GHCR CI에서 기본 `false`이며 `site.config.js`도 정확히 `true`일 때만 확인으로 취급합니다. 이 값과 `site.config.js`를 변경하면 `docker compose up -d --build --wait --wait-timeout 2400`으로 다시 빌드합니다. 재빌드·배포 후에는 위 광고 절차의 실제 런타임 게재·배치 증거를 별도로 확보해야 합니다. Analytics 및 Google/Naver/Bing 인증 값만 컨테이너 시작 시 runtime-config로 주입되므로 이미지 재빌드 없이 재생성할 수 있습니다. 모든 `NEXT_PUBLIC_*`가 런타임 값인 것은 아닙니다.
 
 단독 `docker run`은 내구성 콘텐츠 Redis와 그래프 서비스 연결을 자동 구성하지 않습니다. 기본 설치·운영에는 위 Compose 경로를 사용합니다.
 
