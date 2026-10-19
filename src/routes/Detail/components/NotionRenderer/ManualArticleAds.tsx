@@ -2,7 +2,7 @@ import { createContext, useContext, useMemo, type ComponentProps, type ReactNode
 import type { ExtendedRecordMap } from "notion-types"
 import { CONFIG } from "site.config"
 import AdSlot from "src/components/AdSlot"
-import { canLoadManualAds } from "src/components/AdSlot/manualAds"
+import { canLoadManualAds } from "src/components/AdSlot/policy"
 import { Code } from "./Code"
 import { Equation } from "./Equation"
 import { planManualAdBoundaries } from "./manualAdPlacement"

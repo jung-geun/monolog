@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react"
 import { useRouter } from "next/router"
 import { CONFIG } from "site.config"
-import { canLoadManualAds } from "./manualAds"
+import { canLoadManualAds } from "./policy"
 
 type Props = {
   slot: string

@@ -13,6 +13,8 @@ jest.mock("site.config", () => ({
       enable: true,
       config: {
         client: "ca-pub-1234567890123456",
+        mode: "manual",
+        autoAdsInPageDisabledConfirmed: false,
         autoAdsDisabledConfirmed: true,
         slots: { article: "1234567890", postBottom: "" },
       },
@@ -32,6 +34,8 @@ describe("AdSlot", () => {
 
   beforeEach(() => {
     mockRouter.asPath = "/article"
+    CONFIG.googleAdsense.config.mode = "manual"
+    CONFIG.googleAdsense.config.autoAdsInPageDisabledConfirmed = false
     CONFIG.googleAdsense.config.autoAdsDisabledConfirmed = true
     CONFIG.googleAdsense.config.slots.article = "1234567890"
     Object.defineProperty(HTMLElement.prototype, "offsetWidth", {
@@ -87,7 +91,7 @@ describe("AdSlot", () => {
     expect(window.adsbygoogle).toHaveLength(0)
   })
 
-  it("fails closed without the operator's Auto ads confirmation", () => {
+  it("fails closed without the operator's Auto ads OFF confirmation", () => {
     CONFIG.googleAdsense.config.autoAdsDisabledConfirmed = false
     act(() => root.render(<AdSlot slot="1234567890" />))
     expect(container.querySelector("ins.adsbygoogle")).toBeNull()
@@ -96,6 +100,14 @@ describe("AdSlot", () => {
 
   it("fails closed when no real manual units are configured", () => {
     CONFIG.googleAdsense.config.slots.article = ""
+    act(() => root.render(<AdSlot slot="1234567890" />))
+    expect(container.querySelector("ins.adsbygoogle")).toBeNull()
+    expect(window.adsbygoogle).toHaveLength(0)
+  })
+
+  it("does not mount or request manual units in automatic mode with in-page-off confirmation", () => {
+    CONFIG.googleAdsense.config.mode = "auto"
+    CONFIG.googleAdsense.config.autoAdsInPageDisabledConfirmed = true
     act(() => root.render(<AdSlot slot="1234567890" />))
     expect(container.querySelector("ins.adsbygoogle")).toBeNull()
     expect(window.adsbygoogle).toHaveLength(0)

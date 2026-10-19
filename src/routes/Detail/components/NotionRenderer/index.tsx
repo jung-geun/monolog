@@ -548,7 +548,7 @@ const NotionRenderer: FC<Props> = ({ recordMap, manualAds = false }) => {
 
   return (
     <StyledWrapper className={scheme === 'dark' ? 'dark' : 'light'}>
-      {/* Defense for text-scanning Ad intents; manual mode still requires Auto ads OFF account-side. */}
+      {/* Text-scan protection only; automatic in-page formats are disabled account-side. */}
       <ManualArticleAds recordMap={recordMap} enabled={manualAds}>
       <ArticleFlow className="google-anno-skip">
         <CoreNotionRenderer

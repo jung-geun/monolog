@@ -7,7 +7,7 @@ import { planManualAdBoundaries } from "src/routes/Detail/components/NotionRende
 
 jest.mock("site.config", () => ({ CONFIG: { googleAdsense: {
   enable: true,
-  config: { client: "ca-pub-test", autoAdsDisabledConfirmed: true, slots: { article: "1234567890", postBottom: "" } },
+  config: { client: "ca-pub-test", mode: "manual", autoAdsInPageDisabledConfirmed: false, autoAdsDisabledConfirmed: true, slots: { article: "1234567890", postBottom: "" } },
 } } }))
 
 const rootId = "11111111111141118111111111111111"
@@ -35,6 +35,8 @@ function fixture(): ExtendedRecordMap {
 }
 
 beforeEach(() => {
+  CONFIG.googleAdsense.config.mode = "manual"
+  CONFIG.googleAdsense.config.autoAdsInPageDisabledConfirmed = false
   CONFIG.googleAdsense.config.autoAdsDisabledConfirmed = true
   CONFIG.googleAdsense.config.slots.article = "1234567890"
 })

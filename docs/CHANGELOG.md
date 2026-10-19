@@ -3,6 +3,15 @@
 monolog의 버전별 변경 이력. 프로젝트 개요는 [`../README.md`](../README.md), 셋업 가이드는 [`USAGE.md`](USAGE.md), 기능 상세는 [`FEATURES.md`](FEATURES.md)를 참고하세요.
 
 ---
+## v1.21.13 — 2026-10-19
+
+### 오버레이 전용 자동 광고
+- 광고 SDK 조건을 `auto`/`manual` 모드로 분리. 자동 모드는 계정에서 Auto ads ON, 인페이지 Banner·Multiplex OFF, 텍스트 광고 의도 링크·칩 OFF를 확인한 뒤에만 활성화하며 본문 블록 사이에도 인페이지 자동 광고를 허용하지 않음. 금지 형식이 실험·우수 실적 설정 자동 적용으로 다시 켜지지 않도록 이 사이트의 자동 최적화(Auto optimize) OFF 절차와 공식 링크를 추가. 의도한 하단 전용 앵커 ON·사이드 레일 ON·전면 광고(Vignette) OFF와 기존 세부 선택은 유지하고 수동 단위를 함께 만들지 않음. 수동 배치는 실제 단위 ID·계정 Auto ads OFF 확인을 유지하고 `MODE=manual`을 명시.
+- 새 설정 `autoAdsInPageDisabledConfirmed`와 `NEXT_PUBLIC_GOOGLE_ADSENSE_AUTO_ADS_IN_PAGE_DISABLED_CONFIRMED`를 config·환경 예시·Dockerfile·Compose·GHCR CI에 연결. 기본값은 `false`이며 계정 확인 후 명시적 `true`와 이미지 재빌드·배포가 필요. 계정 확인 없는 자동 활성화와 잘못된 모드는 비활성화.
+- 확인값이 Google 설정 API나 게재 검증이 아님을 명시하고 배포 후 실제 광고 요청·오버레이 게재 위치 및 인페이지 광고 부재의 런타임 증거를 요구. 제외된 영역 UI의 동적 작업 공간 선택 한계와 공식 링크는 유지하되 공통 클래스·본문 스캔 제외를 일반 배너 차단으로 간주하지 않음. 미지원 skip 속성이나 이미 게재된 광고의 숨김·제거·이동으로 해결하지 않음.
+
+---
+
 
 ## v1.21.12 — 2026-10-18
 

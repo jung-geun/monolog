@@ -58,6 +58,11 @@ const CONFIG = {
     config: {
       client:
         process.env.NEXT_PUBLIC_GOOGLE_ADSENSE_CLIENT || "",
+      mode: process.env.NEXT_PUBLIC_GOOGLE_ADSENSE_MODE || "auto",
+      // Operator confirmation only: keep Auto ads ON, Banner/Multiplex and text ad intents OFF.
+      // Keep this site's Auto optimize OFF too; verify settings before confirming. Not a Google API.
+      autoAdsInPageDisabledConfirmed:
+        process.env.NEXT_PUBLIC_GOOGLE_ADSENSE_AUTO_ADS_IN_PAGE_DISABLED_CONFIRMED === "true",
       // Operator confirmation only: turn Auto ads OFF in AdSense before enabling manual units.
       // The SDK can still inject Auto ads if the account setting remains on.
       autoAdsDisabledConfirmed:
