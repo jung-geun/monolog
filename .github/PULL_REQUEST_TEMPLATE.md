@@ -15,7 +15,7 @@
 
 ## Related tickets
 
-https://github.com/jung-geun/monolog/issues/XX
+https://github.com/jung-geun/tablog/issues/XX
 
 <!-- 4. Make sure the following actions are checked before finalising your PR -->
 

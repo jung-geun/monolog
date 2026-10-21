@@ -1,16 +1,16 @@
 # USAGE
 
-monolog 셋업·운영 가이드. 프로젝트 개요와 차별점은 [`README.md`](../README.md)를 참고하세요.
+Tablog 셋업·운영 가이드. Notion으로 쓰고, 에디터처럼 탐색하는 블로그의 개요와 VS Code 테마의 차별점은 [`README.md`](../README.md)를 참고하세요.
 
 ---
 
 ## 빠른 시작
 
-Node.js 22 또는 24 LTS와 Yarn 1.22.22를 사용합니다. Yarn이 없으면 `corepack enable`을 실행하고 clone한 저장소에서 `corepack install`로 활성화합니다. Corepack이 없는 Node 배포판은 Yarn 1.22.22를 별도 설치하세요. Notion 템플릿 복제와 Integration 연결은 아래 **Notion 셋업**을 먼저 완료하세요.
+Node.js 22 또는 24 LTS와 **Yarn Classic 1.22.22**를 사용합니다(`package.json`의 `packageManager`; CI·웹 Dockerfile은 Node.js 22). Yarn이 없으면 `corepack enable`을 실행하고 clone한 저장소에서 `corepack install`로 활성화합니다. Corepack이 없는 Node 배포판은 Yarn 1.22.22를 별도 설치하세요. 의존성은 `yarn.lock`만 관리하며 npm·pnpm·Bun lockfile을 추가하지 않습니다. Notion 템플릿 복제와 Integration 연결은 아래 **Notion 셋업**을 먼저 완료하세요.
 
 ```bash
-git clone https://github.com/jung-geun/monolog.git
-cd monolog
+git clone https://github.com/jung-geun/tablog.git
+cd tablog
 yarn install --frozen-lockfile
 cp -n .env.example .env
 chmod 600 .env
@@ -20,9 +20,28 @@ yarn setup
 yarn dev
 ```
 
-`http://localhost:3000`에서 확인합니다. `yarn setup`은 저장소 루트 `.env`만 읽어 DB 주소를 data-source UUID로 변환하고, 비어 있는 재검증 비밀키를 생성합니다. 선택 기능의 DB ID가 설정된 경우에만 해당 salt도 독립 생성합니다. 기존 키·주석·기타 설정은 유지하며 파일 권한을 `0600`으로 제한합니다. 여러 data source가 있는 DB는 자동 선택하지 않으므로 안내된 UUID 중 사용할 값을 지정하고 다시 실행하세요. API 실패 시 파일은 변경하지 않습니다.
+`http://localhost:3000`에서 확인합니다. `yarn setup`은 인자를 받지 않고 저장소 루트 `.env`만 읽습니다(셸 환경변수로 입력을 덮어쓰지 않음). DB 주소를 data-source UUID로 변환하고 비어 있는 재검증 비밀키를 생성합니다. 선택 기능의 DB ID가 설정된 경우에만 해당 salt도 독립 생성합니다. 기존 키·주석·기타 설정은 유지하며 파일 권한을 `0600`으로 제한합니다. 여러 data source가 있는 DB는 자동 선택하지 않으므로 안내된 UUID 중 사용할 값을 지정하고 다시 실행하세요. API 실패 시 파일은 변경하지 않습니다. `.env`·비밀키·개인 콘텐츠를 커밋하거나 로그에 공개하지 마세요.
 
-네이티브 개발은 `.content-state`를 쓰며 임베딩/Qdrant 없이 글을 볼 수 있습니다. 전체 의미 검색은 아래 Compose 스택을 사용하세요. Node.js 26의 fetch/dispatcher 계약은 현재 Qdrant SDK의 Undici 6과 호환되지 않으므로 LTS 실행 파일과 PATH를 맞춥니다.
+네이티브 개발은 `.env.example`의 `CONTENT_STATE_DIR=.content-state`로 발행본을 보관하며 임베딩/Qdrant 없이 글을 볼 수 있습니다. 이 디렉터리는 일회성 캐시가 아니므로 보존합니다. 이미지 프록시는 아래 [별도 salt 전제](#이미지-프록시)를 확인하세요. 의미 검색·유사 글은 아래 Compose 스택과 문서 임베딩 backfill이 필요하며, 단순 기동만으로 전체 색인이 완성되지는 않습니다. Node.js 26 대신 문서화된 LTS를 사용하고 실행 파일과 PATH를 맞춥니다.
+
+---
+
+## 기존 설치의 이름 변경
+
+저장소 이름은 `monolog`에서 `tablog`로, 제품 표기는 **Tablog**로 바뀌었습니다. 기존 체크아웃 디렉터리는 옮기지 않아도 됩니다. 저장소 remote만 새 주소 `https://github.com/jung-geun/tablog.git`로 바꿔 사용할 수 있으며 개인 사이트 제목 `pieroot log`와 도메인 `pieroot.xyz`는 별개로 유지합니다.
+
+**기존 설치의 디렉터리를 바꾸거나 새 경로에서 기존 스택을 이어 쓰려면, 그 경로에서 어떤 Compose 명령이든 실행하기 전에 원래 Compose 프로젝트 이름을 고정하세요.** 원래 값은 실행 중인 컨테이너의 `com.docker.compose.project` 라벨 또는 `docker compose ls`에서 확인합니다. 아래는 기존 값이 `monolog`였던 경우에만 쓰는 예시이며, 다른 이름이었다면 실제 원래 값을 사용합니다.
+
+```dotenv
+# 기존 설치의 .env에 유지 (새 설치에 일괄 적용하는 값이 아님)
+COMPOSE_PROJECT_NAME=monolog
+```
+
+셸의 `COMPOSE_PROJECT_NAME`이나 `docker compose -p`도 같은 원래 값이어야 합니다. 디렉터리명으로 새 프로젝트를 만들면 기존 데이터 대신 새 빈 볼륨에 연결될 수 있습니다. **볼륨 이름을 바꾸거나 삭제하지 말고**, 기존 Compose override·이미지 고정·마운트·`.env`와 콘텐츠 Redis AOF·캐시 Redis·Qdrant·모델 캐시를 보존하세요. **`docker compose down -v`는 해당 프로젝트의 named volume을 삭제**하므로 콘텐츠 레지스트리·벡터·이미지/모델 캐시 등을 잃을 수 있습니다. 이름 변경·업데이트 절차에 사용하지 마세요. cron이 참조하는 절대 경로도 실제 체크아웃 위치에 맞추되 기존 작업을 중복 등록하지 않습니다.
+
+방문자 쿠키 `monolog_visitor_id`, 탭·저장 동의·테마의 기존 브라우저 저장 키(예: `monolog.colorTheme`), `CACHE_NAMESPACE`·`CONTENT_NAMESPACE` 기본값 `monolog`는 데이터 연속성을 위해 유지합니다. 호스트 작업 잠금 경로 `${XDG_CACHE_HOME:-$HOME/.cache}/monolog`, 인증 프록시 헤더 `X-Monolog-Proxy-Secret`, 그래프 상태 헤더 `X-Monolog-Graph-Stale`, 디버그 환경변수 `MONOLOG_DEBUG`도 그대로입니다. 제품 이름에 맞추려고 이 식별자나 기존 프록시 설정을 바꾸지 마세요. 라이선스가 있는 폰트 이름 `Monolog Sans Supplement`도 변경하지 않습니다.
+
+워크플로는 `github.repository`에서 웹·임베딩 이미지 이름을 생성합니다(`ghcr.io/jung-geun/tablog`, `ghcr.io/jung-geun/tablog-embedding`). 이 GHCR 패키지 이름은 이전 패키지에 대한 **GitHub 저장소 리다이렉트 별칭이 아닙니다**. 저장소 이름 변경은 이미지 게시·운영 배포를 뜻하지 않습니다. 사용할 패키지의 **실제 게시 태그와 접근 권한을 확인한 경우에만** pull하며, 기본 설치는 소스 빌드를 사용합니다. 기존 운영의 `monolog` 이미지 고정과 rollback 경로는 검증된 교체 전까지 유지합니다. 과거 변경 이력의 이전 이름·경로는 당시 기록입니다.
 
 ---
 
@@ -41,7 +60,7 @@ blog: {
 ```
 
 - 기본값은 **One Dark Pro Mix**입니다. System은 기기에 따라 Dark Modern/Light Modern으로 바뀝니다.
-- 방문자는 **Activity Bar 하단의 Settings** 또는 Quick Pick의 `> Color Theme`로 테마를 선택합니다. 상단 두 곳의 중복 설정 버튼은 제거했으며, Quick Pick의 `> Preferences: Open Settings`도 같은 설정 패널을 엽니다. 유효한 `localStorage["monolog.colorTheme"]`가 운영자 기본값보다 우선합니다. 이 키를 삭제하고 새로고침하면 운영자 기본값으로 돌아갑니다.
+- 방문자는 **Activity Bar 하단의 Settings** 또는 Quick Pick의 `> Color Theme`로 테마를 선택합니다. `> Preferences: Open Settings`도 같은 설정 패널을 엽니다. 유효한 `localStorage["monolog.colorTheme"]`가 운영자 기본값보다 우선합니다. 이 키를 삭제하고 새로고침하면 운영자 기본값으로 돌아갑니다.
 - 테마 선택과 탭 저장 동의는 별개입니다. 탭 저장을 거부하면 방문 기록을 영속 저장하지 않으며 테마 선택은 유지됩니다. 저장소가 차단돼도 현재 방문에서 선택할 수 있습니다.
 - 파일·폴더 아이콘은 Material Icon Theme 5.39.0의 실제 SVG입니다. `public/icons/material/LICENSE`와 원본 출처를 유지하세요.
 
@@ -58,7 +77,7 @@ blog: {
 | Preview / Source / Split | 렌더링된 본문 / 실제 Markdown / 분할 보기 |
 | Reading mode | 문서는 유지하고 탐색 사이드바·하단 패널 숨기기 |
 
-Explorer의 `pieroot.log`는 사이드바 최상단의 작업 공간 이름이며 스크롤 중에도 유지됩니다. **Files**를 접으면 파일 트리만 숨기고, **Open editors**는 별도로 펼쳐 열린 문서를 전환·닫을 수 있습니다. Open editors는 기본 접힘이며, 펼친 긴 목록은 안에서 스크롤되고 현재 편집기를 표시합니다. 각 항목의 닫기 버튼은 왼쪽에 있으며 마우스 hover·키보드 포커스·현재 항목에서 나타납니다(터치 환경에서는 항상 표시). 글 옆의 `posts` 등은 경로, 이탤릭은 임시 미리보기입니다. 파일·폴더의 펼침 상태는 Files를 접었다 열어도 유지합니다.
+Explorer 최상단의 작업 공간 이름, Title Bar, 검색 안내, 문서 경로 표시에는 `CONFIG.blog.title`을 사용합니다. Explorer의 작업 공간 이름은 스크롤 중에도 유지됩니다. **Files**를 접으면 파일 트리만 숨기고, **Open editors**는 별도로 펼쳐 열린 문서를 전환·닫을 수 있습니다. Open editors는 기본 접힘이며, 펼친 긴 목록은 안에서 스크롤되고 현재 편집기를 표시합니다. 각 항목의 닫기 버튼은 왼쪽에 있으며 마우스 hover·키보드 포커스·현재 항목에서 나타납니다(터치 환경에서는 항상 표시). 글 옆의 `posts` 등은 경로, 이탤릭은 임시 미리보기입니다. 파일·폴더의 펼침 상태는 Files를 접었다 열어도 유지합니다.
 
 Files의 포스트와 시리즈 하위 글에는 URL 슬러그 대신 실제 글 제목을 표시합니다. 긴 제목은 사이드바 폭에 맞춰 말줄임하고 마우스를 올리면 전체 제목을 확인할 수 있습니다. 링크 주소와 열린 탭의 `.md` 파일명은 유지합니다. 파일 목록 끝에는 구분선을 두지 않으며, 짧은 목록 아래는 상태 표시줄까지 비워 두고 내용이 사이드바 높이를 넘을 때만 세로 스크롤합니다.
 
@@ -72,13 +91,19 @@ Notion 표는 Source·Markdown 복사·`.md` 보기에서도 헤더 구분선이
 
 지구본과 언어 팝오버는 브라우저 전체가 아닌 **본문 콘텐츠 영역** 우측 하단에 고정됩니다. Preview·Source·Split과 하단 패널 열기, 사이드바 크기 조절에 맞춰 경계를 유지하며 공간이 작으면 팝오버 안에서 스크롤합니다. 번역을 지원하는 글에서는 상단 Command Center에 `>번역` 또는 `translation`을 입력해 **Translate: Article language…** 명령으로 같은 패널을 열 수 있습니다. 이 명령은 대상 언어 입력에 포커스를 옮길 뿐 번역을 시작하지 않으며, 페이지 이동 후 이전 글의 명령은 실행되지 않습니다.
 
-이 기능은 HTTPS 또는 localhost의 지원 브라우저에서만 동작합니다. [Chrome 공식 문서](https://developer.chrome.com/docs/ai/translator-api) 기준 Chrome 138 이상 데스크톱에 제공되며 모바일·다른 브라우저·언어 쌍 지원은 실제 API 검사 결과에 따릅니다. 지원하지 않으면 번역 불가 사유를 표시하며 원문 읽기는 계속 가능합니다. 모델 다운로드는 브라우저가 관리하고 번역 결과는 서버나 브라우저 저장소에 저장하지 않습니다. 기계 번역은 부정확할 수 있으므로 기술 내용은 원문·코드를 함께 확인하세요.
+이 기능은 HTTPS 또는 localhost의 보안 컨텍스트에서 **브라우저가 `Translator.availability`와 `Translator.create`를 실제 제공하고 선택한 언어 쌍을 지원할 때만** 동작합니다. 브라우저 이름·버전만으로 지원을 보장하지 않으며 모바일·OS·언어 모델·권한에 따라 달라집니다([브라우저 API 안내](https://developer.chrome.com/docs/ai/translator-api)). 언어 쌍의 `available`·`downloadable`·`downloading` 상태를 확인한 뒤에만 번역 버튼을 사용할 수 있습니다. 모델 생성은 **Translate article 클릭의 사용자 활성화 안에서** 시작하므로 패널 열기·명령 선택만으로 다운로드하지 않습니다. 권한·네트워크 오류나 미지원 사유는 패널에 표시하고 원문을 유지하며 클라우드 번역으로 우회하지 않습니다. 모델 다운로드는 브라우저가 관리하고 번역 결과는 서버나 브라우저 저장소에 저장하지 않습니다. 기계 번역은 부정확할 수 있으므로 기술 내용은 원문·코드를 함께 확인하세요.
 
 Search Sidebar와 `/search?q=...`는 **제목·요약·태그·카테고리**를 검색합니다. `tag:"kolla ansible"` 또는 `category:"Computer Science"`처럼 값을 따옴표로 묶을 수 있습니다. 글 전문을 대상으로 하는 의미 검색은 기존 Graph의 Meaning 검색과 임베딩 서비스 설정을 사용합니다.
 
 Welcome의 Recent, Search Editor·Search Sidebar와 시리즈 상세에서 실제 글의 `Thumbnail`을 함께 확인할 수 있습니다. 시리즈 인덱스와 Welcome Series의 대표 썸네일은 해당 시리즈 최신 글의 이미지이며, 함께 표시한 최신 글 제목과 일치합니다. 썸네일이 없는 글은 기존 텍스트·아이콘 표시를 유지합니다. 모바일에서도 이미지를 축소해 표시하고 시리즈의 읽기 순서·번호는 유지합니다.
-이미지 프록시는 원본 이미지를 최대 16MiB까지 읽으며, 이보다 큰 파일은 기존 placeholder로 반환합니다. 썸네일은 작은 원본을 권장하며, 허용 호스트·다운로드 크기 제한은 유지합니다.
-이미 투명 placeholder가 Next.js 이미지 캐시에 저장된 배포는 원본을 수정해도 캐시 만료 전까지 빈 이미지가 남을 수 있습니다. 배포 시 해당 원본 URL·너비·포맷에 대응하는 캐시만 무효화하고 실제 목록에서 이미지 로딩을 확인하세요.
+
+### 이미지 프록시
+
+Notion S3 이미지는 `?id=<uuid>&kind=s3`의 안정 URL과 디스크 BLOB 캐시를 사용하고, `?url=...` 경로는 허용된 Notion/AWS 원본과 GitHub OG 썸네일도 처리합니다. 후자는 단순 폐기 예정 경로가 아니며 외부 썸네일에서도 사용합니다. 프록시는 이미지 Content-Type·호스트 allow-list를 검사하고 리다이렉트를 따르지 않으며 원본 크기는 최대 16MiB입니다. 임의 외부 호스트를 허용하는 범용 프록시가 아닙니다. 큰 파일은 기존 placeholder로 처리하므로 썸네일은 작은 원본을 권장합니다. `next.config.js`의 Next Image 패턴과 API의 원본 allow-list는 별도 제한입니다.
+
+**현재 구현의 추가 전제:** `/api/image-proxy`는 댓글 활성 여부와 무관하게 IP 기반 요청 제한에 `COMMENT_HASH_SALT`를 사용합니다. 최소 두 입력의 `yarn setup`은 댓글 DB가 없으면 이 salt를 생성하지 않습니다. 프록시 이미지를 쓸 설치는 서버 `.env`에 강한 임의의 `COMMENT_HASH_SALT`를 별도로 설정해야 합니다(예: `openssl rand -hex 32`로 로컬 생성한 값을 비공개로 보관). 이미 있는 salt는 바꾸지 말고 `VISITOR_HASH_SALT`와 재사용하지 마세요. 댓글 DB·댓글 UI를 켤 필요는 없습니다.
+
+이미 placeholder가 Next.js 이미지 캐시에 저장된 배포는 원본을 수정해도 캐시 만료 전까지 빈 이미지가 남을 수 있습니다. 배포 시 해당 원본 URL·너비·포맷에 대응하는 캐시만 무효화하고 실제 목록에서 이미지 로딩을 확인하세요. 내구성 콘텐츠 Redis나 전체 볼륨 삭제로 이미지 캐시를 해결하지 않습니다.
 
 ### 광고와 작업 공간 경계
 
@@ -123,7 +148,7 @@ NEXT_PUBLIC_GOOGLE_ADSENSE_DISABLE=false
 
 `ARTICLE_SLOT`은 일반 글의 완결된 최상위 코드·블록 수식 뒤, `POST_BOTTOM_SLOT`은 본문 끝에 사용합니다. 사용할 위치에만 실제 단위 ID를 넣습니다. callout·인용·목록·표·toggle·column 내부와 블록 본문·캡션 사이에는 삽입하지 않습니다. 짧은 글과 시작/끝 근처의 본문 슬롯은 생략합니다. 너비가 0인 Source-only/compact pane에서는 요청하지 않고 실제 보이게 될 때 한 번 요청합니다.
 
-두 확인값은 **운영자 확인 기록이지 AdSense 계정 설정을 바꾸거나 검증하는 API가 아닙니다**. 선택한 모드의 확인만 사용하며, 잘못된 모드는 비활성화합니다. `NEXT_PUBLIC_GOOGLE_ADSENSE_DISABLE=true`는 두 모드의 SDK·수동 슬롯을 모두 끕니다. 모드·클라이언트·확인값·단위 ID는 운영 `.env`와 GHCR 빌드용 GitHub repository variables에 맞춰 설정하고 이미지를 다시 빌드해야 합니다. `.env` 변경이나 재시작만으로 이미 빌드된 값은 바뀌지 않습니다.
+두 확인값은 **운영자 확인 기록이지 AdSense 계정 설정을 바꾸거나 검증하는 API가 아닙니다**. 선택한 모드의 확인만 사용하며, 잘못된 모드·미확인 모드는 비활성화합니다. 수동 모드는 실제 단위 ID가 하나도 없으면 SDK도 로드하지 않습니다. 자동 모드는 수동 슬롯을 렌더링하지 않습니다. `NEXT_PUBLIC_GOOGLE_ADSENSE_DISABLE=true`는 두 모드의 SDK·수동 슬롯을 모두 끕니다. 모드·클라이언트·확인값·단위 ID는 운영 `.env`와 GHCR 빌드용 GitHub repository variables에 맞춰 설정하고 이미지를 다시 빌드해야 합니다. `.env` 변경이나 재시작만으로 이미 빌드된 값은 바뀌지 않습니다.
 
 기존 본문의 `google-anno-skip`은 공식 Ad intents 텍스트 스캔 제외일 뿐 일반 배너 차단 수단이 아니며, 자동 모드에서 텍스트 링크·칩을 계정에서 OFF로 설정하는 절차를 대신하지 않습니다. 별도의 미지원 skip 속성은 사용하지 않습니다. [공식 Auto ads 설정](https://support.google.com/adsense/answer/9305577?hl=ko) · [공식 Ad intents 제외](https://support.google.com/adsense/answer/15111968?hl=ko).
 
@@ -136,7 +161,7 @@ NEXT_PUBLIC_GOOGLE_ADSENSE_DISABLE=false
 [Notion Integrations](https://www.notion.so/my-integrations)에서 Internal Integration을 만들고 토큰(`ntn_...`)을 복사합니다.
 
 ### 2. DB 템플릿 복제 (권장)
-[**monolog blog assets**](https://www.notion.so/pieroot/blog-assets-35a067c015d080a0bf17d3a0dffb3784) 페이지를 본인 워크스페이스로 **Duplicate** 합니다. 페이지 안에는 monolog가 사용하는 DB가 미리 구성되어 있습니다.
+[**Notion 블로그 템플릿**](https://www.notion.so/pieroot/blog-assets-35a067c015d080a0bf17d3a0dffb3784) 페이지를 본인 워크스페이스로 **Duplicate** 합니다. 페이지 안에는 Tablog가 사용하는 DB가 미리 구성되어 있습니다.
 
 | DB | 용도 | 환경변수 |
 |---|---|---|
@@ -197,6 +222,15 @@ NEXT_PUBLIC_GOOGLE_ADSENSE_DISABLE=false
 
 ## 환경 변수
 
+설정은 아래 세 경로를 구분합니다. 모든 `NEXT_PUBLIC_*`가 런타임 설정인 것은 아닙니다.
+
+| 적용 경로 | 설정 | 변경 시 |
+|---|---|---|
+| 소스/빌드 | `site.config.js`의 프로필·프로젝트·언어·시간대·기본 테마, 사이트 URL, AdSense 정책/단위, Utterances 저장소, Notion 댓글 UI, `REVALIDATE_HOURS` | 네이티브 개발 서버 재시작, 운영 이미지 재빌드 |
+| 명시적 공개 런타임 | Analytics ID와 Google/Naver/Bing 인증 값 | 새 환경변수로 컨테이너 재생성; entrypoint가 `runtime-config.js` 작성 |
+| 서버 런타임 | Notion 토큰·DB ID·salt·관리 키·스토리지/서비스 URL·프록시 신뢰·webhook/알림 | 서버 환경 반영 후 프로세스/컨테이너 재생성; 이미지 build args에 비밀값을 넣지 않음 |
+
+
 ### 필수
 
 | 변수명 | 설명 |
@@ -232,7 +266,7 @@ NEXT_PUBLIC_GOOGLE_ADSENSE_DISABLE=false
 | `QDRANT_API_KEY` | — | 인증이 걸린 외부 Qdrant용 API key. 로컬/self-hosted Qdrant는 빈 값 |
 | `CACHE_NAMESPACE` | `monolog` | Redis 키 prefix. 동일 Redis를 staging·preview 등 여러 배포가 공유할 때 충돌 방지 |
 | `GRAPH_BUILD_TIMEOUT_MS` | `120000` | Notion graph complete-build 시간 제한(ms). 제한을 넘긴 partial graph는 Qdrant snapshot으로 저장하지 않음. 최대 `300000` |
-| `REVALIDATE_HOURS` | `6` | ISR 재생성 주기 (시간) |
+| `REVALIDATE_HOURS` | `6` | 소스 빌드 시 적용하는 ISR 재생성 주기(양의 정수 시간); 콘텐츠 대조 cron 주기와 별개 |
 | `NEXT_PUBLIC_SITE_URL` | `http://localhost:3000` | 사이트 canonical·sitemap·RSS·IndexNow와 요청 origin 검증에 사용. 공개 배포에는 본인의 실제 주소를 **빌드 전에** 설정 |
 | `TRUSTED_PROXY_HOPS` | `0` | 기본값은 전달된 IP 헤더를 무시. 프록시 인증키 검증을 통과한 요청에서만 지정한 홉 수를 신뢰 |
 | `TRUSTED_PROXY_SECRET` | — | 프록시 신뢰를 켤 때만 필요. 프록시가 `X-Monolog-Proxy-Secret`을 강한 공유키로 덮어써야 하며 기본 배포에는 필요 없음 |
@@ -249,7 +283,7 @@ NEXT_PUBLIC_GOOGLE_ADSENSE_DISABLE=false
 | `CONTENT_NAMESPACE` | `monolog` | `CONTENT_REDIS_URL` 안의 콘텐츠 키 namespace |
 | `CONTENT_LOCK_MS` | `900000` | Redis 콘텐츠 작업 lease(ms). 갱신 중 lease를 잃으면 저장하지 않고 실패 |
 
-`NEXT_PUBLIC_GOOGLE_MEASUREMENT_ID`, `NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION`, `NEXT_PUBLIC_NAVER_SITE_VERIFICATION`, `NEXT_PUBLIC_BING_SITE_VERIFICATION`는 이미지 빌드 시점이 아니라 컨테이너 시작 시 주입됩니다. 공개 값만 넣고, `docker run --env-file .env …` 또는 Compose의 `env_file`로 설정한 뒤 컨테이너를 재시작하세요. 값이 없으면 Analytics와 검증 메타 태그는 비활성화되며 앱은 정상 실행됩니다.
+`NEXT_PUBLIC_GOOGLE_MEASUREMENT_ID`, `NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION`, `NEXT_PUBLIC_NAVER_SITE_VERIFICATION`, `NEXT_PUBLIC_BING_SITE_VERIFICATION`는 컨테이너 시작 시 공개 runtime-config에 주입됩니다. 공개 값만 넣고 Compose의 `env_file` 또는 `docker run --env-file .env …`로 전달합니다. `.env`를 바꾼 뒤 기존 컨테이너를 단순 `restart`하면 환경을 다시 읽지 않으므로 새 환경으로 **재생성**하세요. 값이 없으면 Analytics와 검증 메타 태그는 비활성화되며 앱은 정상 실행됩니다.
 
 상세 글의 날짜 레이블과 같은 날 수정일 생략은 `site.config.js`의 `timeZone`(기본 `Asia/Seoul`)을 따릅니다. `<time dateTime>`과 JSON-LD에는 UTC ISO 시각을 유지합니다. IndexNow·Discord의 실패는 콘텐츠 발행을 막지 않고 `notificationsPending`으로 별도 집계하며, 일시 장애는 최대 8회 시도 후 제거합니다. 영구 오류·제거된 설정은 즉시 제거합니다.
 
@@ -269,10 +303,10 @@ NEXT_PUBLIC_GOOGLE_ADSENSE_DISABLE=false
 
 운영 호스트에는 15분 cron을 등록하고 GitHub Actions는 보조 트리거로 유지합니다. `scripts/reconcile-content-host.sh`는 실행 위치와 무관하게 **스크립트가 속한 저장소 루트의 `.env`**를 읽고 로컬 `POST http://127.0.0.1:3000/api/cron/content`를 호출합니다. 호스트에 Bash·curl·`flock`(util-linux)이 필요하고 `.env`는 신뢰할 수 있는 shell-compatible 설정이어야 합니다. 토큰은 curl의 표준 입력으로 전달해 명령행에 노출하지 않습니다. 기존 캐시를 지우거나 실제 Notion 글을 수정하지 않습니다.
 
-최초 backfill은 저장소에서 `bash scripts/reconcile-content-host.sh`로 실행합니다. 기존 작업을 보존하며 배포 계정의 `crontab -e`에 다음 줄을 추가하고 `/absolute/path/monolog`는 본인의 저장소 절대 경로로 교체합니다. 호스트의 `cron` 서비스가 실행 중이어야 합니다.
+최초 backfill은 저장소에서 `bash scripts/reconcile-content-host.sh`로 실행합니다. 기존 작업을 보존하며 배포 계정의 `crontab -e`에 다음 줄을 추가하고 `/absolute/path/tablog`는 본인의 저장소 절대 경로로 교체합니다. 기존 경로를 유지했다면 그 경로를 사용합니다. 호스트의 `cron` 서비스가 실행 중이어야 합니다.
 
 ```cron
-*/15 * * * * /bin/bash "/absolute/path/monolog/scripts/reconcile-content-host.sh" 2>&1 | /usr/bin/logger -t monolog-content-sync
+*/15 * * * * /bin/bash "/absolute/path/tablog/scripts/reconcile-content-host.sh" 2>&1 | /usr/bin/logger -t tablog-content-sync
 ```
 
 스크립트는 사용자 캐시 디렉터리의 `flock`으로 호스트 작업 중첩을 막고 요청을 최대 900초로 제한합니다. GitHub 호출과의 중첩은 콘텐츠 저장소의 lease가 제어합니다. 실패한 콘텐츠 작업은 저장소에 남아 다음 실행에서 이어서 처리됩니다.
@@ -280,10 +314,10 @@ NEXT_PUBLIC_GOOGLE_ADSENSE_DISABLE=false
 ```bash
 # 등록 상태와 실제 자동 호출 응답 확인 (토큰 출력 없음)
 crontab -l
-journalctl -t monolog-content-sync --since today --no-pager
+journalctl -t tablog-content-sync --since today --no-pager
 ```
 
-등록만으로 자동 갱신이 검증된 것은 아닙니다. 실제 quarter-hour 실행 로그의 `status=completed`, `pending=0`, `failed=0`을 확인하고, 수동 호출 성공과 자동 실행 성공을 구분해 보고합니다.
+등록만으로 자동 갱신이 검증된 것은 아닙니다. 실제 quarter-hour 실행 로그의 `status=completed`, `pending=0`, `failed=0`과 `maintenancePending`·`notificationsPending`을 확인하고, 수동 호출 성공과 자동 실행 성공을 구분해 보고합니다. `/api/init`의 성공은 발행 경로 준비를 뜻하며 임베딩 완료가 아닙니다. 유지보수 후에도 그래프의 현재 문서 임베딩 진행 수를 함께 확인해야 전체 의미 색인 완료를 판단할 수 있습니다.
 
 ---
 
@@ -304,7 +338,7 @@ journalctl -t monolog-content-sync --since today --no-pager
 | `GET /api/similar?postId=<id-or-slug>&limit=5` | 없음 | 현재 문서 버전의 영속 EmbeddingGemma 벡터로 유사 글 반환. 벡터가 아직 없으면 `202` |
 | `GET /api/graph/search?q=<query>` | 없음 | 공식 SearchQuery prompt로 현재 문서 버전의 공개 글 검색. IP당 분당 6회·웹 프로세스당 동시 1개, 초과는 `429`와 `Retry-After`. 미설정·유지보수 중·서비스 장애는 `503`, 빈 검색어·8000자 초과는 `400` |
 | `GET /api/image-proxy?id=<uuid>&kind=s3` | 없음 (allow-list) | Notion S3 이미지 프록시 (안정 URL) |
-| `GET /api/image-proxy?url=<url>` | 없음 | 레거시 image-proxy (구 ISR 캐시 호환) |
+| `GET /api/image-proxy?url=<url>` | 없음 (allow-list·IP 요청 제한) | Notion/AWS·GitHub OG 이미지 프록시, 기존 ISR URL 호환; 임의 외부 URL은 불가 |
 | `GET /api/refresh-image?blockId=...` | 없음 | 단일 블록 이미지 URL 재발급 |
 | `GET /api/comments?slug=...` | 없음 | slug별 댓글 목록 (45s 서버 캐시) |
 | `POST /api/comments` | 없음 | 익명 댓글 작성 (honeypot + IP rate limit) |
@@ -349,11 +383,11 @@ docker compose ps
 docker compose logs -f blog embedding
 ```
 
-첫 기동은 모델 다운로드·CPU 추론과 Notion 콘텐츠 초기화를 포함합니다. Compose는 임베딩 readiness를 기다리고, blog entrypoint는 `/api/init`으로 공개 경로를 준비합니다. 로그의 초기화 결과까지 확인한 뒤 `/api/cron/content`로 backfill을 진행하세요. 포트 3000 외의 서비스는 호스트에 공개하지 않습니다. DNS·HTTPS 리버스 프록시는 호스트에서 별도 구성합니다. 데이터 볼륨을 지우는 `docker compose down -v`는 운영 갱신 명령이 아닙니다.
+첫 기동은 모델 다운로드·CPU 추론과 Notion 콘텐츠 초기화를 포함합니다. Compose는 임베딩 서비스 readiness를 기다리고, blog entrypoint는 서버 기동 후 `/api/init`을 재시도해 공개 경로를 준비합니다. HTTP 홈페이지 healthcheck와 init 성공은 별개이며, init 재시도를 모두 실패해도 서버는 계속 실행하므로 **로그의 초기화 응답까지** 확인하세요. 이어서 `/api/cron/content`로 문서 임베딩 backfill을 진행합니다. 포트 3000 외의 서비스는 호스트에 공개하지 않습니다. DNS·HTTPS 리버스 프록시는 호스트에서 별도 구성합니다. `docker compose down -v`는 프로젝트의 named volume과 그 안의 내구성 콘텐츠·벡터 등을 삭제하므로 운영 갱신에 사용하지 않습니다.
 
 ### 기존 운영 GHCR 이미지 사용 (선택)
 
-웹 이미지: `ghcr.io/jung-geun/monolog`. 비공개 패키지 접근 권한이 있는 기존 운영 경로입니다. 처음 설치하는 일반 사용자는 위 소스 빌드를 사용하세요.
+웹 이미지 경로는 `ghcr.io/jung-geun/tablog`, 임베딩은 `ghcr.io/jung-geun/tablog-embedding`입니다. **두 패키지 모두 사용할 태그가 실제 게시됐는지와 패키지 접근 권한을 먼저 확인**하세요. 아래는 워크플로의 태그 규칙이지 게시 완료 목록이 아닙니다. 저장소 이름 변경만으로 이전 GHCR 패키지가 리다이렉트되거나 운영 이미지가 교체되지 않습니다. 처음 설치하는 일반 사용자는 위 소스 빌드를 사용하세요.
 
 | 태그 | 트리거 |
 |---|---|
@@ -365,19 +399,19 @@ docker compose logs -f blog embedding
 
 GHCR CI 빌드에는 GitHub repository variables로 `NEXT_PUBLIC_SITE_URL`과 사용 중인 선택 기능의 공개 값을 설정합니다: `NEXT_PUBLIC_GOOGLE_ADSENSE_CLIENT`·`NEXT_PUBLIC_GOOGLE_ADSENSE_DISABLE`·`NEXT_PUBLIC_GOOGLE_ADSENSE_MODE`·`NEXT_PUBLIC_GOOGLE_ADSENSE_AUTO_ADS_IN_PAGE_DISABLED_CONFIRMED`·`NEXT_PUBLIC_GOOGLE_ADSENSE_ARTICLE_SLOT`·`NEXT_PUBLIC_GOOGLE_ADSENSE_POST_BOTTOM_SLOT`·`NEXT_PUBLIC_GOOGLE_ADSENSE_AUTO_ADS_DISABLED_CONFIRMED`·`NEXT_PUBLIC_UTTERANCES_REPO`·`NEXT_PUBLIC_NOTION_COMMENTS_ENABLE`·`REVALIDATE_HOURS`. 자동 모드의 인페이지·텍스트 광고 의도 OFF 확인값은 미설정 시 `false`이며, 계정 확인 후 운영 `.env`와 CI variable을 함께 맞춘 뒤 다시 빌드합니다. 이 값은 이미지 빌드 때 고정됩니다. `.env`만 바꿔서는 이미 게시된 이미지의 canonical·광고·댓글 UI가 바뀌지 않습니다. Notion 토큰·DB ID·salt·관리 키는 repository variables나 Docker build args에 넣지 말고 운영 `.env`에만 보관하세요.
 
-이 프로젝트의 운영 기본 도메인은 `https://pieroot.xyz`입니다. 도메인을 변경할 때는 **이미지를 다시 빌드하기 전에** GitHub repository variable `NEXT_PUBLIC_SITE_URL=https://pieroot.xyz`를 설정하고, 원격 배포 서버의 프로젝트 `.env`에도 동일한 값을 설정합니다. CI 빌드 값은 canonical·sitemap·RSS 등의 공개 URL에 사용되고, 운영 `.env`는 런타임 origin 설정과 일치해야 합니다. `.env` 수정이나 컨테이너 재시작만으로 이전 이미지에 포함된 공개 URL을 변경할 수 없으므로 새 이미지를 빌드·배포해야 합니다. HAProxy는 `https://blog.pieroot.xyz`와 `https://www.pieroot.xyz` 요청을 기본 도메인 `https://pieroot.xyz`로 리다이렉트합니다. 다른 설치는 자신의 공개 도메인을 사용하고, 로컬 개발의 `http://localhost:3000` 기본값은 그대로 둡니다.
+`pieroot.xyz`는 이 저장소 운영자의 개인 사이트 예시이며 Tablog 설치에 필수인 도메인이 아닙니다. 자신의 공개 도메인을 **이미지 빌드 전** `.env`의 `NEXT_PUBLIC_SITE_URL`에 설정하고, GHCR CI를 사용하면 같은 repository variable에도 설정하세요. 빌드 값은 canonical·sitemap·RSS 등에 사용되고 운영 `.env`의 origin 검증 설정과 일치해야 합니다. `.env` 수정이나 컨테이너 재시작만으로 이전 이미지에 포함된 공개 URL은 바뀌지 않습니다. 별칭 도메인 리다이렉트·HTTPS는 본인의 리버스 프록시에 구성하며 로컬 개발은 `http://localhost:3000`을 사용합니다.
 
-운영 GHCR 이미지는 테스트·빌드가 성공한 뒤 `docker compose pull blog embedding`으로 가져오고 OCI revision을 확인합니다. 기존 이미지 rollback 태그와 `.env`·Compose override·Redis RDB·Qdrant snapshot을 백업하고 `embedding`이 모델 다운로드·실제 추론 warmup까지 healthy가 된 후 `docker compose up -d --no-build --wait --wait-timeout 2400`으로 교체합니다. 볼륨을 삭제하지 않습니다.
+필요한 태그·접근 권한을 확인한 뒤에만 `docker compose pull blog embedding`으로 가져오고 두 이미지의 OCI revision·대상 아키텍처를 확인합니다. 교체 전 기존 이미지 rollback 태그/고정, `.env`·Compose override·캐시 Redis RDB·콘텐츠 Redis AOF·Qdrant snapshot을 백업합니다. `embedding`이 모델 다운로드·실제 추론 warmup까지 healthy가 된 후 `docker compose up -d --no-build --wait --wait-timeout 2400`으로 교체합니다. rollback은 백업한 이미지 고정·Compose 설정으로 되돌려 같은 원래 프로젝트/볼륨을 사용하며, 볼륨을 삭제하거나 새 이미지 이름으로 기존 pin을 덮어쓰지 않습니다.
 
 서버 전용 `docker-compose.override.yml`이 `blog`·`redis`·`qdrant`를 외부 네트워크에 연결한다면 `content-redis`와 `embedding`도 blog가 도달 가능한 네트워크에 지정해야 합니다. 첫 배포는 새 서비스를 먼저 준비하고 기존 안내대로 후보 blog에서 `/api/init`과 실제 페이지를 확인한 뒤 교체합니다. `/api/init`은 임베딩을 기다리지 않으므로 교체 후 `/api/cron/content`로 첫 backfill을 진행하고 `pending`·`failed`·`maintenancePending`이 0인지 확인합니다.
 
 ### EmbeddingGemma · Qdrant · ontology
 
-Compose의 `embedding`은 내부 네트워크의 `linux/amd64` CPU 서비스입니다. 기본 소스 빌드는 `docker compose build embedding`이고, 기존 운영에서는 `ghcr.io/jung-geun/monolog-embedding:latest` 이미지를 사용할 수 있습니다. 웹·임베딩 이미지는 같은 Docker Build and Push 워크플로에서 각각 발행합니다. 호스트 포트를 공개하지 않으며 `embedding-model-cache` 볼륨에 공개 체크포인트를 보관합니다. 이 볼륨과 Qdrant 저장소도 백업 대상입니다.
+Compose의 `embedding`은 내부 네트워크의 `linux/amd64` CPU 서비스입니다. 기본 소스 빌드는 `docker compose build embedding`이고, 실제 게시 태그와 접근 권한을 확인하면 `ghcr.io/jung-geun/tablog-embedding:<tag>` 이미지를 사용할 수 있습니다. 웹·임베딩 이미지는 같은 Docker Build and Push 워크플로의 별도 matrix 작업으로 발행하므로 두 작업의 성공 여부를 각각 확인합니다. 호스트 포트를 공개하지 않으며 `embedding-model-cache` 볼륨에 공개 체크포인트를 보관합니다. 이 볼륨과 Qdrant 저장소도 백업 대상입니다.
 
 모델은 [공식 EmbeddingGemma 2](https://huggingface.co/google/embeddinggemma-2)의 고정 revision `914f7f89142e33e77833254d9c9b90c3cef7303b`, CPU float32, 768차원입니다. 첫 실행은 약 1.49GB의 결합 safetensors를 내려받지만 vision/audio encoder는 생성하지 않습니다. `/health`는 다운로드와 실제 추론 성공 뒤에만 ready를 반환하며, 초기 health grace는 30분입니다. 긴 글은 8192-token 창마다 처리하므로 메모리·CPU 여유가 필요합니다. ARM 호스트에서는 선언된 amd64 서비스의 에뮬레이션이 필요합니다.
 
-readiness의 짧은 query 추론과 긴 문서 backfill의 메모리 사용량은 다릅니다. 공유 8GiB Docker Desktop VM에서 실제 긴 글 8개 요청 중 OOM kill과 모델 재시작을 관찰했습니다. 충분한 Docker/서버 메모리를 확보해야 하며, 재시작은 `docker compose logs embedding`과 Docker 호스트의 OOM 로그로 확인합니다. 이미지를 반복 재시작하거나 키를 추가해도 메모리 부족은 해결되지 않습니다. 환경을 보완한 뒤 유지보수를 다시 실행해 `/api/cron/content`의 `pending=0`, `failed=0`, `maintenancePending=0`과 그래프의 임베딩 진행 수를 함께 확인하세요. `/api/init`은 임베딩을 실행하지 않으므로 그 응답만으로 전체 backfill 완료를 판단하면 안 됩니다.
+readiness의 짧은 query 추론과 긴 문서 backfill은 메모리 사용량이 다르므로 실제 문서 길이에 맞는 Docker/서버 메모리를 확보하세요. 재시작·OOM은 `docker compose logs embedding`과 Docker 호스트 로그로 확인합니다. 키를 추가하거나 이미지만 반복 재시작해도 메모리 부족은 해결되지 않습니다. 환경을 보완한 뒤 유지보수를 다시 실행해 `/api/cron/content`의 `pending=0`, `failed=0`, `maintenancePending=0`과 그래프의 현재 문서 임베딩 진행 수를 함께 확인하세요. `/api/init`은 임베딩을 실행하지 않으므로 그 응답이나 모델 서비스의 healthy만으로 전체 backfill 완료를 판단하면 안 됩니다.
 
 공개 의미 검색은 IP당 분당 6회·웹 프로세스당 동시 1개로 제한하며 초과 시 `429`와 `Retry-After`를 반환합니다. 모델 서비스는 문서 유지보수에 우선권과 최대 1개 대기 예약을 부여하고 추가 요청을 `503`으로 거절합니다. health 요청은 추론 대기열과 분리하며, 웹의 query 추론은 30초·document 추론은 10분 뒤 중단합니다.
 
@@ -397,27 +431,7 @@ Compose의 `build.args`는 사이트 주소·Utterances 저장소·AdSense clien
 
 ### Redis 캐시 (선택)
 
-Notion API cold-start 성능 향상을 위해 외부 Redis를 연결할 수 있습니다.
-
-```yaml
-# docker-compose.yml 예시 — Redis 서비스 함께 실행
-services:
-  blog:
-    environment:
-      - REDIS_URL=redis://redis:6379
-    depends_on:
-      - redis
-
-  redis:
-    image: redis:7-alpine
-    restart: unless-stopped
-    volumes:
-      - redis-data:/data
-
-volumes:
-  redis-data:
-  image-cache:
-```
+기본 Compose는 이미 `redis`를 캐시 L2로 연결합니다. 네이티브 개발 또는 별도 구성에서 외부 Redis를 쓰려면 서버 `.env`에 `REDIS_URL=redis://localhost:6379`(인증/TLS 환경은 해당 주소)를 설정합니다. 기본 Compose는 이를 내부 `redis://redis:6379`로 지정하므로 외부 Redis 전환은 Compose 환경 설정도 명시적으로 바꿔야 합니다. 캐시 Redis와 콘텐츠 authority는 같은 역할이 아닙니다.
 
 Redis 미설정 시 in-process 메모리 캐시(L1)만 사용합니다 — 서버 재시작마다 초기화됩니다.
 
@@ -425,14 +439,16 @@ Redis 미설정 시 in-process 메모리 캐시(L1)만 사용합니다 — 서�
 
 ### 볼륨 (`docker-compose.yml`)
 
-```yaml
-services:
-  blog:
-    volumes:
-      - image-cache:/app/.image-cache     # 이미지 BLOB 캐시
-volumes:
-  image-cache:
-```
+| Compose volume 키 | 용도 / 컨테이너 경로 |
+|---|---|
+| `logs-data` | 웹 로그 `/app/logs` |
+| `image-cache` | 이미지 BLOB 캐시 `/app/.image-cache` |
+| `redis-data` | 캐시 Redis `/data` |
+| `content-redis-data` | AOF 기반 콘텐츠 authority `/data` |
+| `qdrant-storage` | 그래프 snapshot·문서 벡터 `/qdrant/storage` |
+| `embedding-model-cache` | 모델 체크포인트 `/models` |
+
+실제 Docker volume 이름에는 기존 Compose 프로젝트 prefix가 붙을 수 있습니다. checkout 디렉터리나 제품 이름이 달라져도 원래 프로젝트 이름과 볼륨 연결을 보존합니다. 이미지 캐시는 재생성 가능하지만 콘텐츠 레지스트리와 벡터 저장소까지 함께 지우는 명령으로 관리하지 마세요.
 
 ---
 
@@ -445,12 +461,19 @@ yarn build            # 프로덕션 빌드 (next build --webpack)
 yarn start            # 빌드 결과 실행
 yarn type-check       # TypeScript strict 검사
 yarn lint             # ESLint
-yarn test             # Jest 단위 테스트
-yarn test:integration # 통합 테스트
-yarn test:all         # Jest 전체 (unit + integration)
-yarn test:watch
-yarn test:coverage
+yarn test             # Jest 단위 테스트 (test:unit과 동일)
+yarn test:unit        # 명시적 unit 선택
+yarn test:integration # 선택 실행: 실제 Notion API·로컬 환경/fixture 사용
+yarn test:all         # unit 성공 후 live integration 실행
+yarn test:watch       # unit watch
+yarn test:coverage    # unit coverage
+yarn test:coverage:all # unit 및 live integration coverage
+yarn warm:graph       # 실행 중인 localhost:${PORT:-3000} 그래프 JSON 요청
 ```
+
+통합 테스트는 최소 토큰/DB가 없으면 건너뛰며, 설정돼 있으면 실제 Notion을 조회합니다. `NOTION_TEST_POST_TITLE`(기본 `test post`), 실제 표를 포함한 최근 페이지, color 테스트의 고정 페이지 등 선택한 테스트의 fixture 접근 권한이 필요합니다. 일부 fixture 부재는 assertion을 건너뛰거나 실패하므로 skip을 실제 API 검증 성공으로 보고하지 않습니다. `.env`에 자격증명이 있다는 이유만으로 자동 실행하지 말고 전용 테스트 데이터로 명시적으로 선택하세요. `test:all`도 live 접근을 포함합니다. 세부 기여 절차는 [CONTRIBUTING](../.github/CONTRIBUTING.md)을 참고하세요.
+
+CI는 `yarn test`와 별도 `yarn build`를 실행합니다. 현재 lint·type-check 단계는 `continue-on-error`이므로 workflow 성공만으로 두 검사에 오류가 없었다고 판단하지 말고 각 결과를 확인하세요.
 
 ### 수동 CI runner 선택
 
@@ -465,64 +488,20 @@ gh workflow run test.yml --ref main -f runner=self-hosted
 운영 호스트가 비공개 GHCR 이미지를 직접 pull할 인증이 없으면, 같은 Docker 데몬을 공유하는 신뢰된 self-hosted runner에서 기존 `GHCR_TOKEN`으로 게시 이미지만 적재합니다. 토큰을 호스트나 로그에 내보내지 않으며 패키지를 공개로 바꾸지 않습니다. 아래 수동 경로는 재빌드 없이 두 이미지의 지정 태그를 pull하고 로컬 `latest`로 지정합니다. 이후 Compose에서 `--no-build --pull never --no-deps`로 필요한 서비스만 시작합니다.
 
 ```bash
-gh workflow run docker-build.yml --ref main -f image-tag=1.20.0
+gh workflow run docker-build.yml --ref main -f image-tag=검증한-게시-태그
 ```
 
 
 ---
 
-## 디렉터리 구조
-```bash
-src/
-├── apis/notion-client/      — Notion v5 + 캐시 (getPosts · getRecordMap · getDatabase)
-├── components/
-│   ├── charts/              — Bklit UI Heatmap registry 소스 · MIT 라이선스 · 원본 해시
-│   ├── CommandPalette/      — 파일 · 명령(>) · 문서 제목(@) Quick Pick
-│   ├── Frontmatter/         — YAML 메타데이터 블록
-│   ├── ImageWithLoading/    — next/Image + skeleton overlay
-│   ├── NotionDatabase/      — Board · Gallery · List · Table
-│   └── MetaConfig/          — OG · Twitter · AdSense
-├── hooks/                   — usePostsQuery · usePostQuery · useSeriesQuery · useCategoriesQuery · ...
-├── layouts/RootLayout/
-│   └── EditorChrome/        — 셸 · 탭 세션 · WorkbenchContext · Settings
-├── libs/
-│   ├── cache/               — L1 Memory + L2 Redis 포스트 캐시 / BlobFsBackend 이미지 캐시
-│   ├── content/             — 내구성 콘텐츠 레지스트리 (증분 대조 · slug 이력 · 영향 경로 outbox · webhook · IndexNow)
-│   ├── react-query/         — 싱글톤 QueryClient
-│   └── utils/
-│       ├── graph.ts         — 결정론적 노드 레이아웃
-│       ├── stats.ts         — 활동 그리드 집계
-│       ├── notion/          — filterPosts · customMapImageUrl · getAllSelectItemsFromPosts · ...
-│       └── image/           — proxyUtils · proxyServer · hashUtils
-├── routes/
-│   ├── Feed/                — Welcome (Start · Recent · Series)
-│   ├── Detail/              — Preview · MarkdownSource · Outline/Series · References/Comments
-│   ├── Archive/             — 카테고리 타임라인 (썸네일 카드)
-│   ├── SeriesList/          — 시리즈 인덱스 카드 그리드
-│   ├── SeriesArchive/       — 시리즈 상세 타임라인
-│   ├── Graph/               — Three.js 3D 포스트 그래프 (GraphScene · layout3d · 관계 상세)
-│   └── Search/              — 제목 · 요약 · 태그 · 카테고리 검색
-├── styles/                  — theme · colors · variables · zIndexes
-└── types/                   — TPost · TNotionDatabase · TDbRow · ...
+## 구조·개발 문서
 
-src/pages/
-├── index.tsx                — / (Feed)
-├── [slug].tsx               — /{slug} (Post · Page · About 공통 작업 공간)
-├── categories/[name].tsx    — /categories/{name} (Archive)
-├── series/index.tsx         — /series (SeriesList)
-├── series/[name].tsx        — /series/{name} (SeriesArchive)
-├── graph.tsx · search.tsx · 404.tsx
-├── sitemap.xml.tsx · rss.xml.tsx
-└── api/
-    ├── image-proxy.ts       — Notion S3 프록시 + BLOB 캐시 + 만료 복구
-    ├── revalidate.ts        — 수동 증분 동기화
-    ├── init.ts              — 컨테이너 워밍
-    ├── cron/content.ts      — 정기 증분 동기화
-    ├── notion-webhook.ts    — Notion webhook 수신
-    ├── robots.ts · llms.ts · indexnow-key.ts · markdown/[slug].ts
-    └── refresh-image.ts     — 단일 이미지 URL 재발급
+중복된 전체 파일 트리 대신 목적에 맞는 문서를 사용합니다. 실제 의존성·실행 명령은 `package.json`과 `yarn.lock`, 배포 서비스·마운트는 적용 중인 Compose 파일이 기준입니다.
 
-tests/                       — Jest (jsdom · node · @swc/jest)
-.github/workflows/           — docker-build · revalidate · test
-```
+| 목적 | 참조 |
+|---|---|
+| 모듈 책임·페이지/API·콘텐츠 파이프라인·저장소 경계 | [`project.md`](../project.md) |
+| 문서 뷰·검색·시리즈·차트·그래프·Notion 블록 지원 범위 | [`FEATURES.md`](FEATURES.md) |
+| 테마·레이아웃·모션·접근성·광고 경계 | [`DESIGN.md`](../DESIGN.md) |
+| 개발 환경·단위/실제 연동 테스트·변경 제출 | [`CONTRIBUTING.md`](../.github/CONTRIBUTING.md) |
 

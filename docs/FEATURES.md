@@ -1,6 +1,6 @@
 # FEATURES
 
-monolog의 주요 기능 상세. 프로젝트 개요와 핵심 차별점은 [`../README.md`](../README.md)를, 셋업 가이드는 [`USAGE.md`](USAGE.md)를 참고하세요.
+Tablog — Notion으로 쓰고, 에디터처럼 탐색하는 블로그의 주요 기능 상세. 프로젝트 개요는 [`../README.md`](../README.md) · [English](../README.en.md), 셋업·운영 조건은 [`USAGE.md`](USAGE.md), UI 구조·디자인 계약은 [`../DESIGN.md`](../DESIGN.md), 구현 책임과 유지보수 진입점은 [`../project.md`](../project.md)를 참고하세요. 프로젝트 저장소는 [jung-geun/tablog](https://github.com/jung-geun/tablog)이며, 작업 공간 이름·프로필·사이트 주소는 운영자의 `site.config.js` 설정입니다.
 
 ---
 
@@ -11,7 +11,7 @@ monolog의 주요 기능 상세. 프로젝트 개요와 핵심 차별점은 [`..
 |---|---|
 | **TitleBar** | 실제 뒤로/앞으로 이동, Command Center, 사이드바·패널 버튼. 중복 설정 버튼·가짜 창 닫기·최소화·Git 브랜치 표시 없음 |
 | **ActivityBar** | Explorer / Search / Knowledge 사이드바를 현재 문서 이동 없이 전환. 명령·Reading mode·설정 접근 |
-| **FileTree** | 최상단 작업 공간 이름, 서로 독립적으로 접는 Open Editors·Files, 최근/열린 글·카테고리·시리즈·프로젝트·public 파일 계층. Open Editors는 기본 접힘이며 긴 목록은 내부 스크롤·현재 편집기 자동 노출. 왼쪽 닫기 버튼·경로·미리보기 이탤릭 표시. 180–420px 크기 조절; 한 번 클릭은 미리보기, 두 번 클릭은 고정. Material Icon Theme 파일·폴더 SVG |
+| **FileTree** | 최상단 `CONFIG.blog.title` 작업 공간 이름, 서로 독립적으로 접는 Open Editors·Files, 최근/열린 글·카테고리·시리즈·프로젝트·public 파일 계층. 글·시리즈 구성원은 실제 글 제목으로 표시하고 URL·탭 파일명은 유지. Open Editors는 기본 접힘이며 긴 목록은 내부 스크롤·현재 편집기 자동 노출. 왼쪽 닫기 버튼·경로·미리보기 이탤릭 표시. 섹션 사이에만 구분선을 두고 마지막 항목 아래는 빈 여백 유지. 180–420px 크기 조절; 한 번 클릭은 미리보기, 두 번 클릭은 고정. Material Icon Theme 파일·폴더 SVG |
 | **TabBar** | Welcome, 문서, Search/Graph/Ontology 사용자 정의 편집기. 교체 가능한 이탤릭 미리보기 탭과 **Keep open**, 드래그 정렬·좌우 이동·닫기·다시 열기 |
 | **StatusBar** | 방문자 IP를 표시하는 `SSH:` 스타일 연결 배지, 문서 종류·보기 모드·읽기 위치·탭 저장 상태. 실제 SSH 세션을 열지 않으며 조회 실패 시 unavailable 표시 |
 | **Quick Pick** | `⌘/Ctrl+K`: 파일·태그·카테고리, `⌘/Ctrl+Shift+P` 또는 `>`: 명령, `@`: 실제 문서 제목. 화살표·Enter·Escape와 포커스 복원 |
@@ -27,6 +27,8 @@ monolog의 주요 기능 상세. 프로젝트 개요와 핵심 차별점은 [`..
 - 운영자 기본 테마는 `CONFIG.blog.theme`, 방문자 선택은 별도 `monolog.colorTheme` 저장값으로 우선 적용합니다. 첫 페인트 전에 테마를 적용하고 System은 기기 변경을 실시간 반영합니다. 저장소가 차단돼도 이번 방문의 테마 전환은 동작합니다.
 - 모든 화면에서 셸을 뷰포트 안에 유지하고 본문·Source·Outline·패널이 각각 스크롤합니다. 탭·뒤로 가기에서 읽던 위치를 복원하며 모바일 drawer는 닫힌 상태로 시작합니다. 실제 에디터 폭 1100px 미만에서는 Split 한 pane을 전환하고 Outline은 본문 위의 높이 제한 영역으로 배치합니다. 데스크톱 사이드바 선택과 모바일 drawer 상태는 별도로 유지합니다.
 - 방문자 주소는 같은 origin의 `/api/ip`에서 요청별로 조회하며 응답은 `private, no-store`입니다. 기존 인증된 프록시 홉 검증을 재사용하고 위조된 전달 헤더를 신뢰하지 않습니다. 원본 IP를 탭 저장소나 번역 서비스에 보내지 않습니다.
+
+구현: `src/layouts/RootLayout/EditorChrome/{TitleBar,ActivityBar,FileTree,StatusBar,SettingsPanel}.tsx`, `src/pages/api/ip.ts`. `SSH:`는 실제 요청 주소를 사용하는 표시 형식이며 원격 접속 상태가 아닙니다.
 
 ### 독서를 방해하지 않는 모션
 - **글 열기·페이지 전환** — 기존 화면을 숨기거나 전환 완료를 지연하지 않음. 새 문서는 320ms 동안 최대 8px 올라오고, 탭 아래 2px 신호선이 이동 중에만 흐른 뒤 420ms에 사라짐. 빠른 연속 이동은 이전 진입 모션을 취소하고 마지막 요청의 완료·취소 상태를 따름.
@@ -46,11 +48,13 @@ Welcome의 Recent와 Search Editor·Sidebar는 각 글의 실제 Notion `Thumbna
 Post·Page·About가 동일한 문서 작업 공간을 사용합니다. breadcrumbs·제목 다음에 접힌 Frontmatter와 요약·축소된 커버를 표시하며, 기존 Notion SSR 본문·코드 복사·시리즈 이동은 유지합니다. About의 활동·GitHub·기술·연락처 위젯은 접을 수 있는 영역에 유지합니다.
 
 - **Source**는 기본적으로 `/{slug}.md`와 동일한 Markdown과 블록별 줄 범위를 `/api/markdown/{slug}?sourceMap=1`에서 지연 로드하고 읽기 전용 문법 강조·줄 번호를 표시합니다. 번역 중에는 Preview와 같은 스냅샷을 기존 Markdown 직렬화기로 표시하며 제목·표·블록 매핑도 갱신합니다. `.md`·복사·다운로드는 원문을 유지하고, 원본 요청 실패 시 Retry·원본 링크를 제공하며 문서 이동 시 요청을 취소합니다.
-- **Split**은 데스크톱에서 독립된 두 pane의 일치하는 제목을 양방향 동기화합니다. 텍스트를 마우스로 드래그하면 실제 Notion 블록 ID·내보낸 줄 범위로 반대 pane의 대응 블록을 강조하고 선택 위치로 이동합니다. 일치하는 글자 범위는 추가 강조하며 문법 차이·블록 내 중복 문구는 블록 단위로 표시합니다. 드래그 추적은 제목 동기화 checkbox와 독립적이고 일반 스크롤을 줄별로 강제 연결하지 않습니다. 모바일에서는 Preview/Source를 전환합니다.
-- **표**는 Notion의 실제 열 순서·셀 속성을 따라 Markdown pipe 표로 내보내며 빈 셀·줄바꿈·인라인 서식을 보존합니다. 표·행별 블록 매핑을 유지해 Split 선택 영역도 연결합니다. Preview 표는 콘텐츠 폭을 채우고 긴 토큰이나 많은 열로 넘치면 표 안에서만 가로 스크롤됩니다. 본문은 최대 880px(Reading mode 900px), 좌우 여백은 데스크톱 최대 32px·Split 20px·모바일 16px로 제한합니다.
-- **브라우저 내장 번역**은 본문 콘텐츠 영역 우측 하단의 지구본 또는 Quick Pick의 **Translate: Article language…**에서 엽니다(`translation`·`번역`·`언어` 검색). 버튼·제안·팝오버는 Preview/Source 영역의 경계 안에 머물고 Outline·하단 패널·상태바를 침범하지 않습니다. 남은 높이가 작으면 팝오버 안에서 스크롤하며, 아주 낮은 콘텐츠 영역에서는 열린 팝오버가 지구본 공간까지 사용합니다. 표준 `Translator` API와 언어 쌍을 감지하고, 비한국어 브라우저 언어에서는 번역 제안 말풍선을 표시합니다. 원문 언어(기본 `CONFIG.lang`)·대상 언어(기본 브라우저 언어)를 선택한 뒤 **Translate article**을 눌러야 모델 준비·번역을 시작합니다. 제목·요약·본문·표·캡션을 문장/구문별로 번역하고 Preview·Source·Outline에 함께 반영합니다. 코드·수식·멘션·URL·링크 목적지와 원본 내보내기는 유지합니다. 진행률·중단·원문 복원을 제공하고 글/언어 변경 시 이전 작업을 취소합니다. 외부 번역 서버·모델명 추정·API 키 없이 브라우저 API가 지원하는 모델만 사용하고, 결과는 방문 중 메모리에만 유지합니다.
+- **Split**은 실제 에디터 컨테이너 폭 1100px 이상에서 독립된 두 pane의 일치하는 제목을 양방향 동기화합니다. 텍스트를 마우스로 드래그하면 실제 Notion 블록 ID·내보낸 줄 범위로 반대 pane의 대응 블록을 강조하고 선택 위치로 이동합니다. 일치하는 글자 범위는 추가 강조하며 문법 차이·블록 내 중복 문구는 블록 단위로 표시합니다. 드래그 추적은 제목 동기화 checkbox와 독립적이고 일반 스크롤을 줄별로 강제 연결하지 않습니다. 1100px 미만에서는 Preview/Source 한 pane을 전환합니다.
+- **표**는 Notion의 실제 열 순서·셀 속성을 따라 GFM pipe 표로 내보내며 빈 셀·줄바꿈·인라인 서식을 보존합니다. 표·행별 블록 매핑을 유지해 Split 선택 영역도 연결합니다. Preview 표는 콘텐츠 폭을 채우고 긴 토큰이나 많은 열로 넘치면 표 안에서만 가로 스크롤됩니다. Source의 긴 줄은 해당 pane 안에서 가로 스크롤합니다. 본문은 최대 880px(Reading mode 900px), 좌우 여백은 데스크톱 최대 32px·Split 20px·좁은 에디터 16px로 제한합니다.
+- **브라우저 내장 번역**은 본문 콘텐츠 영역 우측 하단의 지구본 또는 Quick Pick의 **Translate: Article language…**에서 엽니다(`translation`·`번역`·`언어` 검색). 버튼·제안·팝오버는 Preview/Source 영역의 경계 안에 머물고 Outline·하단 패널·상태바를 침범하지 않습니다. 남은 높이가 작으면 팝오버 안에서 스크롤하며, 아주 낮은 콘텐츠 영역에서는 열린 팝오버가 지구본 공간까지 사용합니다. 브라우저의 실험적 `Translator` API와 언어 쌍 가용성을 감지하고, 번역 가능한 비한국어 브라우저 언어에서 제안 말풍선을 표시합니다. 원문 언어(기본 `CONFIG.lang`)·대상 언어(기본 브라우저 언어)를 선택한 뒤 **Translate article**을 눌러야 모델 준비·번역을 시작합니다. 제목·요약·본문·표·캡션을 문장/구문별로 번역하고 Preview·Source·Outline에 함께 반영합니다. 코드·수식·멘션·URL·링크 목적지와 원본 내보내기는 유지합니다. 진행률·중단·원문 복원을 제공하고 글/언어 변경 시 이전 작업을 취소합니다. 외부 번역 서버·모델명 추정·API 키 없이 브라우저 API가 지원하는 모델만 사용하고, 결과는 방문 중 메모리에만 유지합니다.
 - **Outline · Series**는 실제 제목 앵커와 시리즈 순서를 보여줍니다. `@` 제목 이동은 모바일의 숨겨진 Source pane에서 Preview로 전환한 뒤 올바른 스크롤 루트로 이동합니다.
 - **References · Comments**는 하단 패널로 분리합니다. 명시적 링크·같은 카테고리·AI 유사 글을 구분하며, 댓글은 처음 열 때 마운트하고 패널 전환 중 유지합니다. Reading mode는 사이드바와 패널을 숨깁니다.
+
+구현: `src/routes/Detail/index.tsx`, `src/routes/Detail/PostDetail/{PostWorkspace,MarkdownSource,RightRail,DocumentPanel,ArticleTranslationControls,useArticleTranslation}.tsx`, 같은 디렉터리의 `{articleTranslation,translatedMarkdown,useSplitSelection}.ts`, `src/libs/utils/notion/markdown.ts`. 번역 지원 여부는 브라우저·보안 컨텍스트·언어 쌍에 따라 달라지며, 미지원·실패 상태에서도 원문은 유지합니다. 중단 시 이미 번역한 문장은 남을 수 있으며 **Restore original**로 전체 원문을 복원합니다.
 
 ## Markdown 복사 · 보기
 문서 도구 모음에서 **Markdown 복사**와 추가 작업 disclosure를 제공합니다. About와 작은 화면에서도 동일하게 사용할 수 있습니다.
@@ -91,21 +95,23 @@ Notion S3 presigned URL 만료를 자동 복구하고 디스크에 캐싱합니�
 - **In-flight dedup** — 동일 이미지 concurrent cold-miss가 Notion API를 중복 호출하지 않도록 Promise 공유.
 - **자동 URL 재발급** — 401 / 403 / 404 / 410 응답 시 `notion.blocks.retrieve` → `notion.pages.retrieve` 순으로 재시도.
 - **`next/Image` 옵티마이저 활성** — `next.config.js` `localPatterns`로 프록시 경로 허용. WebP/AVIF + 디바이스별 해상도 자동 생성.
-- **응답 헤더** — `Cache-Control: public, max-age=31536000, immutable` (1년). 실패 시 inline SVG placeholder + Slack webhook 알림(옵션).
+- **응답·실패 안내** — 성공한 이미지 응답에는 `Cache-Control: public, max-age=31536000, immutable`을 사용. 복구 불가·크기 초과 등 실패 경로는 짧은 캐시의 PNG placeholder를 반환할 수 있으며 IP 제한은 `429`로 응답합니다. Slack webhook 알림은 별도 설정한 경우에만 동작하며, placeholder 응답의 HTTP `200`을 실제 원본 이미지 로딩 성공으로 간주하지 않음.
 
 ---
 
 ## About 페이지 (IDE 위젯)
 About 라우트는 다음 위젯들을 한 화면에 묶어 보여줍니다.
 
-- **YAML frontmatter** — `site.config.js`의 `profile.name` / `role` / `bio`
-- **StatsGrid** — posts · categories · series · tags · words 집계
-- **ActivityHeatmap** — Bklit UI Heatmap 기반 52 × 7 글 활동 달력. ISR 게시물 쿼리 기준 시각과 UTC 날짜를 사용해 방문자 시간대와 무관하게 같은 칸을 표시.
-- **GitHubContributions** — 공개 GitHub 기여 52주 달력. GitHub 제공 색상 레벨과 실제 기여 횟수를 분리해 원본 건수를 유지하며, 로딩·실패 안내와 프로필 링크 제공.
+- **문서 메타데이터·프로필** — 공통 Frontmatter에 실제 문서 제목·날짜·작성자·분류·태그를 표시하고, 프로필 설명은 `site.config.js`의 `profile.role` / `bio`를 사용
+- **StatsGrid** — 화면의 네 필드는 `entries`(글 수) · `series` · `tags` · `words`. `words`는 제목·요약의 공백 구분 토큰 수 × 8을 올림한 추정치 합계이며 본문 전체 단어 수가 아님. 카테고리는 집계 유틸리티에 있지만 이 위젯에는 표시하지 않음
+- **ActivityHeatmap** — 일요일–토요일 7행 × 52주 열의 글 활동 달력. ISR 게시물 쿼리 기준 시각에서 52주 전으로 이동한 뒤 일요일로 정렬하고 364일을 표시하므로 오늘까지의 달력이라고 보장하지 않음. UTC 날짜와 게시일(없으면 생성일)을 사용. 하루 1건부터 색을 표시하며 1·2·4·6건에서 색상 레벨이 증가
+- **GitHubContributions** — 설정된 `profile.github`의 공개 기여를 `/api/github-contributions`에서 읽어 최신 응답 날짜가 속한 주까지 52주 × 7일로 표시. GitHub 제공 0–4 색상 레벨과 실제 기여 횟수를 분리해 적은 기여의 색과 원본 건수를 유지하며, 로딩·실패 안내와 프로필 링크 제공. 달력 아래 연간 합계는 서버 응답 값이며 보이는 364칸의 합계와 같다고 가정하지 않음
 - **StackGrid** — `site.config.js`의 `stack` 객체를 카테고리별 chip으로 자동 렌더 (정의 없으면 위젯 자체 숨김)
 - **ContactBlock** — email · GitHub · LinkedIn · Instagram (config-driven)
 
-두 달력은 `ActivityCalendar`에서 실제 [Bklit UI Heatmap](https://bklit.com/docs/components/heatmap-chart) 소스를 조합합니다. 월·요일 레이블과 연동되는 Less/More 범례, 원본 날짜·건수 tooltip, 한 칸씩 이동하는 방향키·Escape를 지원합니다. 작은 화면에서는 달력만 가로 스크롤하고 기존 색상 테마를 따릅니다. 소스·MIT 라이선스와 registry 원본 해시는 `src/components/charts/`에 보관합니다. Bklit UI가 제공하지 않는 네트워크·3D 지식 그래프와 Mermaid는 기존 렌더러를 유지합니다.
+두 달력만 `ActivityCalendar`에서 실제 [Bklit UI Heatmap](https://bklit.com/docs/components/heatmap-chart) registry 소스를 조합합니다. 0은 빈 칸 색, 1–4는 테마의 활동 색을 직접 매핑해 낮은 활동도 빈 칸과 구별합니다. 월·요일 레이블과 연동되는 Less/More 범례, 원본 날짜·건수 tooltip, 한 칸씩 이동하는 방향키·Escape를 지원합니다. 작은 화면에서는 최소 680px 달력 영역만 가로 스크롤합니다. 소스·MIT 라이선스·registry 원본 해시는 `src/components/charts/LICENSE`와 소스 헤더에 보관합니다. Three.js 지식 그래프·글별 SVG 미니 그래프·커스텀 온톨로지와 Mermaid는 Bklit 렌더러가 아닙니다.
+
+구현: `src/routes/Detail/PageDetail/components/{ActivityCalendar,ActivityHeatmap,GitHubContributions}.tsx`, `activityGrid.ts`, `src/routes/Feed/StatsGrid.tsx`, `src/libs/utils/stats.ts`, `src/libs/github/contributions.ts`.
 
 ---
 
@@ -125,7 +131,7 @@ About 라우트는 다음 위젯들을 한 화면에 묶어 보여줍니다.
 - `google/embeddinggemma-2@914f7f89142e33e77833254d9c9b90c3cef7303b`의 정규화된 768차원 벡터를 별도 Qdrant 컬렉션 `post_embeddings_embeddinggemma_2_768_v1`에 영속 저장. 초기 공개·제목·본문 해시가 바뀔 때만 재계산하며 slug·태그·시각만 바뀌면 메타데이터만 갱신
 - 임베딩은 `/api/cron/content`의 유지보수 단계에서 수행. 초기화·webhook·수동 발행은 기다리지 않고 다음 유지보수에서 누락·변경분을 보충. 실패한 버전은 검색·좌표에서 제외하고 기존 벡터 체크포인트를 보존해 다음 유지보수에서 재시도. 비공개·삭제 글은 즉시 검색 후보에서 제외하고 유지보수 시 저장 벡터도 제거
 - 문서 제목과 전체 본문을 공식 document prompt로 처리. 8192-token을 넘는 본문은 토큰을 버리지 않는 창으로 나눠 정규화·가중 결합. 검색은 공식 SearchQuery prompt를 사용하며 전체 768차원으로 검색; PCA에서 가까운 점은 유사도의 시각적 근사이며 명시적 관계를 뜻하지 않음
-- 벡터 보강 실패는 이미 확보한 명시적 관계·태그·시리즈 논리 그래프를 중단시키지 않음. Qdrant 전체 장애 시에는 사용 가능한 캐시·본문 관계로 fallback. 벡터 준비 대기 상태는 클라이언트 재조회로 해소하며, Meaning 검색은 사용 가능 상태일 때만 활성화
+- 벡터 보강 실패는 이미 확보한 명시적 관계·태그·시리즈 논리 그래프를 중단시키지 않음. Qdrant 전체 장애 시에는 사용 가능한 캐시·본문 관계로 fallback. 임베딩이 없으면 `Relationship layout · post embeddings pending`, 일부 있으면 준비된 글 수/전체 수를 표시. stale 응답은 클라이언트에서 3초 간격으로 재조회하지만 인덱싱 완료 자체를 보장하지 않으며, Meaning 검색은 서버가 사용 가능 상태를 응답할 때만 활성화
 
 ### 엣지 종류
 같은 페어가 여러 타입으로 연결될 수 있으며, 상세 패널에서는 이웃 노드별로 묶고 각 관계의 방향·유형·근거를 따로 표시합니다.
@@ -160,6 +166,8 @@ About 라우트는 다음 위젯들을 한 화면에 묶어 보여줍니다.
 - **Reset view / Reset layout** — 카메라와 레이아웃 설정을 독립 초기화. ResizeObserver로 viewport 변경을 반영
 - **시간순 재생** — 포스트 생성 순으로 노드와 실제 허브·관계를 공개. Play/Pause·Rewind·Show all·속도 조절 제공
 
+구현: `src/routes/Graph/{index,GraphScene}.tsx`, `src/routes/Graph/{layout3d,types}.ts`, `src/libs/utils/graph.ts`, `src/hooks/useNotionGraphQuery.ts`, `src/apis/vector/graphEmbeddings.ts`. 화면의 임베딩 준비 상태·관계 수는 현재 응답 데이터이며, 프로젝트의 모든 글이 의미 검색에 이미 포함됐다는 보장이 아닙니다.
+
 ---
 
 ## Inline Notion databases
@@ -174,14 +182,14 @@ About 라우트는 다음 위젯들을 한 화면에 묶어 보여줍니다.
 
 지원 컬럼 타입: `title` · `rich_text` · `select` · `multi_select` · `status` · `date` · `url` · `checkbox` · `files` · `number` · `people`.
 
-DB 블록 주입은 **createPortal** 기반 — react-notion-x가 그린 자리에 portal target 노드를 끼워 넣어 페이지 전환 시 reconciler 충돌(`removeChild NotFoundError`)을 원천 차단합니다.
+DB 블록은 `src/routes/Detail/components/NotionRenderer/index.tsx`의 **`components.Collection` 슬롯**으로 react-notion-x의 React 트리 안에서 직접 렌더합니다. 루트가 아닌 `collection_view_page`를 `collection_view`로 정규화하고 React Query의 데이터가 없으면 placeholder를 표시합니다. 예전 portal 기반 형제 DOM 주입 방식이 아닙니다.
 
 ---
 ## 공식 Notion 블록 지원 범위
 - `heading_4`, 토글 제목의 `is_toggleable`, `column.width_ratio`를 현재 렌더러가 이해하는 형태로 변환. 생략된 열 너비는 실제 열 개수에 맞춰 균등 배분.
 - 독립된 페이지 링크·alias 및 한 공개 글의 링크만 담긴 문단은 제목·요약·선택적 썸네일의 미리보기 카드로 자동 표시. Notion 페이지 ID를 공개 slug로 연결하고 원본 블록 앵커·SSR·에디터 SPA 이동을 유지. 문장 안의 mention·링크와 알 수 없는·비공개 대상은 기존 표시를 유지하며 모바일에서는 썸네일을 아래에 배치.
 - 변환 캐시는 `recordMap:v9`. 이미 발행된 내구성 본문은 캐시 버전 변경만으로 재작성하지 않으므로 기존 글에 적용하려면 해당 글의 정상 변경 동기화 또는 인증된 `/api/revalidate?path=/slug` 본문 재확인이 필요. `full=true`는 전체 메타데이터 대조이며 모든 본문 강제 재작성 옵션이 아님.
-- 2026-10-07 기준 최신 안정판: [Notion SDK 5.27.0](https://github.com/makenotion/notion-sdk-js/releases/tag/v5.27.0), [react-notion-x / notion-types / notion-utils 8.0.8](https://github.com/NotionX/react-notion-x/releases/tag/v8.0.8). 현재 SDK 5.21.0·렌더러 7.10.0에서도 위 변환이 가능하며 이번 변경은 의존성 버전을 바꾸지 않음.
+- 의존성 선언은 `package.json`, 정확한 해석 버전은 `yarn.lock` 기준. 현재 선언은 Notion SDK `^5.21.0`, `react-notion-x` / `notion-types` / `notion-utils` `^7.10.0`이며, 공식 API 블록을 현재 렌더러 구조로 변환하는 코드를 함께 사용합니다. SDK를 올리는 것만으로 모든 새 블록이 지원되지는 않습니다.
 - 탭은 RNX 7.10.1 이상이 지원하지만 현재 설치판에는 렌더 분기가 없음. 회의록·레거시 template·동기화 원본 참조는 별도 변환 정책이 필요. 공식 API의 `unsupported.block_type`은 종류만 알려주며 블록 내용은 제공하지 않으므로 SDK 갱신만으로 복원할 수 없음.
 - [업로드 HTML 블록](https://developers.notion.com/reference/block#html-blocks)은 별도 `html` 타입이 아닌 업로드 기반 `embed`. 읽기 응답은 만료되는 서명 `embed.url`이며 현재는 인라인 실행 대신 링크로 표시. 안전한 인터랙티브 지원에는 공개 페이지·블록 검증을 통한 URL 갱신과 전용 샌드박스 iframe이 필요하며 앱 출처의 HTML 삽입이나 일반 iframe 호스트 허용만으로 대체하지 않음.
 
@@ -198,12 +206,12 @@ DB 블록 주입은 **createPortal** 기반 — react-notion-x가 그린 자리�
 
 ---
 
-## Dual-layer post cache (Memory + Filesystem)
+## Dual-layer cache (Memory + Redis)
 - **L1**: 프로세스 내 `Map` 캐시 (FIFO eviction, 200 entries)
-- **L2**: `.notion-cache/*.json` 파일시스템 캐시 (Docker 볼륨 영속)
-- 읽기 전용 파일시스템(serverless) 자동 감지 시 L2 비활성, L1-only 모드
-- L2 → L1 백필은 60초 hot TTL
-- 캐시 키에 Notion `last_edited_time` 포함 → 수정 시 자동 무효화
+- **L2**: `REDIS_URL`이 설정되면 `RedisBackend` 사용. 키 접두사는 `CACHE_NAMESPACE`(기본 `monolog`)이며 기존 설치의 이름을 임의 변경하지 않음
+- `REDIS_URL`이 없으면 L2를 사용하지 않고 L1-only로 동작. `.notion-cache/*.json` 파일시스템은 현재 캐시 백엔드가 아님
+- L2 → L1 백필은 60초 hot TTL. 동시 요청 Promise 공유는 프로세스 내부 범위이며 여러 인스턴스 전체의 단일 실행을 보장하지 않음
+- recordMap·database 키는 Notion `last_edited_time`, 관계 그래프 키는 콘텐츠/메타데이터 해시를 사용. 이 TTL 캐시는 위의 내구성 콘텐츠 저장소나 이미지 BLOB 디스크 캐시와 별도
 
 | 키 | TTL (기본 6h 기준) |
 |---|---|
@@ -214,11 +222,13 @@ DB 블록 주입은 **createPortal** 기반 — react-notion-x가 그린 자리�
 | image BLOB (S3 UUID 키) | 30일 |
 | image BLOB (blockId 폴백 키) | 7일 |
 
+구현: `src/libs/cache/{cacheStore,MemoryBackend,RedisBackend,keys,imageBlobCache,blobFsBackend}.ts`. 캐시는 소실 후 재생성할 수 있지만 `CONTENT_REDIS_URL`의 내구성 발행본·outbox는 운영 데이터로 보존합니다.
+
 ---
 
 ## Reading aids
-- **ReadingProgress** — `.scroll-area` 진행률 2px accent 바
-- **RightRail (240px)** — 사이트 오른쪽 끝의 TOC + 시리즈 글 목록 + 동일 카테고리 related 3개 + Qdrant 기반 `ai · similar`(선택 기능) + BuiltGraph의 글 연결 mini-graph SVG. 본문만 최대 760px로 제한하고 남는 폭은 본문과 사이드바 사이에 유지하며, 960px 이하에서는 숨김
+- **ReadingProgress** — 현재 보이는 Preview/Source의 스크롤 루트를 추적하는 2px accent 바. 탭·주소·보기 전환 후 같은 루트를 사용하는 목차·맨 위로 이동·상태바 진행률과 연동
+- **Outline · Series** — `RightRail.tsx`의 독립 스크롤 영역. 넓은 에디터에서는 224px 오른쪽 열, 에디터 1100px 미만에서는 본문 위 높이 제한 행으로 배치하며 숨김·Reading mode 전환 가능. 직접 참조·같은 카테고리 글 최대 3개·AI 유사 글·직접 관계 SVG 미니 그래프는 오른쪽 rail이 아니라 `DocumentPanel.tsx`의 **References** 탭에 표시. AI 제안이 없으면 없는 상태를 안내하며 관계를 만들어 채우지 않음
 - **Frontmatter** — YAML 형식 메타데이터 블록 (모노스페이스, key가 accent3 컬러)
 - **SeriesNav** — 본문 하단 시리즈 Prev/Next 박스
 - **SPA 내부 링크** — 본문의 다른 글로 향하는 링크는 capture-phase 인터셉터로 `router.push`로 전환, 새로고침 없는 페이지 이동

@@ -1,172 +1,194 @@
-# monolog
+# Tablog
 
-> This project is an improved fork based on the original [morethan-log](https://github.com/morethanmin/morethan-log) project. We deeply appreciate the excellent work of the original developer, and have implemented additional features on top of that foundation.
+> Write in Notion. Explore through a tabbed, VS Code-style workspace.
 
-**Original Project**: [morethan-log](https://github.com/morethanmin/morethan-log) by [morethanmin](https://github.com/morethanmin)
+**[Personal-site example · pieroot.xyz](https://pieroot.xyz)** · [한국어](README.md) · [Setup and operations](docs/USAGE.md) · [Features](docs/FEATURES.md) · [Architecture](project.md) · [Design](DESIGN.md)
 
-[Demo Blog](https://blog.pieroot.xyz) | [Demo Resume](https://blog.pieroot.xyz/resume)
+Tablog presents Notion publications through a **read-only, VS Code-style workspace** with tabs, Explorer, search, and Outline. Preview · Source · Split share the same reading workspace, and client-side navigation keeps open tabs. It is a dynamic Next.js Pages Router application with ISR, not a static-export-only template, terminal emulator, or code editor.
 
-<img width="1715" alt="image" src="https://user-images.githubusercontent.com/72514247/209824600-ca9c8acc-6d2d-4041-9931-43e34b8a9a5f.png">
+## Screenshots
 
-A Next.js-based static blog using Notion as a Content Management System (CMS). This improved version offers enhanced Notion integration, automatic updates, and additional features.
+**Captured on 2026-10-21.** These examples were captured from the current source running locally with real Notion publications. The `pieroot log` title, profile, articles, and counts belong to a personal-site configuration; they are not bundled sample content or the product name.
 
-## 🚀 Key Features
+![Tablog Welcome in One Dark Pro Mix, with real article thumbnails, series, and Explorer](assets/screenshots/2026-10-21/welcome.png)
 
-### 🔧 Enhanced Notion Integration
-- **Comprehensive Notion Block Support**: Full support for advanced Notion blocks including databases, toggles, callouts, and more
-- **Improved Media Handling**: Enhanced image proxy and media content processing
-- **Custom Components**: Extended rendering for Notion-specific features
+<details>
+<summary>Search · Split · Series · About · Graph · Mobile</summary>
 
-### ⚡ Automatic Updates & Performance
-- **Automatic ISR Refresh**: Periodic content updates through GitHub Actions workflows
-- **Optimized Caching**: Enhanced caching strategies for better performance
-- **Robust Error Handling**: Strong error handling and fallback mechanisms
+### Search
+`tag:openstack` results with actual article thumbnails. Search covers titles, summaries, tags, and categories, not full article bodies.
 
-### 🛠️ Development & Testing
-- **Comprehensive Testing**: Jest test suite with coverage reports
-- **CI/CD Pipeline**: Automated testing and deployment workflows
-- **Code Quality**: ESLint, Prettier, and TypeScript strict mode applied
+![Tag-filtered publication results and real thumbnails in Tablog Search Editor](assets/screenshots/2026-10-21/search.png)
 
-### 🎨 Enhanced UI/UX
-- **VS Code workspace**: Command Center, Explorer/Search/Knowledge sidebars, resizable navigation, preview/pinned tabs, Outline, and References/Comments panels. Controls perform real reading and navigation actions, not simulated terminal or Git operations.
-- **Themes and icons**: One Dark Pro Mix by default, with Dark Modern, Light Modern, and live System options. Set `CONFIG.blog.theme` in `site.config.js`; a visitor's saved choice takes precedence. Material Icon Theme file/folder SVGs retain their upstream MIT license.
-- **Read-only Markdown views**: Preview, Source and Split share a viewport-bounded workspace with independent pane, outline and panel scrolling. Split synchronizes matching headings and dragged selections; narrow editor widths switch between panes and place Outline above the article. Reading mode hides navigation panels.
-- **Keyboard navigation**: `Cmd/Ctrl+K` opens Quick Pick; `>` searches commands and `@` searches the current document's headings. Explorer single click previews, double click pins. `Alt/Option+W` closes a post and `Alt/Option+Shift+T` reopens it; browser close shortcuts are left alone.
-- **Search and storage**: `/search?q=...` searches titles, summaries, tags, and categories, including `tag:"kolla ansible"`. Pinned tabs and recently closed posts are saved only after consent; preview tabs are never persisted.
-- **On-device translation**: Open the bottom-right globe to choose languages and explicitly request the browser's built-in Translator API. Supported non-Korean browser locales receive a suggestion, never automatic translation. Preview, Source and Outline share the result, with reduced-motion-aware text recomposition. Copy/download and public `.md` exports remain original.
-- **Advertising boundary**: Manual display slots appear only after eligible complete top-level code/equation blocks and optionally after article content, never inside content blocks. The SDK and slots stay inactive until a publisher client, real manual unit ID, and explicit account Auto ads OFF confirmation are configured. See [operator instructions](docs/USAGE.md#광고와-작업-공간-경계).
+### Preview · Source · Split
+Light Modern displays a rendered Notion table beside its GFM Markdown source. Wide tables, code, and source scroll inside their own regions.
 
-### 📒 Writing with Notion
-- No need to commit to GitHub for blog posts
-- Articles written in Notion are automatically updated on the site
+![Tablog Split in Light Modern, showing a Notion table and its Markdown source](assets/screenshots/2026-10-21/split.png)
 
-### 📄 Use as Resume Page
-- Create full-page sites using Notion
-- Can be used for resumes, portfolios, and more
+### Series
+Reading order, real post titles, summaries, dates, and thumbnails.
 
-### 🤖 Various Plugin Support via Configuration
-- Update profile information via `site.config.js`
-- Supports plugins like Google Analytics, Search Console, Utterances (GitHub Issues comments), Cusdis, and more
+![Actual research-paper thumbnails in a Tablog series](assets/screenshots/2026-10-21/series.png)
 
-## 🐳 Docker Image Tags
+### About and activity
+Entries, series, tags, estimated words, and writing/GitHub calendars built from Bklit UI Heatmap source.
 
-This project provides Docker images via GitHub Container Registry. According to the `docker-build.yml` workflow, the following tags are automatically generated:
+![The four About statistics and Bklit-based writing and GitHub heatmaps](assets/screenshots/2026-10-21/about.png)
 
-| Tag | Description | When Generated |
-|-----|-------------|----------------|
-| `latest` | Current production image | When `main` is pushed, or a `v*` release tag is pushed |
-| `X.Y.Z` | Versioned release image | When its `vX.Y.Z` tag is pushed |
+### 3D knowledge graph
+Neutral post spheres, green tags/series, degree-based sizes, and faint edges. This example uses relationship layout; embedding readiness is reported separately in the UI.
 
-### Additional Tags
+![Three.js graph of actual Tablog post, tag, and series relationships](assets/screenshots/2026-10-21/graph.png)
 
-When a Semver tag is pushed (for example, `v1.2.3`), the workflow publishes:
-- `1.2.3` — full release version
-- `latest` — current release image
+### Mobile reading mode
+A real document at 390px. Narrow editors switch between Split panes, while reading mode hides sidebars and panels.
 
-## 📖 Getting Started
+<img src="assets/screenshots/2026-10-21/mobile.png" alt="Tablog mobile reading mode at 390px" width="390" />
 
-1. Click ⭐ Star on this repository.
-2. [Fork](https://github.com/jung-geun/monolog/fork) to your profile.
-3. Duplicate the [Notion template](https://pieroot.notion.site/307067c015d080d987eadd99c8369f92?v=307067c015d0817a87a8000c109eb446&source=copy_link) and enable "Share to web".
-4. Copy the DB IDs for the required databases in UUID format and collect each DB's `data_source` ID (see API docs for `data_sources[0].id`).
-5. Clone the forked repository and customize `site.config.js` as desired.
-6. Choose one of the deployment methods below.
+</details>
 
-### Environment Variables
+## Features
 
-| Variable Name | Required | Description |
-|---------------|----------|-------------|
-| `NOTION_TOKEN` | Required | Notion integration token |
-| `NOTION_DATASOURCE_ID` | Required | Notion datasource ID for posts DB (UUID) |
-| `CONTENT_REDIS_URL` or `CONTENT_STATE_DIR` | Required | Durable content registry: Redis 7.2+ with AOF (Compose sets its private `content-redis`), or a directory for local single-host development |
-| `NOTION_COMMENTS_DATASOURCE_ID` | Optional | `data_source` ID for comments DB |
-| `COMMENT_HASH_SALT` | Optional | Salt for anonymous comment identity (`openssl rand -hex 32`) |
-| `REVALIDATE_SECRET` | Optional | Token used by `/api/revalidate`, `/api/init`, `/api/cron/content`, `/api/cron/graph`, `/api/cron/ontology` |
-| `NEXT_PUBLIC_GOOGLE_MEASUREMENT_ID` | Optional | For Google Analytics plugin |
-| `NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION` | Optional | For Google Search Console plugin |
-| `NEXT_PUBLIC_NAVER_SITE_VERIFICATION` | Optional | For Naver Search Advisor plugin |
-| `NEXT_PUBLIC_BING_SITE_VERIFICATION` | Optional | For Bing Webmaster Tools (`msvalidate.01`) |
-| `NOTION_WEBHOOK_VERIFICATION_TOKEN` | Optional | Signing secret for `/api/notion-webhook` (see setup step 7) |
-| `INDEXNOW_KEY` | Optional | Hex IndexNow key (`openssl rand -hex 16`), served at `/<key>.txt` |
-| `NEXT_PUBLIC_UTTERANCES_REPO` | Optional | For Utterances plugin |
+### A reading workspace, not simulated development tools
+Command Center, Activity Bar, resizable sidebars, Open Editors, tabs, Outline, and References/Comments perform real blog actions. Explorer shows the configured workspace name above its sections and real post titles rather than URL slugs. Settings has one Activity Bar entry, also reachable by command. The `SSH:`-style badge reports the requester's address; it does not open an SSH session.
 
-`NEXT_PUBLIC_GOOGLE_MEASUREMENT_ID`, `NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION`, `NEXT_PUBLIC_NAVER_SITE_VERIFICATION`, and `NEXT_PUBLIC_BING_SITE_VERIFICATION` are read when the container starts, not when the image is built. Supply only public values through `--env-file` or Compose `env_file`; omit them to run with Analytics and verification tags disabled.
+One Dark Pro Mix is the default. Visitors can choose Dark Modern, Light Modern, or live System mode; their saved preference overrides `CONFIG.blog.theme`. Material Icon Theme file icons and Codicons retain their upstream attribution.
 
-## 🐳 Docker Compose deployment
+### Quick Pick, preview tabs, and publication search
+`Cmd/Ctrl+K` opens Quick Pick; `Cmd/Ctrl+Shift+P` or `>` searches commands, and `@` searches the current document's headings. Explorer single click previews and double click or **Keep open** pins. Reorder with drag or arrow buttons; `Alt/Option+W` closes a post and `Alt/Option+Shift+T` reopens it. Browser close shortcuts are not intercepted.
 
-The dynamic Next.js application, cache Redis, durable content Redis, and Qdrant run as a Docker Compose stack behind HAProxy. GitHub Actions publishes the `linux/amd64` production image; the Mac mini setup below is an alternative native-build deployment. Only the `blog` service should be reachable by the reverse proxy.
+Pinned tabs and recently closed posts persist only after consent; preview tabs and article bodies never do. `/search?q=...` shares title, summary, tag, and category searches. Welcome, Search, and Series use actual post thumbnails when available.
 
-### Required Compose inputs
+### Connected Preview, Source, and Split
+The initial HTML includes the real Notion article. Source lazily loads original Markdown and line numbers. Split synchronizes matched headings; dragging a text/block selection highlights the corresponding area and reveals it in the opposite pane. Ordinary scrolling does not continuously lock the two panes together.
 
-Copy the template, then fill every enabled integration:
+Preview, Source, Outline, and panels scroll independently within a viewport-bounded shell. Tables export as GFM Markdown; wide tables and code/source use local horizontal scrolling. Narrow editor widths place Outline above the article and switch between Preview/Source panes.
 
-```bash
-cp .env.example .env
-openssl rand -hex 32 # use this for TRUSTED_PROXY_SECRET and independent comment/visitor salts
-```
+### Explicit, on-device translation
+The globe inside the article's bottom-right corner and **Translate: Article language…** in Quick Pick open the same controls. Translation uses the browser's **Translator API**, without assuming a particular model or calling a cloud fallback. Supported non-Korean browser locales receive a suggestion, never automatic translation; model download and sentence-by-sentence translation require the reader's request.
 
-| Variable | Required | Description |
-|---|---|---|
-| `BLOG_BIND_ADDRESS` | Yes | DHCP-reserved Mac LAN address reachable from the separate HAProxy host. Use `127.0.0.1` only when HAProxy is native on the Mac. |
-| `NOTION_TOKEN` | Yes | Notion integration token |
-| `NOTION_DATASOURCE_ID` | Yes | Notion posts `data_source` ID |
-| `REVALIDATE_SECRET` | Yes | Must match the GitHub Actions revalidation secret |
-| `TRUSTED_PROXY_SECRET` | Yes | Shared secret that HAProxy overwrites into `X-Monolog-Proxy-Secret` |
-| `NEXT_PUBLIC_SITE_URL` | Yes | `https://blog.pieroot.xyz`; compiled into the native image |
-| `REVALIDATE_HOURS` | Yes | ISR interval; default template value is `1` |
-| `NOTION_COMMENTS_DATASOURCE_ID`, `COMMENT_HASH_SALT` | When comments enabled | Comment data source and independent pseudonym salt |
-| `NOTION_VISIT_STATS_DATASOURCE_ID`, `VISITOR_HASH_SALT` | When visitor stats enabled | Visit data source and independent visitor salt |
-| `ANTHROPIC_API_KEY`, `OPENAI_API_KEY` | When ontology/vector build enabled | Optional ontology extraction and embedding credentials |
+Preview, Source, Outline, and heading search share one translated snapshot. Cancel keeps completed passages; Restore original restores the original document. Code, equations, and link destinations are preserved. Short text-recomposition motion is skipped during selection or reduced motion. **Markdown copy/download and public `.md` exports always remain original.**
 
-`TRUSTED_PROXY_HOPS` defaults to `0`, so forwarded IP headers are ignored. With the single HAProxy hop described below, explicitly set `TRUSTED_PROXY_HOPS=1` and configure the matching `TRUSTED_PROXY_SECRET`; otherwise the visitor-IP badge shows the socket peer rather than the visitor. Redis, content Redis, and Qdrant are private Compose services; do not set their public URLs in `.env`. `content-redis` starts with AOF enabled and holds the published content registry; it is intentionally separate from the cache Redis, whose existing RDB data would be ignored if AOF were enabled by restart.
+### Relationship graphs and activity heatmaps
+The **Three.js 3D graph** explores actual post, tag, and series relationships. Opaque neutral post spheres and green tag/series spheres grow with connection count; faint neutral edges show arrows on hovered/selected connections. Every node participates in repulsion and collision forces. Available document-vector PCA positions act as weak anchors, not fixed coordinates, so releasing an Alt/Option-dragged node does not snap it back.
 
-### Mac mini and HAProxy setup
+Name search and relationship layout are separate from Meaning/similar-post search. Semantic features require **Qdrant, the public `google/embeddinggemma-2` model, and indexed documents**; unconfigured/pending states remain explicit. Successful content initialization is not proof of completed indexing. Ontology is a separate entity/relation view with optional Anthropic extraction.
 
-1. Create a dedicated standard `monolog` macOS account, install current Docker Desktop there, clone this repository, create `.env`, and run the commands below from that checkout.
-2. Give both the Mac mini and HAProxy host DHCP reservations. Set `BLOG_BIND_ADDRESS` to the Mac's reserved LAN address.
-3. Configure the existing HAProxy backend to that explicit address and port. Preserve `Host`, set `X-Forwarded-Proto: https`, enable `option forwardfor`, and **overwrite** `X-Monolog-Proxy-Secret` with the exact `TRUSTED_PROXY_SECRET` from the Mac `.env`. Never forward a client-provided value for that header.
-4. HAProxy remains the TLS owner and the single trusted hop for `blog.pieroot.xyz`. Do not publish Qdrant or add another TLS proxy.
-5. This unattended-recovery policy deliberately removes macOS at-rest disk encryption: disable FileVault, enable automatic login for `monolog`, enable Docker Desktop startup at login, prevent automatic system sleep while the display is off, and enable restart after power failure. Retaining or re-enabling FileVault requires manual unlock/login after every reboot.
-6. Point the GitHub revalidation workflow's `REVALIDATE_URL` secret to `https://blog.pieroot.xyz`; its `REVALIDATE_SECRET` must equal the Mac `.env` value.
-7. Optional real-time updates: with `NOTION_WEBHOOK_VERIFICATION_TOKEN` empty, create a Notion webhook subscription for `https://blog.pieroot.xyz/api/notion-webhook`, copy the `verification_token` from `make logs`, verify it in Notion, then set it in `.env` and run `make restart`. GitHub's 15-minute `/api/cron/content` schedule is best-effort, not a propagation guarantee. Linux production hosts use the host cron runner described in [docs/USAGE.md](./docs/USAGE.md), with GitHub Actions as a backup.
+Writing and GitHub calendars use **vendored Bklit UI Heatmap source**. The 3D graph and ontology were not replaced with Bklit. Original counts, contribution levels, and dates remain distinct, and small screens scroll within the calendar.
 
-If pre-existing `logs-data` or `image-cache` volumes are root-owned, preserve them and repair ownership once before startup:
+### Durable publications and incremental synchronization
+Notion webhooks and a 15-minute host reconciliation cron update changed publications and affected routes. The durable publication registry is separate from expiring caches; slug changes retain a 308 redirect. Compose uses dedicated AOF Redis, while native single-host development uses `.content-state`.
+
+The Docker entrypoint starts the standalone Node server, then calls `/api/init` to prepare publications and public routes. First initialization, media acquisition, and model backfill take time. GitHub Actions scheduling is a best-effort backup, not a propagation guarantee. The Notion image proxy refreshes expiring URLs and provides in-flight deduplication and a disk cache.
+
+Comments, visitor statistics, analytics, and advertising are opt-in integrations. Ads separate overlay-only Auto mode from explicitly configured manual slots; missing requirements keep them inactive. Source configuration does not change Google account settings or prove filled ad delivery. See [operations](docs/USAGE.md) for prerequisites and account checks.
+
+## Stack
+
+| Area | Technology |
+|---|---|
+| Application | Next.js 16 Pages Router, ISR, standalone · TypeScript 6 · React 19 |
+| UI and data | Emotion · Tailwind 4 · TanStack Query v5 · official Notion SDK · react-notion-x |
+| Charts and graphs | Bklit UI Heatmap source · visx · Three.js · d3-force-3d · d3-force |
+| Persistence | Dedicated content Redis/AOF or native file store · cache Redis · Qdrant |
+| Verification and delivery | Jest 30 · ESLint · Docker Compose · Linux/amd64 GHCR workflow |
+
+## Getting Started
+
+### 1. Prerequisites and Notion
+
+- **Node.js 22 or 24 LTS**, **Yarn 1.22.22**, and Git. If Yarn is unavailable, run `corepack enable`, then `corepack install` in the cloned checkout. Install Yarn 1.22.22 separately if your Node distribution does not include Corepack.
+- Server deployment requires **Docker Engine or Docker Desktop with Docker Compose**. The full stack includes CPU embeddings; the production image target is `linux/amd64`, so ARM hosts need amd64 emulation for the embedding service.
+- Duplicate the [Notion blog template](https://www.notion.so/pieroot/blog-assets-35a067c015d080a0bf17d3a0dffb3784) into your workspace.
+- Create a read-enabled Internal Integration at [Notion Integrations](https://www.notion.so/my-integrations), then connect it through `... → Add connections` on the duplicated **original `blog-table` database**, not a linked view.
+
+### 2. Connect content with two inputs
 
 ```bash
-docker compose run --rm --user root --entrypoint chown blog -R 1001:1001 /app/logs /app/.image-cache
+git clone https://github.com/jung-geun/tablog.git
+cd tablog
+yarn install --frozen-lockfile
+cp -n .env.example .env
+chmod 600 .env
 ```
 
-### Operations
+You may also [fork Tablog](https://github.com/jung-geun/tablog/fork) and clone your fork. Fill these two values in the repository-root `.env`:
+
+| Input | Source |
+|---|---|
+| `NOTION_TOKEN` | Your Internal Integration token |
+| `NOTION_DATASOURCE_ID` | The full URL of the original duplicated `blog-table` database, or a known data-source UUID |
 
 ```bash
-# Validate required interpolation without starting services.
-make config
-
-# Native local build; waits for blog, Redis, content Redis, and Qdrant health checks.
-make up
-
-# Inspect stack state or follow bounded container logs.
-make ps
-make logs
-
-# Recreate without deleting named volumes, or stop the stack.
-make restart
-make down
+yarn setup
 ```
 
-`make down` intentionally never removes volumes. Back up the `content-redis-data` AOF volume, Redis RDB data, and Qdrant snapshots to an existing off-machine destination before treating this Mac as the sole durable content/ontology/vector store.
+`yarn setup` resolves the database URL to a data-source UUID, generates `REVALIDATE_SECRET` when it is empty, and restricts `.env` to `0600`. Existing keys are preserved on reruns. If the database has multiple data sources, select one of the listed UUIDs explicitly. The command reads the checkout's `.env`, not `.env.local` or same-named shell variables.
 
-### Production checks
+Comments, visitor statistics, advertising, Analytics, search-engine verification, Utterances, Anthropic, and proxy authentication are optional. Their databases and service IDs are not required for basic use. Native development uses `.content-state`; Compose configures a separate AOF-backed content Redis.
 
-After HAProxy is configured, verify the direct bound origin and public TLS route:
+**Notion images and thumbnails also require `COMMENT_HASH_SALT`.** The image proxy uses it for IP-based rate limiting even when comments are disabled. `yarn setup` generates it only when a comments data source is configured. Otherwise generate it once with the following command, put the result in `.env` as `COMMENT_HASH_SALT`, and preserve it. Never commit or publish the real secret.
 
 ```bash
-set -a; . ./.env; set +a
-curl -fsS "http://${BLOG_BIND_ADDRESS}:3000/" -o /dev/null
-curl -fsSI https://blog.pieroot.xyz/
-curl -fsS -H "Authorization: Bearer ${REVALIDATE_SECRET}" \
-  "http://${BLOG_BIND_ADDRESS}:3000/api/revalidate?path=/"
+node -p "require('node:crypto').randomBytes(32).toString('hex')"
 ```
+
+### 3. Run locally
+
+```bash
+yarn dev
+```
+
+Open `http://localhost:3000`. Native development can display articles without Qdrant or the embedding service; use the full Compose stack for semantic search and embedding coordinates. Customize your site title and profile in `site.config.js`. The personal site shown here remains **pieroot log** at **pieroot.xyz**; that identity is distinct from the Tablog product name.
+
+### 4. Deploy from source with Docker Compose
+
+**Existing installations:** your checkout directory does not need to move. If you rename it or use a new path with existing data, pin `COMPOSE_PROJECT_NAME` to the **original** Compose project name before running any Compose command there (for example, `monolog` only if that was the original value). Preserve existing volumes and mounts; do not rename/delete them or use `docker compose down -v`. See the [rename and data-preservation instructions](docs/USAGE.md#기존-설치의-이름-변경).
+
+Before a public build, set `NEXT_PUBLIC_SITE_URL` in `.env` to your actual HTTPS origin, such as `https://notes.example.com`. Canonical URLs, RSS, sitemap, and request-origin checks depend on it. Changing the public URL requires a rebuild; keep the localhost default for local-only use.
+
+```bash
+docker compose config --quiet
+docker compose up -d --build --wait --wait-timeout 2400
+docker compose ps
+docker compose logs -f blog embedding
+```
+
+This builds the web and embedding images from source without access to this project's private GHCR packages. Redis, content Redis, Qdrant, and embeddings stay on the internal network; only the web port 3000 is exposed. Initial startup downloads about 1.49GB of public model weights and runs real CPU readiness inference. The blog entrypoint calls `/api/init` to prepare published content and routes.
+
+Short readiness inference and full-document embedding backfill have different memory requirements. OOM exits were observed during long-document backfill in a shared 8GiB Docker VM. If the model restarts or maintenance returns `503`, `pending`, or `failed`, provide sufficient memory before retrying. `/api/init` success alone does not establish embedding completion. See [embedding operations](docs/USAGE.md#embeddinggemma--qdrant--ontology).
+
+Configure DNS and an HTTPS reverse proxy separately. `TRUSTED_PROXY_HOPS=0` ignores forwarded IP headers by default. To trust a proxy, set the correct hop count and `TRUSTED_PROXY_SECRET`, and make the proxy overwrite **`X-Monolog-Proxy-Secret`** with that secret. The header deliberately keeps its existing name; never forward a client-provided value. Keep private storage/model services off public ports.
+
+### 5. Reconcile Notion changes on Linux
+
+The host needs Bash, curl, `flock` (util-linux), and cron. From the checkout, perform the initial maintenance/backfill, then edit the deployment account's existing crontab:
+
+```bash
+bash scripts/reconcile-content-host.sh
+pwd
+crontab -e
+```
+
+Preserve existing jobs and add the following line only if this installation does not already have one. Replace `/absolute/path/tablog` with your actual checkout path, including an old path you chose to keep:
+
+```cron
+*/15 * * * * /bin/bash "/absolute/path/tablog/scripts/reconcile-content-host.sh" 2>&1 | /usr/bin/logger -t tablog-content-sync
+```
+
+The script reads its own checkout's `.env` and calls the local port 3000 without putting the bearer token in cron. Inspect actual scheduled runs with `journalctl -t tablog-content-sync --since today --no-pager`; registering cron is not proof that it ran. Keep GitHub Actions scheduling as a best-effort backup, not a propagation guarantee.
+
+## Docker image paths and publication
+
+The workflow derives image names from `github.repository`: this repository uses `ghcr.io/jung-geun/tablog` and `ghcr.io/jung-geun/tablog-embedding`. Repository redirects do **not** alias GHCR packages. Before pulling, verify that the desired tag was actually published and that your deployment account has package access. A repository rename alone is not an image publication or deployment; source builds do not need this project's GHCR package access. Keep existing production image pins until a verified replacement is available.
+
+| Tag | Workflow trigger |
+|---|---|
+| `latest` | Push to `main`, or a `v*` release tag |
+| `X.Y.Z` | Push of the corresponding `vX.Y.Z` tag |
+
+Production images target `linux/amd64`. Before replacing existing services, preserve rollback images and back up the content Redis AOF, cache Redis data, Qdrant snapshots, model cache, `.env`, and Compose overrides. See [full operations instructions](docs/USAGE.md) for published-image rollout, optional integrations, runtime-vs-build settings, and data-preserving maintenance.
+
 
 ## ❓ FAQ
 
@@ -183,17 +205,17 @@ curl -fsS -H "Authorization: Bearer ${REVALIDATE_SECRET}" \
 
    **Q3: Why don't Notion posts update automatically?**
 
-   A3: Set revalidateTime in site.config.js and observe how long updates take.
+   A3: Configure the Notion webhook and the host cron reconciliation described above. Inspect their actual responses and pending/failed work. GitHub Actions schedules can be delayed or skipped; ISR timing alone is not a guarantee of content propagation.
 
-   **Q4: What should I enter for NEXT_PUBLIC_GOOGLE_MEASUREMENT_ID and NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION in site.config.js?**
+   **Q4: What should I enter for NEXT_PUBLIC_GOOGLE_MEASUREMENT_ID and NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION?**
 
-   A4: Refer to https://github.com/jung-geun/monolog/issues/203. It may take some time for updates to be reflected after configuration.
+   A4: Use your own Google Analytics measurement ID and Search Console verification value, or leave them unset to disable those integrations. They are public runtime values supplied through the container environment. See [environment settings](docs/USAGE.md) rather than copying another site's IDs.
 
    **Q5: The Docker container won't run.**
 
-   A5: Make sure `NOTION_TOKEN`, `NOTION_DATASOURCE_ID`, `REVALIDATE_SECRET`, `TRUSTED_PROXY_SECRET`, and `BLOG_BIND_ADDRESS` are set in `.env`. For comments, use `NOTION_COMMENTS_DATASOURCE_ID` (the data_source ID, not the database ID). Validate interpolation with `make config`, then inspect the stack with `make logs`.
+   A5: Run `docker compose config --quiet`, then inspect `docker compose ps` and `docker compose logs blog embedding`. Complete the two-input content setup first; proxy credentials are required only when proxy trust is enabled. For comments, use the comments data-source UUID, not the database ID. Model readiness can take time and needs sufficient memory; do not delete volumes to resolve startup problems.
 
-   If you encounter other issues, feel free to register them in GitHub Issues. It helps other users too!
+   For other issues, open a report in [Tablog Issues](https://github.com/jung-geun/tablog/issues) without sharing tokens, salts, or `.env` contents.
 
 </details>
 
@@ -203,4 +225,4 @@ Please check the [Contributing Guide](.github/CONTRIBUTING.md).
 
 ## 📄 License
 
-This project follows the [MIT License](LICENSE).
+Tablog follows the [MIT License](LICENSE) and originated from [morethan-log](https://github.com/morethanmin/morethan-log) by [morethanmin](https://github.com/morethanmin). Preserve the original copyright/license and the individual licenses for bundled assets.
