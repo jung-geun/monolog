@@ -2,7 +2,7 @@ services:
 
 
   blog:
-    image: ghcr.io/jung-geun/monolog:latest
+    image: ghcr.io/jung-geun/tablog:latest
     build:
       context: .
       dockerfile: Dockerfile
@@ -116,7 +116,7 @@ services:
 
   # Private CPU-only text embeddings. The public model needs no API key.
   embedding:
-    image: ghcr.io/jung-geun/monolog-embedding:latest
+    image: ghcr.io/jung-geun/tablog-embedding:latest
     build:
       context: ./services/embedding
       dockerfile: Dockerfile

@@ -24,7 +24,7 @@ describe("GoogleAnalytics runtime configuration", () => {
   afterEach(() => {
     act(() => root.unmount())
     container.remove()
-    delete window.__MONOLOG_RUNTIME_CONFIG__
+    delete window.__TABLOG_RUNTIME_CONFIG__
   })
 
   it("stays disabled when the container provides no measurement ID", () => {
@@ -34,7 +34,7 @@ describe("GoogleAnalytics runtime configuration", () => {
   })
 
   it("loads GA only from a valid runtime measurement ID", () => {
-    window.__MONOLOG_RUNTIME_CONFIG__ = {
+    window.__TABLOG_RUNTIME_CONFIG__ = {
       googleMeasurementId: "G-TEST123",
       googleSiteVerification: "",
       naverSiteVerification: "",

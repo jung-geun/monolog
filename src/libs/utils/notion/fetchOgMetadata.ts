@@ -212,7 +212,7 @@ async function fetchUncached(url: string): Promise<OgMetadata | null> {
       const res = await fetch(parsed.toString(), {
         headers: {
           "User-Agent":
-            "Mozilla/5.0 (compatible; MonologOgPreview/1.0; +https://github.com/jung-geun/monolog)",
+            "Mozilla/5.0 (compatible; TablogOgPreview/1.0; +https://github.com/jung-geun/tablog)",
           Accept: "text/html,application/xhtml+xml",
         },
         redirect: "manual",

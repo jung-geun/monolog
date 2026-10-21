@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/compat/router"
 import styled from "@emotion/styled"
+import { CONFIG } from "site.config"
 import WorkbenchIcon from "src/components/WorkbenchIcon"
 import { useRouteChrome } from "./RouteChromeContext"
 import { useWorkbench } from "./WorkbenchContext"
@@ -39,13 +40,13 @@ const TitleBar = ({ filename }: { filename: string }) => {
     }
   }, [events])
   return <StyledWrapper>
-    <span className="workspace-name">pieroot.log</span>
+    <span className="workspace-name">{CONFIG.blog.title}</span>
     <div className="history-controls">
       <button type="button" aria-label="Go back" title="Go back" disabled={historyPosition.index === 0} onClick={() => window.history.back()}><WorkbenchIcon name="arrow-left" /></button>
       <button type="button" aria-label="Go forward" title="Go forward" disabled={historyPosition.index >= historyPosition.length - 1} onClick={() => window.history.forward()}><WorkbenchIcon name="arrow-right" /></button>
     </div>
     <button type="button" className="command-center" title="Search workspace · Cmd/Ctrl+K" aria-label="Search workspace" onClick={() => window.dispatchEvent(new CustomEvent("open-command-palette", { detail: { query: "" } }))}>
-      <WorkbenchIcon name="search" /><span>Search pieroot.log</span><span className="current-file">{filename === "README.md" ? "Welcome" : filename}</span>
+      <WorkbenchIcon name="search" /><span>Search {CONFIG.blog.title}</span><span className="current-file">{filename === "README.md" ? "Welcome" : filename}</span>
     </button>
     <div className="layout-controls">
       <button type="button" aria-label="Toggle primary sidebar" title="Toggle primary sidebar" aria-pressed={isFileTreeOpen && !readingMode} onClick={() => { setReadingMode(false); setFileTreeOpen(readingMode || !isFileTreeOpen) }}><WorkbenchIcon name="layout-sidebar" /></button>

@@ -4,7 +4,7 @@ import type { RuntimePublicConfig } from "src/libs/runtimeConfig"
 
 declare global {
   interface Window {
-    __MONOLOG_RUNTIME_CONFIG__?: RuntimePublicConfig
+    __TABLOG_RUNTIME_CONFIG__?: RuntimePublicConfig
     gtag: Gtag.Gtag
     adsbygoogle?: Record<string, unknown>[]
   }

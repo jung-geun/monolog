@@ -18,7 +18,7 @@ const kinds: TabKind[] = ["post", "category", "series", "graph", "about", "page"
 export const isLocalTabHref = (href: string): boolean => {
   if (!href.startsWith("/") || href.startsWith("//") || /[\\\u0000-\u0020\u007f]/.test(href)) return false
   try {
-    const base = "https://monolog.invalid"
+    const base = "https://tablog.invalid"
     return new URL(href, base).origin === base
   } catch {
     return false

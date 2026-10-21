@@ -70,8 +70,8 @@ COPY --chown=nextjs:nodejs scripts/write-runtime-config.js ./write-runtime-confi
 COPY --chown=nextjs:nodejs scripts/docker-entrypoint.sh ./docker-entrypoint.sh
 RUN chmod +x ./docker-entrypoint.sh
 
-LABEL org.opencontainers.image.source="https://github.com/jung-geun/monolog"
-LABEL org.opencontainers.image.description="monolog — Notion-powered blog"
+LABEL org.opencontainers.image.source="https://github.com/jung-geun/tablog"
+LABEL org.opencontainers.image.description="Tablog — a VS Code-themed blog powered by Notion"
 LABEL org.opencontainers.image.licenses="MIT"
 
 USER nextjs

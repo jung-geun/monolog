@@ -2,12 +2,12 @@ import { getRuntimePublicConfig, isGoogleMeasurementId } from "src/libs/runtimeC
 
 describe("runtime public configuration", () => {
   afterEach(() => {
-    delete window.__MONOLOG_RUNTIME_CONFIG__
+    delete window.__TABLOG_RUNTIME_CONFIG__
   })
 
 
   it("reads an injected analytics measurement ID", () => {
-    window.__MONOLOG_RUNTIME_CONFIG__ = {
+    window.__TABLOG_RUNTIME_CONFIG__ = {
       googleMeasurementId: "G-TEST123",
       googleSiteVerification: "",
       naverSiteVerification: "",
@@ -20,7 +20,7 @@ describe("runtime public configuration", () => {
   })
 
   it("drops malformed global values instead of exposing them to integrations", () => {
-    window.__MONOLOG_RUNTIME_CONFIG__ = {
+    window.__TABLOG_RUNTIME_CONFIG__ = {
       googleMeasurementId: 1 as unknown as string,
       googleSiteVerification: null as unknown as string,
       naverSiteVerification: "naver-token",

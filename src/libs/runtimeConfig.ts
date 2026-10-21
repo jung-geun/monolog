@@ -15,7 +15,7 @@ const emptyRuntimePublicConfig: RuntimePublicConfig = {
 export const getRuntimePublicConfig = (): RuntimePublicConfig => {
   if (typeof window === "undefined") return emptyRuntimePublicConfig
 
-  const config = window.__MONOLOG_RUNTIME_CONFIG__
+  const config = window.__TABLOG_RUNTIME_CONFIG__
   if (!config) return emptyRuntimePublicConfig
 
   return {

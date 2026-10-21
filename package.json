@@ -1,11 +1,12 @@
 {
-  "name": "monolog",
+  "name": "tablog",
+  "description": "A VS Code-themed blog powered by Notion.",
   "version": "1.21.13",
   "packageManager": "yarn@1.22.22",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/jung-geun/monolog.git"
+    "url": "https://github.com/jung-geun/tablog.git"
   },
   "scripts": {
     "setup": "node scripts/setup-env.js",

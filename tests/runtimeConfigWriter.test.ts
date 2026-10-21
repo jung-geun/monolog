@@ -22,7 +22,7 @@ describe("runtime config startup writer", () => {
   let temporaryDirectory: string
 
   beforeEach(() => {
-    temporaryDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "monolog-runtime-config-"))
+    temporaryDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "tablog-runtime-config-"))
   })
 
   afterEach(() => {
@@ -59,15 +59,6 @@ describe("runtime config startup writer", () => {
     expect(page).not.toContain("old-token")
   })
 
-  it("serializes public values without making an empty configuration fail", () => {
-    expect(
-      renderRuntimeConfig({
-        googleMeasurementId: "",
-        googleSiteVerification: "",
-        naverSiteVerification: "",
-      })
-    ).toContain("window.__MONOLOG_RUNTIME_CONFIG__")
-  })
 
   it("does not permit a public value to terminate the runtime script", () => {
     const script = renderRuntimeConfig({

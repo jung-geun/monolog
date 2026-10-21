@@ -127,7 +127,7 @@ const PostDetail = () => {
   return <Workspace ref={workspace} className={`post-detail${readingMode ? " reading-mode" : ""}`}>
     <ReadingProgress />
     <div className="document-toolbar">
-      <nav className="breadcrumbs" aria-label="Breadcrumbs"><Link href="/">monolog</Link><WorkbenchIcon name="chevron-right" size={12} />{category && <><Link href={`/search?q=${encodeURIComponent(`category:${JSON.stringify(category)}`)}`}>{category}</Link><WorkbenchIcon name="chevron-right" size={12} /></>}<span title={filename}>{filename}</span></nav>
+      <nav className="breadcrumbs" aria-label="Breadcrumbs"><Link href="/">{CONFIG.blog.title}</Link><WorkbenchIcon name="chevron-right" size={12} />{category && <><Link href={`/search?q=${encodeURIComponent(`category:${JSON.stringify(category)}`)}`}>{category}</Link><WorkbenchIcon name="chevron-right" size={12} /></>}<span title={filename}>{filename}</span></nav>
       <div className="document-controls">
         <div className="mode-switch" aria-label="Document view">{modes.map(mode => <button type="button" key={mode.id} aria-label={mode.label} title={mode.label} aria-pressed={documentMode === mode.id} onClick={() => setDocumentMode(mode.id)}><WorkbenchIcon name={mode.icon} /><span>{mode.label}</span></button>)}</div>
         <button type="button" title="Reading mode" aria-label="Reading mode" aria-pressed={readingMode} onClick={() => setReadingMode(!readingMode)}><WorkbenchIcon name="book" /></button>

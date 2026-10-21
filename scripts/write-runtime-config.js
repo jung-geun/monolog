@@ -33,7 +33,7 @@ const renderVerificationMetaTags = (config) => {
 
   if (tags.length === 0) return ""
 
-  return `<!-- monolog-runtime-verification:start -->${tags.join("")}<!-- monolog-runtime-verification:end -->`
+  return `<!-- tablog-runtime-verification:start -->${tags.join("")}<!-- tablog-runtime-verification:end -->`
 }
 
 const serializeRuntimeConfig = (config) =>
@@ -42,7 +42,7 @@ const serializeRuntimeConfig = (config) =>
     .replace(/\u2028/g, "\\u2028")
     .replace(/\u2029/g, "\\u2029")
 
-const renderRuntimeConfig = (config) => `window.__MONOLOG_RUNTIME_CONFIG__ = Object.freeze(${serializeRuntimeConfig(config)});
+const renderRuntimeConfig = (config) => `window.__TABLOG_RUNTIME_CONFIG__ = Object.freeze(${serializeRuntimeConfig(config)});
 
 ;(function (config) {
   if (typeof document === "undefined") return;
@@ -59,7 +59,7 @@ const renderRuntimeConfig = (config) => `window.__MONOLOG_RUNTIME_CONFIG__ = Obj
     meta.content = content;
     document.head.appendChild(meta);
   });
-})(window.__MONOLOG_RUNTIME_CONFIG__);
+})(window.__TABLOG_RUNTIME_CONFIG__);
 `
 
 const listHtmlFiles = (directory) => {
@@ -80,7 +80,7 @@ const stripVerificationMetaTags = (html) =>
         ""
       ),
     html.replace(
-      /<!-- monolog-runtime-verification:start -->[\s\S]*?<!-- monolog-runtime-verification:end -->\s*/g,
+      /<!-- tablog-runtime-verification:start -->[\s\S]*?<!-- tablog-runtime-verification:end -->\s*/g,
       ""
     )
   )

@@ -77,7 +77,7 @@ const PreviewCard = styled.div`
   padding: 12px 14px;
   pointer-events: none;
   transform-origin: top left;
-  animation: monolog-panel-enter 180ms var(--motion-ease);
+  animation: tablog-panel-enter 180ms var(--motion-ease);
 
   @media (prefers-reduced-motion: reduce) { animation: none; }
 
@@ -183,7 +183,7 @@ const FileTree = () => {
   const categoryEntries = Object.entries(categories).filter(([name]) => name !== DEFAULT_CATEGORY)
   const renderPost = (post: TPost) => <PostTreeItem key={post.slug} post={post} isActive={post.slug === activeSlug} href={`/${encodeURIComponent(post.slug)}`} />
   return <StyledWrapper aria-label="Explorer">
-    <header className="view-heading"><span className="workspace-name">pieroot.log</span><span className="view-title">Explorer</span></header>
+    <header className="view-heading"><span className="workspace-name">{CONFIG.blog.title}</span><span className="view-title">Explorer</span></header>
     <section aria-label="Open editors" className="explorer-pane">
       <SectionHeader label="Open editors" sectionKey="open-editors" isExpanded={expanded.openEditors} onToggle={() => toggleSection("openEditors")} />
       {expanded.openEditors && <ul ref={openEditorsRef} id="tree-section-open-editors" className="open-editor-list">{tabs.map((tab) => {

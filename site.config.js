@@ -12,8 +12,8 @@ const CONFIG = {
   },
   projects: [
     {
-      name: `monolog`,
-      href: "https://github.com/jung-geun/monolog",
+      name: `Tablog`,
+      href: "https://github.com/jung-geun/tablog",
     },
     {
       name: `openstack-afterglow`,

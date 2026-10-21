@@ -60,7 +60,7 @@ const TabBar = () => {
     }
     draggedTabId.current = id
     event.dataTransfer.clearData()
-    event.dataTransfer.setData("application/x-monolog-tab", id)
+    event.dataTransfer.setData("application/x-tablog-tab", id)
     event.dataTransfer.effectAllowed = "move"
     setDraggingTabId(id)
   }
@@ -281,7 +281,7 @@ const StyledWrapper = styled.div`
     text-decoration: none;
     flex-shrink: 0;
     max-width: 220px;
-    animation: monolog-tab-enter 220ms var(--motion-ease);
+    animation: tablog-tab-enter 220ms var(--motion-ease);
     transition: background var(--motion-fast);
 
     &::before {

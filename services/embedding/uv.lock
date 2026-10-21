@@ -216,7 +216,7 @@ wheels = [
 ]
 
 [[package]]
-name = "monolog-embedding"
+name = "tablog-embedding"
 version = "1.0.0"
 source = { virtual = "." }
 dependencies = [

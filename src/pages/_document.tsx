@@ -15,8 +15,8 @@ class MyDocument extends Document {
         <Head>
           <meta name="color-scheme" content="dark light" />
           <meta name="theme-color" content={resolveColorTheme(getColorThemePreference(CONFIG.blog.theme)).editor.bg2} />
-          <style id="monolog-color-themes" dangerouslySetInnerHTML={{ __html: getColorThemeCSS(CONFIG.blog.theme) }} />
-          <script id="monolog-theme-bootstrap" dangerouslySetInnerHTML={{ __html: getColorThemeBootstrap(CONFIG.blog.theme) }} />
+          <style id="tablog-color-themes" dangerouslySetInnerHTML={{ __html: getColorThemeCSS(CONFIG.blog.theme) }} />
+          <script id="tablog-theme-bootstrap" dangerouslySetInnerHTML={{ __html: getColorThemeBootstrap(CONFIG.blog.theme) }} />
           <link rel="icon" href="/favicon.ico" />
           <link
             rel="apple-touch-icon"

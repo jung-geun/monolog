@@ -43,7 +43,7 @@ export default async function handler(
       {
         headers: {
           Accept: "text/html",
-          "User-Agent": "monolog-github-contributions",
+          "User-Agent": "tablog-github-contributions",
           "Accept-Language": "en-US,en;q=0.9",
         },
         signal: controller.signal,

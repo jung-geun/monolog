@@ -198,8 +198,8 @@ const StyledWrapper = styled.div`
   .page-content:has(.post-detail) > * { flex: 1; min-width: 0; min-height: 0; overflow: hidden; }
   .route-signal { position: relative; height: 2px; margin-bottom: -2px; flex-shrink: 0; z-index: 35; pointer-events: none; overflow: hidden; }
   .route-signal::after { content: ""; position: absolute; inset: 0; height: 2px; background: ${({ theme }) => theme.colors.editor.accent}; transform-origin: left; opacity: 0; }
-  .route-signal[data-navigation="loading"]::after { width: 32%; opacity: .8; animation: monolog-route-scan 1100ms ease-in-out infinite; }
-  .route-signal[data-navigation="complete"]::after { animation: monolog-route-finish 420ms var(--motion-ease); }
+  .route-signal[data-navigation="loading"]::after { width: 32%; opacity: .8; animation: tablog-route-scan 1100ms ease-in-out infinite; }
+  .route-signal[data-navigation="complete"]::after { animation: tablog-route-finish 420ms var(--motion-ease); }
   .filetree-backdrop { display: none; }
   @media (max-width: 960px) {
     .main-row { flex-direction: column; }
