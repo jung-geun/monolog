@@ -18,7 +18,7 @@ import {
   serializeTabSession,
 } from "./tabSessionStorage"
 
-export type TabKind = "readme" | "post" | "category" | "series" | "graph" | "about" | "page"
+export type TabKind = "readme" | "post" | "category" | "series" | "graph" | "about" | "page" | "error"
 
 export type Tab = {
   id: string
@@ -156,7 +156,8 @@ export const RouteChromeProvider = ({ children }: { children: ReactNode }) => {
           if (index < 0) tabs.push(tab)
           else tabs[index] = tab
         }
-        const routeTab = tabs.find((tab) => tab.href === routerRef.current?.asPath)
+        const routeTab = tabs.find((tab) => tab.id === current.activeTabId && tab.href === routerRef.current?.asPath)
+          ?? tabs.find((tab) => tab.href === routerRef.current?.asPath)
         updateSession({ tabs, activeTabId: routeTab?.id ?? current.activeTabId, closedPosts: restored.closedPosts })
       }
       consentRef.current = "enabled"
@@ -248,10 +249,12 @@ export const RouteChromeProvider = ({ children }: { children: ReactNode }) => {
     if (!isLocalTabHref(tab.href)) return
     if (tab.kind === "readme" || tab.id === "readme") tab = README_TAB
     const current = sessionRef.current
-    const index = current.tabs.findIndex((entry) => entry.id === tab.id)
-    const tabs = [...current.tabs]
+    const tabs = tab.kind === "readme"
+      ? current.tabs.filter((entry) => entry.kind !== "error" || entry.href.split(/[?#]/, 1)[0] !== "/")
+      : [...current.tabs]
+    const index = tabs.findIndex((entry) => entry.id === tab.id)
     if (index < 0) tabs.push(tab)
-    else tabs[index] = { ...tab, preview: current.tabs[index].preview }
+    else tabs[index] = { ...tab, preview: tabs[index].preview }
     updateSession({ ...current, tabs, activeTabId: tab.id })
   }, [updateSession])
 

@@ -58,7 +58,7 @@ export const parseTabSession = (raw: string): StoredTabSession | null => {
 export const serializeTabSession = (session: StoredTabSession): string => {
   return JSON.stringify({
     version: 1,
-    tabs: session.tabs.filter((tab) => !tab.preview).map(({ id, kind, label, href }) => ({ id, kind, label, href })),
+    tabs: session.tabs.filter((tab) => !tab.preview && tab.kind !== "error").map(({ id, kind, label, href }) => ({ id, kind, label, href })),
     closedPosts: session.closedPosts.map(({ id, kind, label, href }) => ({ id, kind, label, href })),
   })
 }
