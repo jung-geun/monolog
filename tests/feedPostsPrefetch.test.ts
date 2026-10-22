@@ -10,7 +10,6 @@ import type { TPost } from "src/types"
 import { getPosts } from "src/apis/notion-client/getPosts"
 import { getStaticProps as graphStaticProps } from "src/pages/graph"
 import { getStaticProps as ontologyStaticProps } from "src/pages/ontology"
-import { getStaticProps as notFoundStaticProps } from "src/pages/404"
 
 const post = (overrides: Partial<TPost> = {}): TPost => ({
   id: "id-1",
@@ -67,7 +66,6 @@ afterEach(() => {
 describe.each<[string, GetStaticProps]>([
   ["/graph", graphStaticProps],
   ["/ontology", ontologyStaticProps],
-  ["/404", notFoundStaticProps],
 ])("%s getStaticProps", (_route, run) => {
   it("hydrates the sidebar post list with only published feed posts", async () => {
     const result = await run(staticPropsContext)

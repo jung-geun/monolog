@@ -90,7 +90,7 @@ const DetailPage: NextPageWithLayout = () => {
   const post = usePostQuery()
   useTrackVisit(post)
   useArticleAnalytics(post)
-  if (!post) return <CustomError />
+  if (!post) return <CustomError statusCode={null} />
 
   let image: string | undefined
   if (post.thumbnail) {

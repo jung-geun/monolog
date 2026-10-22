@@ -369,6 +369,29 @@ describe("editor tab sessions", () => {
     expect(mockRouter.push).not.toHaveBeenCalled()
   })
 
+  it("keeps the failed home tab active while restoring a saved session", () => {
+    originalStorage.setItem(TAB_CONSENT_KEY, "enabled")
+    originalStorage.setItem(TAB_SESSION_KEY, snapshot([post("/saved")]))
+    mockRouter.asPath = "/"
+    filename = "500 Internal server error"
+    kind = "error"
+    render()
+    expect(chrome.activeTabId).toBe("/")
+    expect(chrome.tabs.find(tab => tab.id === chrome.activeTabId)?.kind).toBe("error")
+    expect(chrome.tabs.find(tab => tab.id === "/saved")?.kind).toBe("post")
+  })
+
+  it.each(["/", "/?from=retry#section"])("removes the stale %s error tab when Welcome recovers", (href) => {
+    render()
+    navigate("/saved")
+    navigate(href, "error", "500 Internal server error")
+    expect(chrome.activeTabId).toBe(href.split("#", 1)[0])
+    navigate("/", "readme", "Welcome")
+    expect(chrome.activeTabId).toBe("readme")
+    expect(chrome.tabs.map(tab => tab.id)).toEqual(["readme", "/saved"])
+    expect(chrome.canReopenPost).toBe(false)
+  })
+
   it("revokes both stored keys while preserving memory tabs and stops all later session writes", () => {
     render()
     navigate("/alpha")

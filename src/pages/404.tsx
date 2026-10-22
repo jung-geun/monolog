@@ -1,44 +1,5 @@
-import { dehydrate } from "@tanstack/react-query"
-import { GetStaticProps } from "next"
-import type { NextPageWithLayout } from "src/types"
-import { getPosts } from "src/apis/notion-client/getPosts"
-import MetaConfig from "src/components/MetaConfig"
-import { createServerQueryClient } from "src/libs/react-query"
-import { prefetchFeedPosts } from "src/libs/react-query/prefetchFeedPosts"
-import { CONFIG } from "site.config"
+import ErrorPage from "src/routes/Error"
 
-export const getStaticProps: GetStaticProps = async () => {
-  const queryClient = createServerQueryClient()
-  await prefetchFeedPosts(queryClient, await getPosts())
-
-  return {
-    props: { dehydratedState: dehydrate(queryClient) },
-  }
-}
-
-const NotFoundPage: NextPageWithLayout = () => (
-  <>
-    <MetaConfig
-      title={`404 — ${CONFIG.blog.title}`}
-      description="요청한 페이지를 찾을 수 없습니다."
-      type="website"
-      url={`${CONFIG.link}/404`}
-      noindex
-    />
-    <main
-      style={{
-        minHeight: "100%",
-        display: "grid",
-        placeItems: "center",
-        padding: "48px 24px",
-      }}
-    >
-      <div style={{ textAlign: "center" }}>
-        <h1 style={{ marginBottom: 12, fontSize: 28 }}>404</h1>
-        <p>Page not found.</p>
-      </div>
-    </main>
-  </>
-)
+const NotFoundPage = () => <ErrorPage statusCode={404} />
 
 export default NotFoundPage

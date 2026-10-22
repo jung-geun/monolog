@@ -3,7 +3,7 @@ import type { TPost, TPosts } from "src/types"
 const PUBLIC_STATUSES: Record<string, true> = { Public: true, PublicOnDetail: true }
 const POST_TYPES: Record<string, true> = { Post: true, Paper: true, Page: true }
 const RESERVED_SLUGS: Record<string, true> = {
-  api: true, _next: true, "404": true, search: true, graph: true, ontology: true,
+  api: true, _next: true, "404": true, "500": true, search: true, graph: true, ontology: true,
   graphs: true, categories: true, series: true,
 }
 
