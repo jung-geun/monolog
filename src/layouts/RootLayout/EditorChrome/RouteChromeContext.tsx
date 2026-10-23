@@ -27,6 +27,7 @@ export type Tab = {
   href: string
   closeable: boolean
   preview?: boolean
+  closeOnNavigate?: boolean
 }
 
 export type TabStorageConsent = "loading" | "prompt" | "enabled" | "disabled" | "unavailable"
@@ -345,9 +346,23 @@ export const RouteChromeProvider = ({ children }: { children: ReactNode }) => {
       }
       if (window.matchMedia("(max-width: 960px)").matches) setFileTreeOpen(false)
     }
+    const handleRouteComplete = (url: string) => {
+      const current = sessionRef.current
+      const destination = url.split("#", 1)[0]
+      const tabs = current.tabs.filter((tab) => !tab.closeOnNavigate || tab.id === destination)
+      if (tabs.length === current.tabs.length) return
+      const activeTabId = tabs.some((tab) => tab.id === current.activeTabId)
+        ? current.activeTabId
+        : tabs.find((tab) => tab.id === destination)?.id ?? "readme"
+      updateSession({ ...current, tabs, activeTabId })
+    }
     router.events.on("routeChangeStart", handleRouteChange)
-    return () => router.events.off("routeChangeStart", handleRouteChange)
-  }, [router, pinTab, setFileTreeOpen])
+    router.events.on("routeChangeComplete", handleRouteComplete)
+    return () => {
+      router.events.off("routeChangeStart", handleRouteChange)
+      router.events.off("routeChangeComplete", handleRouteComplete)
+    }
+  }, [router, pinTab, setFileTreeOpen, updateSession])
 
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
@@ -404,12 +419,12 @@ export const RouteChromeProvider = ({ children }: { children: ReactNode }) => {
 
 // Route metadata is authoritative: a Markdown-looking label is not proof of a
 // post. An empty filename defers registration while detail metadata loads.
-export const useRegisterChrome = (filename: string, statusItems: string[], kind: TabKind) => {
+export const useRegisterChrome = (filename: string, statusItems: string[], kind: TabKind, closeOnNavigate = false) => {
   const { setChrome, openTab } = useRouteChrome()
   const router = useRouter()
   const href = router?.asPath
   const key = filename + "|" + statusItems.join("\0")
-  const registeredRouteRef = useRef<{ filename: string; kind: TabKind; href: string } | null>(null)
+  const registeredRouteRef = useRef<{ filename: string; kind: TabKind; href: string; closeOnNavigate: boolean } | null>(null)
 
   useEffect(() => {
     if (filename) setChrome({ filename, statusItems })
@@ -421,8 +436,8 @@ export const useRegisterChrome = (filename: string, statusItems: string[], kind:
     if (!filename || !href) return
     const documentHref = href.split("#", 1)[0]
     const previous = registeredRouteRef.current
-    if (previous?.filename === filename && previous.kind === kind && previous.href === documentHref) return
-    registeredRouteRef.current = { filename, kind, href: documentHref }
-    openTab(kind === "readme" ? README_TAB : { id: documentHref, kind, label: filename, href, closeable: true })
-  }, [filename, href, kind, openTab])
+    if (previous?.filename === filename && previous.kind === kind && previous.href === documentHref && previous.closeOnNavigate === closeOnNavigate) return
+    registeredRouteRef.current = { filename, kind, href: documentHref, closeOnNavigate }
+    openTab(kind === "readme" ? README_TAB : { id: documentHref, kind, label: filename, href, closeable: true, ...(closeOnNavigate ? { closeOnNavigate: true } : {}) })
+  }, [filename, href, kind, closeOnNavigate, openTab])
 }

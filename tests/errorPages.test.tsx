@@ -102,6 +102,31 @@ describe("error page navigation", () => {
     expect(container.querySelector('.tab.active a')?.getAttribute("href")).toBe("/")
   })
 
+  it.each([404, 500])("closes only a departed 404 tab after navigation completes (status %s)", (status) => {
+    render(status === 404 ? <NotFoundPage /> : <ServerErrorPage />)
+    const failedId = chrome.activeTabId
+    const complete = mockRouter.events.on.mock.calls.find(([name]) => name === "routeChangeComplete")![1]
+    act(() => {
+      chrome.openTab({ id: "/search", href: "/search", label: "Search", kind: "page", closeable: true })
+      complete("/search")
+    })
+    expect(chrome.tabs.some(tab => tab.id === failedId)).toBe(status !== 404)
+    expect(chrome.activeTabId).toBe("/search")
+    expect(chrome.canReopenPost).toBe(false)
+    expect(mockRouter.push).not.toHaveBeenCalled()
+  })
+
+  it("retains the 404 tab for same-document navigation and unfinished navigation", () => {
+    render(<NotFoundPage />)
+    const failedId = chrome.activeTabId
+    const complete = mockRouter.events.on.mock.calls.find(([name]) => name === "routeChangeComplete")![1]
+    const start = mockRouter.events.on.mock.calls.find(([name]) => name === "routeChangeStart")![1]
+    act(() => complete("/missing?view=preview#another"))
+    act(() => start("/search"))
+    expect(chrome.tabs.some(tab => tab.id === failedId)).toBe(true)
+    expect(chrome.activeTabId).toBe(failedId)
+  })
+
   it("recovers the same tab identity when its document becomes available", () => {
     render(<NotFoundPage />)
     act(() => chrome.openTab({ id: "/missing?view=preview", href: mockRouter.asPath, label: "recovered.md", kind: "post", closeable: true }))

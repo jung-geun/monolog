@@ -53,7 +53,7 @@ services:
       - logs-data:/app/logs
       - image-cache:/app/.image-cache
     healthcheck:
-      test: ["CMD", "curl", "-f", "-s", "http://localhost:3000"]
+      test: ["CMD", "curl", "-f", "-s", "http://localhost:3000/health"]
       interval: 30s
       timeout: 10s
       retries: 3
