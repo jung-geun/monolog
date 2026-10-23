@@ -18,6 +18,7 @@ module.exports = {
   async rewrites() {
     return {
       beforeFiles: [
+        { source: "/health", destination: "/api/health" },
         { source: "/robots.txt", destination: "/api/robots" },
         { source: "/llms.txt", destination: "/api/llms" },
         { source: "/:key([a-fA-F0-9]{8,128})\\.txt", destination: "/api/indexnow-key?key=:key" },

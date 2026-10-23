@@ -66,6 +66,11 @@ describe("Notion publication normalization", () => {
     expect(selectPublicPosts([post])).toEqual([])
   })
 
+  it.each(["health", "HEALTH"])("never publishes a post that collides with the %s probe route", (slug) => {
+    const post = normalizeNotionPost(page({ Slug: { type: "rich_text", rich_text: [{ plain_text: slug }] } }))
+    expect(selectPublicPosts([post])).toEqual([])
+  })
+
   it("allows public detail-only pages without making them ordinary feed posts", () => {
     const post = normalizeNotionPost(page({ Status: { type: "select", select: { name: "PublicOnDetail" } } }))
     expect(selectPublicPosts([post]).map((value) => value.slug)).toEqual(["horizon-install"])

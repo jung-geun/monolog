@@ -51,7 +51,7 @@ const ErrorPage = ({ statusCode = 404 }: ErrorPageProps) => {
     }
   const filename = status === null ? "Application error" : `${status} ${message.title}`
   const statusItems = useMemo(() => [code, message.title, "Read-only workspace"], [code, message.title])
-  useRegisterChrome(filename, statusItems, "error")
+  useRegisterChrome(filename, statusItems, "error", status === 404)
   const retryable = status === null || status >= 500 || status === 408 || status === 429
 
   return (

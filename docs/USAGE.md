@@ -385,7 +385,13 @@ docker compose ps
 docker compose logs -f blog embedding
 ```
 
-첫 기동은 모델 다운로드·CPU 추론과 Notion 콘텐츠 초기화를 포함합니다. Compose는 임베딩 서비스 readiness를 기다리고, blog entrypoint는 서버 기동 후 `/api/init`을 재시도해 공개 경로를 준비합니다. HTTP 홈페이지 healthcheck와 init 성공은 별개이며, init 재시도를 모두 실패해도 서버는 계속 실행하므로 **로그의 초기화 응답까지** 확인하세요. 이어서 `/api/cron/content`로 문서 임베딩 backfill을 진행합니다. 포트 3000 외의 서비스는 호스트에 공개하지 않습니다. DNS·HTTPS 리버스 프록시는 호스트에서 별도 구성합니다. `docker compose down -v`는 프로젝트의 named volume과 그 안의 내구성 콘텐츠·벡터 등을 삭제하므로 운영 갱신에 사용하지 않습니다.
+첫 기동은 모델 다운로드·CPU 추론과 Notion 콘텐츠 초기화를 포함합니다. Compose는 임베딩 서비스 readiness를 기다리고, blog entrypoint는 서버 기동 후 `/api/init`을 재시도해 공개 경로를 준비합니다. `/health`의 HTTP 프로세스 응답과 init 성공은 별개이며, init 재시도를 모두 실패해도 서버는 계속 실행하므로 **로그의 초기화 응답까지** 확인하세요. 이어서 `/api/cron/content`로 문서 임베딩 backfill을 진행합니다. 포트 3000 외의 서비스는 호스트에 공개하지 않습니다. DNS·HTTPS 리버스 프록시는 호스트에서 별도 구성합니다. `docker compose down -v`는 프로젝트의 named volume과 그 안의 내구성 콘텐츠·벡터 등을 삭제하므로 운영 갱신에 사용하지 않습니다.
+
+외부 모니터링에는 홈페이지 대신 `https://<사이트 도메인>/health`를 사용하세요. 인증 없이 `GET`에 `200 OK`, `Content-Type: text/plain; charset=utf-8`, 본문 `ok\n`을 반환하며 `HEAD`도 지원합니다. 응답은 `Cache-Control: no-store`로 캐시하지 않습니다. 페이지 렌더링이나 Notion·Redis·Qdrant·임베딩 요청을 하지 않는 **liveness** 확인이며, 콘텐츠 초기화 완료나 모든 글·검색 기능의 정상 동작을 보장하지 않습니다. Compose와 entrypoint도 이 경로를 사용합니다. 리버스 프록시·CDN에서도 이 경로를 캐시하거나 홈페이지로 리다이렉트하지 않도록 설정하세요.
+
+```bash
+curl --fail --max-time 5 'https://<사이트-도메인>/health'
+```
 
 ### 기존 운영 GHCR 이미지 사용 (선택)
 
